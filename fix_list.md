@@ -122,10 +122,10 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
     *   [X] The mechanism for receiving, parsing, and dispatching specific SpacetimeDB table updates (which represent property changes, object creation/destruction) and server-to-client RPCs to the registered FFI callbacks (e.g., `invoke_on_property_updated`, `invoke_on_object_created` via `ffi.rs`) or client RPC handlers (`ClientModule/src/rpc/mod.rs::handle_server_call`) is largely missing or not apparent. This is essential for the client to reflect server state.
     *   [X] While `client.on_subscription_applied()` exists, the continuous processing of differential updates from subscriptions needs to be clearly implemented and tied to the FFI event callbacks.
 
-2.  [ ] **`ClientModule/src/object/mod.rs` - Server Interaction for Lifecycle:**
-    *   [ ] `create_object()`: Explicitly commented as placeholder: `// In a real implementation, we would request the server to create an object`. Currently only creates a local object with a temporary ID.
-    *   [ ] `destroy_object()`: Explicitly commented as placeholder: `// In a real implementation, we would request the server to destroy the object`. Currently only updates local state.
-    *   [ ] Missing logic for remapping temporary client-generated IDs to server-authoritative IDs upon creation confirmation.
+2.  [X] **`ClientModule/src/object/mod.rs` - Server Interaction for Lifecycle:**
+    *   [X] `create_object()`: Explicitly commented as placeholder: `// In a real implementation, we would request the server to create an object`. Currently only creates a local object with a temporary ID.
+    *   [X] `destroy_object()`: Explicitly commented as placeholder: `// In a real implementation, we would request the server to destroy the object`. Currently only updates local state.
+    *   [X] Missing logic for remapping temporary client-generated IDs to server-authoritative IDs upon creation confirmation.
 
 3.  [ ] **`ClientModule/src/rpc/mod.rs` - Sending RPCs to Server:**
     *   [ ] `call_server_function()` & `send_rpc_to_server()`: Explicitly commented as placeholders: `// In a real implementation, we would use spacetimedb_sdk to call a reducer`. Client-to-server RPCs are not functionally implemented to use the SpacetimeDB SDK.

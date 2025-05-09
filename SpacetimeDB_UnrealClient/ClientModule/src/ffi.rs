@@ -29,6 +29,7 @@ struct EventCallbacks {
     on_object_created: usize,
     on_object_destroyed: usize,
     on_error_occurred: usize,
+    on_object_id_remapped: usize,
 }
 
 /// Global storage for callback function pointers
@@ -91,6 +92,15 @@ fn invoke_on_object_destroyed(cb_ptr: usize, object_id: ObjectId) {
     }
 }
 
+/// Invoke the callback for when an object ID is remapped from temporary to server-assigned
+pub fn invoke_on_object_id_remapped(temp_id: ObjectId, server_id: ObjectId) {
+    let cb_ptr = CALLBACKS.lock().unwrap().on_object_id_remapped;
+    if cb_ptr != 0 {
+        let func: unsafe extern "C" fn(u64, u64) = unsafe { std::mem::transmute(cb_ptr) };
+        unsafe { func(temp_id, server_id) };
+    }
+}
+
 fn invoke_on_error(cb_ptr: usize, error_message: &str) {
     if cb_ptr != 0 {
         let func: unsafe extern "C" fn(*const c_char) = unsafe { std::mem::transmute(cb_ptr) };
@@ -121,6 +131,7 @@ mod bridge {
         on_object_created: usize,
         on_object_destroyed: usize,
         on_error_occurred: usize,
+        on_object_id_remapped: usize,
     }
 
     // Functions exposed from Rust to C++.
@@ -163,6 +174,7 @@ fn connect_to_server(config: bridge::ConnectionConfig, callbacks: bridge::EventC
         cb.on_object_created = callbacks.on_object_created;
         cb.on_object_destroyed = callbacks.on_object_destroyed;
         cb.on_error_occurred = callbacks.on_error_occurred;
+        cb.on_object_id_remapped = callbacks.on_object_id_remapped;
     }
     
     // Set up connection parameters

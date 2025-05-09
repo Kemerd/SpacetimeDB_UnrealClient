@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use stdb_shared::object::ObjectId;
 use stdb_shared::property::{PropertyType, PropertyValue, PropertyDefinition};
+use log::{debug, trace};
 
 // Import submodules
 pub mod serialization;
@@ -108,6 +109,25 @@ pub fn get_cached_property_value(
 pub fn clear_property_cache(object_id: ObjectId) {
     let mut cache = PROPERTY_CACHE.lock().unwrap();
     cache.remove(&object_id);
+}
+
+/// Clear property cache for an object (alias for clear_property_cache)
+pub fn clear_object_properties(object_id: ObjectId) {
+    clear_property_cache(object_id);
+}
+
+/// Remap property cache from a temporary ID to a server-assigned ID
+pub fn remap_property_cache(temp_id: ObjectId, server_id: ObjectId) {
+    let mut cache = PROPERTY_CACHE.lock().unwrap();
+    
+    // Get properties for the temporary object ID
+    if let Some(properties) = cache.remove(&temp_id) {
+        // Add properties with the new server ID
+        cache.insert(server_id, properties);
+        debug!("Remapped property cache from temporary ID {} to server ID {}", temp_id, server_id);
+    } else {
+        trace!("No properties found for temporary ID {} during remapping", temp_id);
+    }
 }
 
 /// Cache a property value from a JSON string
