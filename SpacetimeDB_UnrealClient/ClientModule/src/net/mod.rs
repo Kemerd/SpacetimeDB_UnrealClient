@@ -7,7 +7,9 @@ use stdb_shared::object::ObjectId;
 use spacetimedb_sdk::{
     Address, Client, Identity, ReducerCallError, subscribe::SubscriptionHandle, 
     reducer::{Status as ReducerStatus, StdReducerCallResult},
-    ClientState, disconnect::DisconnectReason
+    ClientState, disconnect::DisconnectReason,
+    table::{TableUpdate, TableOp, TableType},
+    Value as StdbValue,
 };
 
 use std::sync::{Arc, Mutex};
@@ -81,6 +83,47 @@ static ON_PROPERTY_UPDATED: Lazy<Mutex<Option<OnPropertyUpdatedFn>>> = Lazy::new
 static ON_OBJECT_CREATED: Lazy<Mutex<Option<OnObjectCreatedFn>>> = Lazy::new(|| Mutex::new(None));
 static ON_OBJECT_DESTROYED: Lazy<Mutex<Option<OnObjectDestroyedFn>>> = Lazy::new(|| Mutex::new(None));
 
+// Add interface for table update handlers
+pub struct TableHandler {
+    pub table_name: String,
+    pub handler: Box<dyn Fn(&TableUpdate) -> Result<(), String> + Send + 'static>,
+}
+
+// Registry for table update handlers
+static TABLE_HANDLERS: Lazy<Mutex<Vec<TableHandler>>> = 
+    Lazy::new(|| Mutex::new(Vec::new()));
+
+/// Register a handler for table updates
+pub fn register_table_handler(
+    table_name: &str, 
+    handler: impl Fn(&TableUpdate) -> Result<(), String> + Send + 'static
+) {
+    let mut handlers = TABLE_HANDLERS.lock().unwrap();
+    handlers.push(TableHandler {
+        table_name: table_name.to_string(),
+        handler: Box::new(handler),
+    });
+    debug!("Registered handler for table: {}", table_name);
+}
+
+/// Initialize default table handlers
+fn init_default_table_handlers() {
+    // Register handlers for core tables
+    register_table_handler("ObjectInstance", |update| {
+        handle_object_instance_update(update)
+    });
+    
+    register_table_handler("ObjectProperty", |update| {
+        handle_object_property_update(update)
+    });
+
+    register_table_handler("ObjectTransform", |update| {
+        handle_object_transform_update(update)
+    });
+    
+    info!("Default table handlers initialized");
+}
+
 /// Connect to the SpacetimeDB server
 pub fn connect(params: ConnectionParams) -> Result<(), String> {
     // Already connected or connecting
@@ -96,6 +139,9 @@ pub fn connect(params: ConnectionParams) -> Result<(), String> {
         let mut state = CONNECTION_STATE.lock().unwrap();
         *state = ConnectionState::Connecting;
     }
+    
+    // Initialize default table handlers
+    init_default_table_handlers();
     
     // Build connection URL
     let address = format!("{}/{}", params.host, params.database_name)
@@ -125,6 +171,8 @@ pub fn connect(params: ConnectionParams) -> Result<(), String> {
     client.on_subscription_applied(handle_subscription_applied);
     client.on_disconnect(handle_disconnect);
     client.on_subscription_failed(handle_subscription_failed);
+    client.on_table_update(handle_table_update);
+    client.on_reducer_call(handle_reducer_call);
     
     // Store client
     {
@@ -467,8 +515,28 @@ fn handle_client_state_change(state: ClientState) {
 fn handle_subscription_applied() {
     info!("SpacetimeDB subscription applied");
     
-    // This is called when the initial snapshot has been applied
-    // In your system, you might want to trigger initial state synchronization here
+    // Update connection state to Connected
+    {
+        let mut state = CONNECTION_STATE.lock().unwrap();
+        *state = ConnectionState::Connected;
+        
+        // Retrieve and set the client ID if available
+        if let Some(client) = &*CLIENT.lock().unwrap() {
+            if let Some(identity) = client.identity() {
+                let mut client_id = CLIENT_ID.lock().unwrap();
+                *client_id = identity.address().as_u64();
+                debug!("Client ID set: {}", *client_id);
+            }
+        }
+    }
+    
+    // Call the on_connected handler
+    if let Some(handler) = &*ON_CONNECTED.lock().unwrap() {
+        handler();
+    }
+    
+    // Now we would set up subscription handlers to process ongoing updates
+    // This is done via the register_table_handler function which has already set up handlers
 }
 
 /// Handle disconnect
@@ -521,42 +589,214 @@ fn handle_subscription_failed(error: String) {
     }
 }
 
+/// Handle a table update from SpacetimeDB
+fn handle_table_update(update: TableUpdate) {
+    debug!("Received table update: table={}", update.table_name());
+    
+    // Process the update using our registered handlers
+    if let Err(err) = process_table_update(&update) {
+        error!("Failed to process table update: {}", err);
+    }
+}
+
+/// Handle an RPC call from the server (reducer call)
+fn handle_reducer_call(func_name: String, arg_bytes: Vec<u8>, _caller_identity: Option<Identity>) {
+    debug!("Received reducer call from server: {}", func_name);
+    
+    // Basic approach: extract object ID from first arg if present
+    let object_id = match arg_bytes.len() {
+        0 => 0, // Default to 0 for no object
+        _ => {
+            // Try to extract ObjectId from first 8 bytes if present
+            if arg_bytes.len() >= 8 {
+                let mut bytes = [0u8; 8];
+                bytes.copy_from_slice(&arg_bytes[0..8]);
+                u64::from_le_bytes(bytes)
+            } else {
+                0
+            }
+        }
+    };
+    
+    // Try to convert remaining bytes to a JSON string
+    let args_json = if arg_bytes.len() > 8 {
+        match serde_json::from_slice(&arg_bytes[8..]) {
+            Ok(value) => serde_json::to_string(&value).unwrap_or_else(|_| "{}".to_string()),
+            Err(_) => "{}".to_string(),
+        }
+    } else {
+        "{}".to_string()
+    };
+    
+    // Call the RPC handler
+    match crate::rpc::handle_server_call(object_id, &func_name, &args_json) {
+        Ok(_) => debug!("Successfully handled server RPC: {}", func_name),
+        Err(err) => error!("Failed to handle server RPC {}: {}", func_name, err),
+    }
+}
+
 // ---- Table update handlers ----
 
-// These would be used to handle specific table updates from the server
-// based on your schema. For example:
-
-/* 
-/// Handle property updates from the server
-fn handle_property_update(update: &PropertyUpdate) {
-    if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
-        handler(
-            update.object_id,
-            &update.property_name,
-            &update.value_json
-        );
+/// Process a table update from SpacetimeDB
+pub fn process_table_update(update: &TableUpdate) -> Result<(), String> {
+    let table_name = update.table_name();
+    debug!("Processing update for table: {}", table_name);
+    
+    // Look for registered handlers
+    let handlers = TABLE_HANDLERS.lock().unwrap();
+    
+    let mut handled = false;
+    for handler in handlers.iter() {
+        if handler.table_name == table_name {
+            if let Err(e) = (handler.handler)(update) {
+                error!("Error handling update for table {}: {}", table_name, e);
+                return Err(e);
+            }
+            handled = true;
+        }
     }
+    
+    if !handled {
+        debug!("No handler registered for table: {}", table_name);
+    }
+    
+    Ok(())
 }
 
-/// Handle object created events
-fn handle_object_created(obj: &ObjectInstance) {
-    if let Some(handler) = &*ON_OBJECT_CREATED.lock().unwrap() {
-        // Serialize initial properties to JSON
-        let props_json = serde_json::to_string(&obj.initial_properties)
-            .unwrap_or_else(|_| "{}".to_string());
+/// Handle updates to the ObjectInstance table
+fn handle_object_instance_update(update: &TableUpdate) -> Result<(), String> {
+    match update.op() {
+        TableOp::Insert | TableOp::Update => {
+            // Extract object data
+            let mut row_iter = update.iter();
+            if let Some(row) = row_iter.next() {
+                // Extract object ID
+                let object_id = match row.get("id") {
+                    Some(StdbValue::U64(id)) => *id,
+                    _ => return Err("Missing or invalid object ID".to_string()),
+                };
+                
+                // Extract class name
+                let class_name = match row.get("class_name") {
+                    Some(StdbValue::String(name)) => name.clone(),
+                    _ => return Err("Missing or invalid class name".to_string()),
+                };
+                
+                // Extract lifecycle state
+                let state = match row.get("state") {
+                    Some(StdbValue::U8(state)) => *state,
+                    _ => 0, // Default to 0 (Initializing) if not found
+                };
+                
+                if state == 3 { // ObjectLifecycleState::Destroyed
+                    // Object is destroyed, trigger destruction handler
+                    if let Some(handler) = &*ON_OBJECT_DESTROYED.lock().unwrap() {
+                        handler(object_id);
+                    }
+                } else if update.op() == TableOp::Insert {
+                    // New object, trigger creation handler
+                    if let Some(handler) = &*ON_OBJECT_CREATED.lock().unwrap() {
+                        // For now, use empty JSON for initial properties
+                        // In a real implementation, we would query initial properties
+                        handler(object_id, &class_name, "{}");
+                    }
+                }
+            }
+        },
+        TableOp::Delete => {
+            // Find the object ID and trigger destruction
+            let mut row_iter = update.iter();
+            if let Some(row) = row_iter.next() {
+                if let Some(StdbValue::U64(object_id)) = row.get("id") {
+                    if let Some(handler) = &*ON_OBJECT_DESTROYED.lock().unwrap() {
+                        handler(*object_id);
+                    }
+                }
+            }
+        },
+    }
+    
+    Ok(())
+}
+
+/// Handle updates to the ObjectProperty table
+fn handle_object_property_update(update: &TableUpdate) -> Result<(), String> {
+    if update.op() != TableOp::Delete {
+        // Extract property data
+        let mut row_iter = update.iter();
+        if let Some(row) = row_iter.next() {
+            // Extract object ID
+            let object_id = match row.get("object_id") {
+                Some(StdbValue::U64(id)) => *id,
+                _ => return Err("Missing or invalid object ID".to_string()),
+            };
             
-        handler(
-            obj.id,
-            &obj.class_name,
-            &props_json
-        );
+            // Extract property name
+            let property_name = match row.get("name") {
+                Some(StdbValue::String(name)) => name.clone(),
+                _ => return Err("Missing or invalid property name".to_string()),
+            };
+            
+            // Extract property value
+            let value_json = match row.get("value") {
+                Some(value) => serde_json::to_string(value)
+                    .unwrap_or_else(|_| "null".to_string()),
+                None => "null".to_string(),
+            };
+            
+            // Trigger property updated handler
+            if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
+                handler(object_id, &property_name, &value_json);
+            }
+        }
     }
+    
+    Ok(())
 }
 
-/// Handle object destroyed events
-fn handle_object_destroyed(obj_id: ObjectId) {
-    if let Some(handler) = &*ON_OBJECT_DESTROYED.lock().unwrap() {
-        handler(obj_id);
+/// Handle updates to the ObjectTransform table
+fn handle_object_transform_update(update: &TableUpdate) -> Result<(), String> {
+    if update.op() != TableOp::Delete {
+        // Extract transform data
+        let mut row_iter = update.iter();
+        if let Some(row) = row_iter.next() {
+            // Extract object ID
+            let object_id = match row.get("object_id") {
+                Some(StdbValue::U64(id)) => *id,
+                _ => return Err("Missing or invalid object ID".to_string()),
+            };
+            
+            // Process location if present
+            if let Some(location) = row.get("location") {
+                let location_json = serde_json::to_string(location)
+                    .unwrap_or_else(|_| "null".to_string());
+                
+                if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
+                    handler(object_id, "Location", &location_json);
+                }
+            }
+            
+            // Process rotation if present
+            if let Some(rotation) = row.get("rotation") {
+                let rotation_json = serde_json::to_string(rotation)
+                    .unwrap_or_else(|_| "null".to_string());
+                
+                if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
+                    handler(object_id, "Rotation", &rotation_json);
+                }
+            }
+            
+            // Process scale if present
+            if let Some(scale) = row.get("scale") {
+                let scale_json = serde_json::to_string(scale)
+                    .unwrap_or_else(|_| "null".to_string());
+                
+                if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
+                    handler(object_id, "Scale", &scale_json);
+                }
+            }
+        }
     }
-}
-*/ 
+    
+    Ok(())
+} 
