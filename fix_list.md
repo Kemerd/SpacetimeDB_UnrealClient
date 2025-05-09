@@ -20,10 +20,10 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
     *   [X] Missing logic to dispatch incoming RPC calls from clients to registered Rust functions.
     *   [X] Missing implementation for sending RPCs from server to client(s) (Multicast, OwnerOnly).
 
-3.  [ ] **`ServerModule/src/relevancy/` is empty:**
-    *   [ ] Missing all logic for network relevancy determination (distance-based, zone-based, owner-based, etc.).
-    *   [ ] Missing management of `RelevancySettings`, `ZoneMembership` from `SharedModule`.
-    *   [ ] No integration with property replication to send updates only to relevant clients.
+3.  [X] **`ServerModule/src/relevancy/` is empty:**
+    *   [X] Missing all logic for network relevancy determination (distance-based, zone-based, owner-based, etc.).
+    *   [X] Missing management of `RelevancySettings`, `ZoneMembership` from `SharedModule`.
+    *   [X] No integration with property replication to send updates only to relevant clients.
 
 ## II. Incomplete Server-Side Implementations:
 
@@ -148,15 +148,4 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
 ## VII. FFI Layer (`ClientModule/src/ffi.rs`):
 
 1.  [ ] **Completeness of Implementations:**
-    *   [ ] While the FFI bridge definition in `ffi.rs` looks reasonable, the actual Rust implementations of many of the `extern "Rust"` functions (e.g., `set_property`, `get_property`, `create_object`, `destroy_object`, `call_server_function`) rely heavily on the underlying client modules (`object`, `property`, `rpc`, `net`). Given the incompleteness of those modules, these FFI functions are also effectively incomplete in their ability to perform their described actions with a live server.
-    *   [ ] **FIX:** Ensure all FFI functions fully implement their described functionality by correctly calling and interacting with completed versions of the `net`, `object`, `property`, and `rpc` client sub-modules.
-
-## VIII. General Code Comments & Cleanup:
-
-1.  [ ] **Comment in `ClientModule/src/lib.rs` regarding `ffi` module:**
-    *   [ ] `// Internal module for FFI (will be extracted to ffi.rs later)` - This comment is outdated as `ffi.rs` exists as a separate file.
-    *   [ ] **FIX:** Remove or update the comment.
-
-2.  [ ] **Typo/Clarity in `ClientModule/src/actor/mod.rs`:**
-    *   [ ] `crate::property::clear_object_cache(actor_id);` - The function in `ClientModule/src/property/mod.rs` is named `clear_property_cache`.
-    *   [ ] **FIX:** Correct the function call to `clear_property_cache` or clarify if `clear_object_cache` is a different intended function that's missing. 
+    *   [ ] While the FFI bridge definition in `ffi.rs` looks reasonable, the actual Rust implementations of many of the `extern "Rust"` functions (e.g., `

@@ -7,6 +7,7 @@ This plugin provides integration between Unreal Engine and SpacetimeDB, allowing
 - **Property System**: Robust property management with automatic serialization and synchronization
 - **Object Lifecycle Management**: Complete lifecycle tracking for spawned objects
 - **RPC System**: Bidirectional remote procedure calls between client and server
+- **Network Relevancy**: Optimization system to send updates only to clients that need them
 - **Cross-platform Support**: Works on Windows, macOS, and Linux
 - **Seamless Integration**: Connect to SpacetimeDB instances with minimal code
 - **High Performance**: Optimized Rust core with minimal overhead
@@ -25,6 +26,7 @@ The plugin uses a modular, layered architecture:
    - **Property System**: Handles property types, serialization, and synchronization
    - **Network Layer**: Manages connections, subscriptions, and data transfer
    - **RPC System**: Facilitates remote procedure calls between client and server
+   - **Relevancy System**: Determines which objects are relevant to which clients
 
 3. **Integration Layers**:
    - **FFI Layer**: C++ bindings generated via CXX that bridge Rust and C++
@@ -66,6 +68,19 @@ The RPC module enables bidirectional function calls between client and server:
 - JSON-based argument serialization and transport
 - Comprehensive error handling and logging
 - Type-safe function registration and invocation
+
+### Network Relevancy System
+The relevancy system optimizes network usage by controlling which objects and property updates are sent to each client:
+- Multiple relevancy strategies:
+  - **Always Relevant**: Objects that all clients need to know about (game state, global actors)
+  - **Owner-Only**: Objects that only the owner client needs (player-specific inventory, abilities)
+  - **Distance-Based**: Objects only relevant to clients within a certain distance (spatial optimization)
+  - **Zone-Based**: Objects only relevant to clients in the same "zone" (rooms, areas, levels)
+  - **Custom**: Custom logic for specialized relevancy determination
+- Update frequency control based on priority and importance
+- Automatic integration with property replication system
+- Zone management for logical grouping of objects and clients
+- Distance-based relevancy using spatial partitioning for efficiency
 
 ## Prerequisites
 - Unreal Engine 5.3+
@@ -245,6 +260,30 @@ SpacetimeDB->OnActorSpawned.AddDynamic(this, &AMyGameMode::HandleActorSpawned);
 SpacetimeDB->OnActorDestroyed.AddDynamic(this, &AMyGameMode::HandleActorDestroyed);
 ```
 
+### Managing Network Relevancy
+
+```cpp
+// Set relevancy settings for an actor
+FRelevancySettings Settings;
+Settings.Level = ERelevancyLevel::DistanceBased;
+Settings.MaxDistance = 1000.0f;
+Settings.UpdateFrequency = EUpdateFrequency::Medium;
+Settings.Priority = ENetworkPriority::Normal;
+SpacetimeDB->SetActorRelevancy(ActorID, Settings);
+
+// Create a zone
+uint32 ZoneID = SpacetimeDB->CreateZone("Dungeon_Level_1", true);
+
+// Add actors to a zone
+SpacetimeDB->AddActorToZone(ActorID, ZoneID);
+
+// Add player to a zone
+SpacetimeDB->AddClientToZone(ClientID, ZoneID);
+
+// Remove actor from a zone
+SpacetimeDB->RemoveActorFromZone(ActorID, ZoneID);
+```
+
 ## Configuration
 The following settings can be configured in your project's settings:
 - `SPACETIME_HOST`: The SpacetimeDB server address
@@ -252,6 +291,9 @@ The following settings can be configured in your project's settings:
 - `SPACETIME_AUTH_TOKEN`: Authentication token (if required)
 - `SPACETIME_MAX_OBJECTS`: Maximum number of tracked objects (default: 100,000)
 - `SPACETIME_REPLICATION_INTERVAL`: Property replication interval in seconds (default: 0.1)
+- `SPACETIME_DEFAULT_RELEVANCY`: Default relevancy level for new objects (default: AlwaysRelevant)
+- `SPACETIME_MAX_RELEVANCY_DISTANCE`: Maximum distance for distance-based relevancy (default: 10000.0)
+- `SPACETIME_ZONE_LIMIT`: Maximum number of zones (default: 1000)
 
 ## Troubleshooting
 
