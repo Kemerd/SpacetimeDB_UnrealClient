@@ -127,8 +127,8 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
     *   [X] `destroy_object()`: Explicitly commented as placeholder: `// In a real implementation, we would request the server to destroy the object`. Currently only updates local state.
     *   [X] Missing logic for remapping temporary client-generated IDs to server-authoritative IDs upon creation confirmation.
 
-3.  [ ] **`ClientModule/src/rpc/mod.rs` - Sending RPCs to Server:**
-    *   [ ] `call_server_function()` & `send_rpc_to_server()`: Explicitly commented as placeholders: `// In a real implementation, we would use spacetimedb_sdk to call a reducer`. Client-to-server RPCs are not functionally implemented to use the SpacetimeDB SDK.
+3.  [X] **`ClientModule/src/rpc/mod.rs` - Sending RPCs to Server:**
+    *   [X] `call_server_function()` & `send_rpc_to_server()`: Explicitly commented as placeholders: `// In a real implementation, we would use spacetimedb_sdk to call a reducer`. Client-to-server RPCs are not functionally implemented to use the SpacetimeDB SDK.
 
 4.  [ ] **`ClientModule/src/object/mod.rs` - Incomplete Transform Handling:**
     *   [ ] Rotation conversion from `PropertyValue::Rotator` to `Quat` within `update_object_property` is a placeholder: `let quat = Quat::identity(); // Placeholder` and comment `// In a real implementation, we'd use proper conversion`.

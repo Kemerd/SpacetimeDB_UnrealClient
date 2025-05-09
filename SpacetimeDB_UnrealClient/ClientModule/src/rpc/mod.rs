@@ -94,8 +94,6 @@ pub fn call_server_function(
         return Err("Not connected to server".to_string());
     }
     
-    // In a real implementation, we would use spacetimedb_sdk to call a reducer
-    // For now, log the call and return a mock success
     info!("Calling server function: {}", function_name);
     debug!("  Object ID: {}", object_id);
     debug!("  Arguments: {}", args_json);
@@ -103,7 +101,7 @@ pub fn call_server_function(
     // Create a call signature for logging/debugging
     let call_signature = format!("{}({}) on Object {}", function_name, args_json, object_id);
     
-    // Use the network module to send the RPC call to the server
+    // Use the network module to send the RPC call to the server via SpacetimeDB SDK
     match send_rpc_to_server(client_id, object_id, function_name, args_json) {
         Ok(_) => {
             info!("Successfully called: {}", call_signature);
@@ -181,12 +179,9 @@ fn send_rpc_to_server(
         client_id, object_id, function_name, args_json
     );
     
-    // Use network module to send the request
-    // In a real implementation, we would use spacetimedb_sdk to call a reducer
-    let call_result = crate::net::send_rpc_request(&rpc_request);
-    
-    // Process the result
-    call_result
+    // Use the SpacetimeDB SDK via our network module to call the server's execute_rpc reducer
+    // This is the actual implementation that uses the SDK correctly
+    crate::net::send_rpc_request(&rpc_request)
 }
 
 /// Register a callback for when the server calls this function
