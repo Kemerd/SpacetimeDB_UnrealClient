@@ -1,0 +1,15 @@
+[package]
+name = "spacetimedb-unreal-client"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "spacetimedb_client"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+cxx = "1.0"
+spacetimedb-sdk = "0.7"
+
+[build-dependencies]
+cxx-build = "1.0" 

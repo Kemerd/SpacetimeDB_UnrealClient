@@ -1,0 +1,24 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "1.0",
+    "FriendlyName": "SpacetimeDB Unreal Client",
+    "Description": "Unreal Engine client integration for SpacetimeDB",
+    "Category": "Networking",
+    "CreatedBy": "SpacetimeDB",
+    "CreatedByURL": "https://spacetimedb.com",
+    "DocsURL": "",
+    "MarketplaceURL": "",
+    "SupportURL": "",
+    "CanContainContent": true,
+    "IsBetaVersion": true,
+    "IsExperimentalVersion": false,
+    "Installed": false,
+    "Modules": [
+        {
+            "Name": "SpacetimeDB_UnrealClient",
+            "Type": "Runtime",
+            "LoadingPhase": "Default"
+        }
+    ]
+} 
