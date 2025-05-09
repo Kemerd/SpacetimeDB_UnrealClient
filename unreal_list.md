@@ -14,12 +14,12 @@ This document outlines the tasks required on the Unreal Engine C++ side to fully
     *   [X] Ensure `SpacetimeDB_UnrealClient.Build.cs` correctly links against the compiled Rust `ClientModule` library (`stdb_client.lib` or `libstdb_client.a`).
     *   [X] Manage include paths for the CXX-generated C++ header for the FFI bridge (`ffi.rs` output).
 
-2.  [ ] **FFI Initialization & Shutdown:**
-    *   [ ] In a central Unreal subsystem (e.g., `USpacetimeDBSubsystem`):
-        *   [ ] On subsystem initialization, call the Rust FFI function `connect_to_server`, providing:
-            *   [ ] `ConnectionConfig` (Host, DB Name, Auth Token - likely from Unreal project settings or runtime configuration).
-            *   [ ] `EventCallbackPointers`: Pointers to static C++ wrapper functions that will handle callbacks from Rust.
-        *   [ ] On subsystem deinitialization, call the Rust FFI function `disconnect_from_server()`.
+2.  [X] **FFI Initialization & Shutdown:**
+    *   [X] In a central Unreal subsystem (e.g., `USpacetimeDBSubsystem`):
+        *   [X] On subsystem initialization, call the Rust FFI function `connect_to_server`, providing:
+            *   [X] `ConnectionConfig` (Host, DB Name, Auth Token - likely from Unreal project settings or runtime configuration).
+            *   [X] `EventCallbackPointers`: Pointers to static C++ wrapper functions that will handle callbacks from Rust.
+        *   [X] On subsystem deinitialization, call the Rust FFI function `disconnect_from_server()`.
 
 3.  [ ] **Implement C++ Callback Wrappers:**
     *   [ ] Create static C++ functions matching the signatures expected by Rust for each callback defined in `ClientModule/src/ffi.rs` (`EventCallbackPointers`). These functions will be passed to Rust via FFI.
