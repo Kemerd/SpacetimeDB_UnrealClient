@@ -3,7 +3,8 @@
 //! Provides functions for spawning and initializing actors in the game world.
 
 use spacetimedb::{ReducerContext, Identity};
-use crate::actor::{ActorId, ActorInfo, ActorLifecycleState, ActorTransform};
+use crate::actor::ActorId;
+use crate::object::{ObjectInstance, ObjectTransform, ObjectProperty, ObjectLifecycleState};
 
 /// Counter for generating unique actor IDs
 static mut NEXT_ACTOR_ID: ActorId = 1000; // Start at 1000 to leave room for special IDs
@@ -39,20 +40,23 @@ pub fn spawn_actor(
     let actor_id = generate_actor_id();
     log::info!("Spawning actor: class={}, name={}, id={}", class_id, actor_name, actor_id);
     
-    // Create actor base info
-    ctx.db.actor_info().insert(ActorInfo {
-        actor_id,
+    // Create actor in the object_instance table with is_actor=true
+    ctx.db.object_instance().insert(ObjectInstance {
+        object_id: actor_id,
         class_id,
-        actor_name,
+        object_name: actor_name,
         owner_identity: ctx.sender, // Set the spawning client as owner
-        state: ActorLifecycleState::Spawning,
+        outer_object_id: None,
+        state: ObjectLifecycleState::Spawning,
         created_at: ctx.timestamp,
+        is_actor: true,
         hidden: false,
+        destroyed_at: None,
     });
     
     // Set transform
-    ctx.db.actor_transform().insert(ActorTransform {
-        actor_id,
+    ctx.db.object_transform().insert(ObjectTransform {
+        object_id: actor_id,
         pos_x: position.0,
         pos_y: position.1,
         pos_z: position.2,
@@ -74,9 +78,9 @@ pub fn spawn_actor(
     initialize_default_components(ctx, actor_id, class_id);
     
     // Mark actor as active
-    if let Some(mut actor) = ctx.db.actor_info().filter_by_actor_id(&actor_id).first() {
-        actor.state = ActorLifecycleState::Active;
-        ctx.db.actor_info().update(&actor);
+    if let Some(mut actor) = ctx.db.object_instance().filter_by_object_id(&actor_id).first() {
+        actor.state = ObjectLifecycleState::Active;
+        ctx.db.object_instance().update(&actor);
     }
     
     // Return the created actor ID
@@ -104,20 +108,23 @@ pub fn spawn_system_actor(
     let actor_id = generate_actor_id();
     log::info!("Spawning system actor: class={}, name={}, id={}", class_id, actor_name, actor_id);
     
-    // Create actor base info (with no owner)
-    ctx.db.actor_info().insert(ActorInfo {
-        actor_id,
+    // Create actor in the object_instance table with is_actor=true and no owner
+    ctx.db.object_instance().insert(ObjectInstance {
+        object_id: actor_id,
         class_id,
-        actor_name,
+        object_name: actor_name,
         owner_identity: None, // System actor has no owner
-        state: ActorLifecycleState::Spawning,
+        outer_object_id: None,
+        state: ObjectLifecycleState::Spawning,
         created_at: ctx.timestamp,
+        is_actor: true,
         hidden: false,
+        destroyed_at: None,
     });
     
     // Set transform
-    ctx.db.actor_transform().insert(ActorTransform {
-        actor_id,
+    ctx.db.object_transform().insert(ObjectTransform {
+        object_id: actor_id,
         pos_x: position.0,
         pos_y: position.1,
         pos_z: position.2,
@@ -139,9 +146,9 @@ pub fn spawn_system_actor(
     initialize_default_components(ctx, actor_id, class_id);
     
     // Mark actor as active
-    if let Some(mut actor) = ctx.db.actor_info().filter_by_actor_id(&actor_id).first() {
-        actor.state = ActorLifecycleState::Active;
-        ctx.db.actor_info().update(&actor);
+    if let Some(mut actor) = ctx.db.object_instance().filter_by_object_id(&actor_id).first() {
+        actor.state = ObjectLifecycleState::Active;
+        ctx.db.object_instance().update(&actor);
     }
     
     // Return the created actor ID
@@ -171,20 +178,23 @@ pub fn spawn_player_actor(
     log::info!("Spawning player actor: class={}, name={}, id={}, player={:?}", 
                class_id, actor_name, actor_id, player_identity);
     
-    // Create actor base info with the specified player as owner
-    ctx.db.actor_info().insert(ActorInfo {
-        actor_id,
+    // Create actor in the object_instance table with is_actor=true and the specified player as owner
+    ctx.db.object_instance().insert(ObjectInstance {
+        object_id: actor_id,
         class_id,
-        actor_name,
+        object_name: actor_name,
         owner_identity: Some(player_identity),
-        state: ActorLifecycleState::Spawning,
+        outer_object_id: None,
+        state: ObjectLifecycleState::Spawning,
         created_at: ctx.timestamp,
+        is_actor: true,
         hidden: false,
+        destroyed_at: None,
     });
     
     // Set transform
-    ctx.db.actor_transform().insert(ActorTransform {
-        actor_id,
+    ctx.db.object_transform().insert(ObjectTransform {
+        object_id: actor_id,
         pos_x: position.0,
         pos_y: position.1,
         pos_z: position.2,
@@ -206,9 +216,9 @@ pub fn spawn_player_actor(
     initialize_default_components(ctx, actor_id, class_id);
     
     // Mark actor as active
-    if let Some(mut actor) = ctx.db.actor_info().filter_by_actor_id(&actor_id).first() {
-        actor.state = ActorLifecycleState::Active;
-        ctx.db.actor_info().update(&actor);
+    if let Some(mut actor) = ctx.db.object_instance().filter_by_object_id(&actor_id).first() {
+        actor.state = ObjectLifecycleState::Active;
+        ctx.db.object_instance().update(&actor);
     }
     
     // Return the created actor ID
@@ -222,12 +232,13 @@ fn set_initial_properties(ctx: &ReducerContext, actor_id: ActorId, properties: V
         // (For simplicity, we're using strings here, but in a real implementation you'd parse based on property type)
         let prop_value = crate::property::conversion::string_to_property_value(&value);
         
-        // Insert the property
-        ctx.db.actor_property().insert(crate::actor::ActorProperty {
-            actor_id,
+        // Insert the property in the object_property table
+        ctx.db.object_property().insert(ObjectProperty {
+            object_id: actor_id,
             property_name: name,
             value: prop_value,
             last_updated: ctx.timestamp,
+            replicated: true, // Assume properties are replicated by default
         });
     }
 }

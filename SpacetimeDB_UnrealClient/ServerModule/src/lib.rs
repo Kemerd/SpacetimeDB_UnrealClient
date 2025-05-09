@@ -23,8 +23,9 @@ pub mod rpc;         // Remote procedure calls
 pub mod relevancy;   // Network relevancy
 
 // Re-export commonly used items
-pub use object::{ObjectInstance, ObjectClass, ObjectId, ObjectLifecycleState};
-pub use actor::{ActorInfo, ActorClass};
+pub use object::{ObjectInstance, ObjectClass, ObjectId, ObjectTransform, ObjectComponent, ObjectProperty};
+pub use stdb_shared::lifecycle::ObjectLifecycleState;
+pub use actor::ActorId;  // ActorId is now a type alias for ObjectId
 pub use property::{PropertyType, PropertyValue};
 pub use connection::{ClientConnection, ConnectionState};
 pub use rpc::{RpcType, RpcCall};

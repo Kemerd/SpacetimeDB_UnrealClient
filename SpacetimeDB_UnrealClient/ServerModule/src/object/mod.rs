@@ -39,6 +39,12 @@ pub struct ObjectClass {
     
     /// Whether this class represents a Component
     pub is_component: bool,
+    
+    /// Whether actors of this class are relevant to all clients (static relevancy)
+    pub always_relevant: bool,
+    
+    /// Whether this actor type needs full transform updates
+    pub requires_transform_updates: bool,
 }
 
 /// Core table for UObject instance data
@@ -65,6 +71,16 @@ pub struct ObjectInstance {
     
     /// Current object lifecycle state
     pub state: ObjectLifecycleState,
+    
+    /// Whether this object is an actor (vs a pure UObject)
+    /// This allows efficient filtering of actors vs non-actor objects
+    pub is_actor: bool,
+    
+    /// Whether this actor is hidden (only relevant if is_actor is true)
+    pub hidden: bool,
+    
+    /// When the object was destroyed (if it has been)
+    pub destroyed_at: Option<u64>,
 }
 
 /// Object property values (for dynamic properties)
@@ -122,4 +138,48 @@ pub struct ObjectReference {
     
     /// Target object being referenced
     pub target_object_id: ObjectId,
+}
+
+/// Represents the actor's position, rotation, and scale
+#[spacetimedb::table(name = object_transform, public)]
+pub struct ObjectTransform {
+    /// Object this transform belongs to
+    #[primarykey]
+    pub object_id: ObjectId,
+    
+    // Position
+    pub pos_x: f32,
+    pub pos_y: f32,
+    pub pos_z: f32,
+    
+    // Rotation (quaternion)
+    pub rot_x: f32,
+    pub rot_y: f32,
+    pub rot_z: f32,
+    pub rot_w: f32,
+    
+    // Scale
+    pub scale_x: f32,
+    pub scale_y: f32,
+    pub scale_z: f32,
+}
+
+/// Object component instances
+#[spacetimedb::table(name = object_component, public)]
+pub struct ObjectComponent {
+    /// Unique ID of this component instance
+    #[primarykey]
+    pub component_id: ObjectId,
+    
+    /// Object that owns this component
+    pub owner_object_id: ObjectId,
+    
+    /// Component class type
+    pub component_class_id: u32,
+    
+    /// Component instance name
+    pub component_name: String,
+    
+    /// Whether this component is active
+    pub is_active: bool,
 } 

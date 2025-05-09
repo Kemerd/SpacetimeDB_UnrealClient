@@ -2,11 +2,13 @@
 //! 
 //! Handles actor lifecycle (spawning, destruction, registration) and core actor data structures.
 //! This module provides the foundation for replicating Unreal Engine actors in SpacetimeDB.
+//! 
+//! This module now uses the consolidated object tables rather than maintaining separate actor-specific tables.
 
 use spacetimedb::{ReducerContext, Table, Identity};
-use crate::property::{PropertyType, PropertyValue};
-use stdb_shared::lifecycle::ActorLifecycleState;
-use stdb_shared::object::ObjectId;
+use stdb_shared::property::{PropertyType, PropertyValue};
+use stdb_shared::lifecycle::ObjectLifecycleState;
+use crate::object::{ObjectId, ObjectInstance, ObjectTransform, ObjectProperty, ObjectComponent, ObjectClass};
 
 // Submodules
 pub mod init;       // Actor world initialization
@@ -14,113 +16,67 @@ pub mod spawn;      // Actor spawning and creation
 pub mod lifecycle;  // Actor lifecycle management
 pub mod transform;  // Actor transform handling (position, rotation, scale)
 
-/// Represents a class of Unreal actors (equivalent to UClass)
-#[spacetimedb::table(name = actor_class, public)]
-pub struct ActorClass {
-    /// Unique identifier for the class
-    #[primarykey]
-    pub class_id: u32,
-    
-    /// Name of the actor class (e.g., "Character", "PlayerController")
-    pub class_name: String,
-    
-    /// Path to the actor class in Unreal's asset system
-    pub class_path: String,
-    
-    /// Whether this actor class can be network-replicated
-    pub replicates: bool,
-    
-    /// Whether actor of this class are relevant to all clients (static relevancy)
-    pub always_relevant: bool,
-    
-    /// Whether this actor type needs full transform updates
-    pub requires_transform_updates: bool,
+// Export the ObjectId type as ActorId for backward compatibility and clarity
+// This maintains the strong typing that distinguishes actors from other objects
+// while using the shared object ID space
+pub type ActorId = ObjectId;
+
+/// Quick helper function to validate that an object is an actor
+pub fn is_valid_actor(ctx: &ReducerContext, actor_id: ActorId) -> bool {
+    ctx.db.object_instance()
+        .filter_by_object_id(&actor_id)
+        .first()
+        .map(|obj| obj.is_actor)
+        .unwrap_or(false)
 }
 
-/// Core table for actor instance data
-#[spacetimedb::table(name = actor_info, public)]
-pub struct ActorInfo {
-    /// Unique identifier for this actor instance
-    #[primarykey]
-    pub actor_id: ObjectId,
+/// Helper function to get an actor's transform
+pub fn get_actor_transform(ctx: &ReducerContext, actor_id: ActorId) -> Option<ObjectTransform> {
+    if !is_valid_actor(ctx, actor_id) {
+        return None;
+    }
     
-    /// The class this actor belongs to
-    pub class_id: u32,
-    
-    /// Actor instance name (if any)
-    pub actor_name: String,
-    
-    /// Owner of this actor (if any)
-    pub owner_identity: Option<Identity>,
-    
-    /// Current lifecycle state
-    pub state: ActorLifecycleState,
-    
-    /// When the actor was created
-    pub created_at: u64,
-    
-    /// Whether this actor is hidden
-    pub hidden: bool,
+    ctx.db.object_transform()
+        .filter_by_object_id(&actor_id)
+        .first()
+        .cloned()
 }
 
-/// Represents the actor's position, rotation, and scale
-#[spacetimedb::table(name = actor_transform, public)]
-pub struct ActorTransform {
-    /// Actor this transform belongs to
-    #[primarykey]
-    pub actor_id: ObjectId,
+/// Helper function to get all components for an actor
+pub fn get_actor_components(ctx: &ReducerContext, actor_id: ActorId) -> Vec<ObjectComponent> {
+    if !is_valid_actor(ctx, actor_id) {
+        return Vec::new();
+    }
     
-    // Position
-    pub pos_x: f32,
-    pub pos_y: f32,
-    pub pos_z: f32,
-    
-    // Rotation (quaternion)
-    pub rot_x: f32,
-    pub rot_y: f32,
-    pub rot_z: f32,
-    pub rot_w: f32,
-    
-    // Scale
-    pub scale_x: f32,
-    pub scale_y: f32,
-    pub scale_z: f32,
+    ctx.db.object_component()
+        .filter_by_owner_object_id(&actor_id)
+        .collect::<Vec<_>>()
 }
 
-/// Actor property values (for dynamic properties not in schema)
-#[spacetimedb::table(name = actor_property, public)]
-pub struct ActorProperty {
-    /// Actor this property belongs to
-    #[primarykey]
-    pub actor_id: ObjectId,
+/// Helper function to get actor properties
+pub fn get_actor_properties(ctx: &ReducerContext, actor_id: ActorId) -> Vec<ObjectProperty> {
+    if !is_valid_actor(ctx, actor_id) {
+        return Vec::new();
+    }
     
-    /// Property name
-    #[primarykey]
-    pub property_name: String,
-    
-    /// Property value
-    pub value: PropertyValue,
-    
-    /// Last update timestamp
-    pub last_updated: u64,
+    ctx.db.object_property()
+        .filter_by_object_id(&actor_id)
+        .collect::<Vec<_>>()
 }
 
-/// Actor component instances
-#[spacetimedb::table(name = actor_component, public)]
-pub struct ActorComponent {
-    /// Unique ID of this component instance
-    #[primarykey]
-    pub component_id: u64,
+/// Helper function to get actor info
+pub fn get_actor_info(ctx: &ReducerContext, actor_id: ActorId) -> Option<ObjectInstance> {
+    let obj = ctx.db.object_instance()
+        .filter_by_object_id(&actor_id)
+        .first()
+        .cloned();
     
-    /// Actor that owns this component
-    pub owner_actor_id: ObjectId,
+    // Verify this is an actor, not just any object
+    if let Some(obj) = obj {
+        if obj.is_actor {
+            return Some(obj);
+        }
+    }
     
-    /// Component class type
-    pub component_class_id: u32,
-    
-    /// Component instance name
-    pub component_name: String,
-    
-    /// Whether this component is active
-    pub is_active: bool,
+    None
 } 

@@ -3,14 +3,22 @@
 //! Handles actor lifecycle operations like destruction and state transitions.
 
 use spacetimedb::ReducerContext;
-use crate::actor::{ActorId, ActorLifecycleState};
+use crate::actor::ActorId;
+use crate::object::{ObjectInstance, ObjectLifecycleState};
 
 /// Marks an actor for destruction
 #[spacetimedb::reducer]
 pub fn destroy_actor(ctx: &ReducerContext, actor_id: ActorId) -> bool {
     // Check if actor exists
-    let actor = match ctx.db.actor_info().filter_by_actor_id(&actor_id).first() {
-        Some(actor) => actor,
+    let actor = match ctx.db.object_instance().filter_by_object_id(&actor_id).first() {
+        Some(actor) => {
+            // Verify it's actually an actor
+            if !actor.is_actor {
+                log::warn!("Attempted to destroy object {} as an actor, but it's not an actor", actor_id);
+                return false;
+            }
+            actor
+        },
         None => {
             log::warn!("Attempted to destroy non-existent actor: {}", actor_id);
             return false;
@@ -25,10 +33,10 @@ pub fn destroy_actor(ctx: &ReducerContext, actor_id: ActorId) -> bool {
     
     // Mark as pending destroy
     let mut updated_actor = actor.clone();
-    updated_actor.state = ActorLifecycleState::PendingDestroy;
+    updated_actor.state = ObjectLifecycleState::PendingDestroy;
     // Record the destruction timestamp
     updated_actor.destroyed_at = Some(ctx.timestamp);
-    ctx.db.actor_info().update(&updated_actor);
+    ctx.db.object_instance().update(&updated_actor);
     
     log::info!("Actor {} marked for destruction by {:?}", actor_id, ctx.sender);
     
@@ -48,11 +56,17 @@ pub fn force_destroy_actor(ctx: &ReducerContext, actor_id: ActorId) -> bool {
     }
     
     // Check if actor exists
-    if let Some(mut actor) = ctx.db.actor_info().filter_by_actor_id(&actor_id).first() {
+    if let Some(mut actor) = ctx.db.object_instance().filter_by_object_id(&actor_id).first() {
+        // Verify it's actually an actor
+        if !actor.is_actor {
+            log::warn!("Attempted to force destroy object {} as an actor, but it's not an actor", actor_id);
+            return false;
+        }
+        
         // Mark as destroyed
-        actor.state = ActorLifecycleState::Destroyed;
+        actor.state = ObjectLifecycleState::Destroyed;
         actor.destroyed_at = Some(ctx.timestamp);
-        ctx.db.actor_info().update(&actor);
+        ctx.db.object_instance().update(&actor);
         
         log::info!("Actor {} force destroyed by {:?}", actor_id, ctx.sender);
         return true;
@@ -66,8 +80,15 @@ pub fn force_destroy_actor(ctx: &ReducerContext, actor_id: ActorId) -> bool {
 #[spacetimedb::reducer]
 pub fn set_actor_hidden(ctx: &ReducerContext, actor_id: ActorId, hidden: bool) -> bool {
     // Find the actor
-    let actor = match ctx.db.actor_info().filter_by_actor_id(&actor_id).first() {
-        Some(actor) => actor,
+    let actor = match ctx.db.object_instance().filter_by_object_id(&actor_id).first() {
+        Some(actor) => {
+            // Verify it's actually an actor
+            if !actor.is_actor {
+                log::warn!("Attempted to modify visibility of object {} as an actor, but it's not an actor", actor_id);
+                return false;
+            }
+            actor
+        },
         None => {
             log::warn!("Attempted to modify visibility of non-existent actor: {}", actor_id);
             return false;
@@ -83,7 +104,7 @@ pub fn set_actor_hidden(ctx: &ReducerContext, actor_id: ActorId, hidden: bool) -
     // Update the hidden state
     let mut updated_actor = actor.clone();
     updated_actor.hidden = hidden;
-    ctx.db.actor_info().update(&updated_actor);
+    ctx.db.object_instance().update(&updated_actor);
     
     log::info!("Actor {} visibility set to hidden={} by {:?}", actor_id, hidden, ctx.sender);
     true
@@ -95,36 +116,36 @@ pub fn cleanup_destroyed_actors(ctx: &ReducerContext) {
     log::debug!("Running actor cleanup");
     
     // Find all actors in PendingDestroy state
-    let pending_destroy: Vec<_> = ctx.db.actor_info()
+    let pending_destroy: Vec<_> = ctx.db.object_instance()
         .iter()
-        .filter(|actor| actor.state == ActorLifecycleState::PendingDestroy)
+        .filter(|obj| obj.is_actor && obj.state == ObjectLifecycleState::PendingDestroy)
         .collect();
     
     for actor in pending_destroy {
-        log::info!("Cleaning up pending destroy actor: {}", actor.actor_id);
+        log::info!("Cleaning up pending destroy actor: {}", actor.object_id);
         
         // Update state to Destroyed
         let mut updated_actor = actor.clone();
-        updated_actor.state = ActorLifecycleState::Destroyed;
+        updated_actor.state = ObjectLifecycleState::Destroyed;
         
         // Ensure destruction timestamp is set if missing
         if updated_actor.destroyed_at.is_none() {
             updated_actor.destroyed_at = Some(ctx.timestamp);
         }
         
-        ctx.db.actor_info().update(&updated_actor);
+        ctx.db.object_instance().update(&updated_actor);
         
         // Clean up any temporary resources
-        cleanup_actor_resources(ctx, actor.actor_id);
+        cleanup_actor_resources(ctx, actor.object_id);
     }
     
     // Set a reasonable time delay for fully removing destroyed actors (10 seconds)
     let destruction_delay_ms: u64 = 10000;
     
     // Find actors that have been in Destroyed state for long enough to be deleted
-    let destroyed: Vec<_> = ctx.db.actor_info()
+    let destroyed: Vec<_> = ctx.db.object_instance()
         .iter()
-        .filter(|actor| actor.state == ActorLifecycleState::Destroyed)
+        .filter(|obj| obj.is_actor && obj.state == ObjectLifecycleState::Destroyed)
         .filter(|actor| {
             if let Some(destroyed_at) = actor.destroyed_at {
                 // Use the proper destruction timestamp
@@ -135,31 +156,31 @@ pub fn cleanup_destroyed_actors(ctx: &ReducerContext) {
         .collect();
     
     for actor in destroyed {
-        log::info!("Fully deleting destroyed actor: {}", actor.actor_id);
+        log::info!("Fully deleting destroyed actor: {}", actor.object_id);
         
         // Delete the actor and all related data
         
         // Delete components
-        for component in ctx.db.actor_component()
+        for component in ctx.db.object_component()
             .iter()
-            .filter(|c| c.owner_actor_id == actor.actor_id) {
-            ctx.db.actor_component().delete_by_component_id(&component.component_id);
+            .filter(|c| c.owner_object_id == actor.object_id) {
+            ctx.db.object_component().delete_by_component_id(&component.component_id);
         }
         
         // Delete properties
-        ctx.db.actor_property().delete_by_actor_id(&actor.actor_id);
+        ctx.db.object_property().delete_by_object_id(&actor.object_id);
         
         // Delete transform
-        ctx.db.actor_transform().delete_by_actor_id(&actor.actor_id);
+        ctx.db.object_transform().delete_by_object_id(&actor.object_id);
         
         // Delete any relevancy data
-        remove_from_relevancy_system(ctx, actor.actor_id);
+        remove_from_relevancy_system(ctx, actor.object_id);
         
         // Delete any RPC handlers
-        deregister_rpc_handlers(ctx, actor.actor_id);
+        deregister_rpc_handlers(ctx, actor.object_id);
         
-        // Finally delete the actor info
-        ctx.db.actor_info().delete_by_actor_id(&actor.actor_id);
+        // Finally delete the actor instance
+        ctx.db.object_instance().delete_by_object_id(&actor.object_id);
     }
 }
 
@@ -174,9 +195,9 @@ fn notify_actor_pending_destroy(ctx: &ReducerContext, actor_id: ActorId) {
     crate::action::cancel_pending_actions(ctx, actor_id);
     
     // Notify any attached components
-    for component in ctx.db.actor_component()
+    for component in ctx.db.object_component()
         .iter()
-        .filter(|c| c.owner_actor_id == actor_id) {
+        .filter(|c| c.owner_object_id == actor_id) {
         // Signal components about destruction
         crate::component::notify_pending_destroy(ctx, component.component_id);
     }
@@ -209,7 +230,12 @@ fn deregister_rpc_handlers(ctx: &ReducerContext, actor_id: ActorId) {
 }
 
 /// Checks if a client can modify the given actor
-fn can_modify_actor(ctx: &ReducerContext, actor: &crate::actor::ActorInfo) -> bool {
+fn can_modify_actor(ctx: &ReducerContext, actor: &ObjectInstance) -> bool {
+    // Verify it's an actor
+    if !actor.is_actor {
+        return false;
+    }
+    
     // If there's no client (system call), always allow
     if ctx.sender.is_none() {
         return true;

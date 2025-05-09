@@ -84,11 +84,17 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
     *   [X] `ActorId` defined in `ServerModule/src/actor/mod.rs` (as `u64`).
     *   [X] **FIX:** Consolidated to use a single `ObjectId` type from `stdb_shared::object` module. Removed the `ActorId` type definitions and updated all references to use `ObjectId` instead. This reflects the inheritance hierarchy in Unreal Engine where Actors are a type of Object and should use the same ID system.
 
-6.  [ ] **Actor Tables vs. Object Tables in `ServerModule`:**
-    *   [ ] `ServerModule/src/object/mod.rs` defines `ObjectClass`, `ObjectInstance`, `ObjectProperty`.
-    *   [ ] `ServerModule/src/actor/mod.rs` defines `ActorClass`, `ActorInfo`, `ActorProperty`.
-    *   [ ] There's significant conceptual overlap. If Actors are a specialization of Objects, consider if actor-specific data can be stored in distinct tables linked by `ObjectId` or if the Object tables can be extended/used more directly to avoid near-duplicate table structures.
-    *   [ ] **FIX:** Review and potentially refactor to reduce redundancy and clarify the data model for objects vs. actors on the server. For example, `ActorInfo` could simply be an `ObjectId` that links to an `ObjectInstance` which has an `is_actor` flag.
+6.  [X] **Actor Tables vs. Object Tables in `ServerModule`:**
+    *   [X] `ServerModule/src/object/mod.rs` defines `ObjectClass`, `ObjectInstance`, `ObjectProperty`.
+    *   [X] `ServerModule/src/actor/mod.rs` defines `ActorClass`, `ActorInfo`, `ActorProperty`.
+    *   [X] There's significant conceptual overlap. If Actors are a specialization of Objects, consider if actor-specific data can be stored in distinct tables linked by `ObjectId` or if the Object tables can be extended/used more directly to avoid near-duplicate table structures.
+    *   [X] **FIX:** Consolidated actor and object tables by:
+        *   Adding `is_actor: bool` flag to `ObjectInstance` table to distinguish actors from non-actor objects
+        *   Moving actor-specific fields from `ActorInfo` into `ObjectInstance` (e.g., `hidden`)
+        *   Renaming `ActorTransform` to `ObjectTransform` and updating field references
+        *   Renaming `ActorComponent` to `ObjectComponent` and updating field references
+        *   Removing the redundant actor-specific tables and updating all code to use the consolidated object tables
+        *   Keeping `ActorId` as a type alias for `ObjectId` for backward compatibility and code clarity
 
 ## IV. Minor Issues & Points to Clarify:
 
