@@ -5,12 +5,17 @@
 
 use stdb_shared::object::ObjectId;
 use spacetimedb_sdk::{
-    Address, Client, Identity, ReducerCallError, subscribe::SubscriptionHandle
+    Address, Client, Identity, ReducerCallError, subscribe::SubscriptionHandle, 
+    reducer::{Status as ReducerStatus, StdReducerCallResult},
+    ClientState, disconnect::DisconnectReason
 };
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::future::Future;
 use once_cell::sync::Lazy;
+use log::{info, debug, error, warn};
+use serde_json::Value;
 
 /// State of the connection to the server
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,6 +63,7 @@ pub struct ClientConnection {
 static CLIENT: Lazy<Mutex<Option<Client>>> = Lazy::new(|| Mutex::new(None));
 static CONNECTION_STATE: Lazy<Mutex<ConnectionState>> = Lazy::new(|| Mutex::new(ConnectionState::Disconnected));
 static CLIENT_ID: Lazy<Mutex<u64>> = Lazy::new(|| Mutex::new(0));
+static SUBSCRIPTION: Lazy<Mutex<Option<SubscriptionHandle>>> = Lazy::new(|| Mutex::new(None));
 
 // Callback handlers
 type OnConnectedFn = Box<dyn Fn() + Send + 'static>;
@@ -92,27 +98,63 @@ pub fn connect(params: ConnectionParams) -> Result<(), String> {
     }
     
     // Build connection URL
-    let url = format!("{}/{}", params.host, params.database_name);
+    let address = format!("{}/{}", params.host, params.database_name)
+        .parse::<Address>()
+        .map_err(|e| format!("Invalid address: {}", e))?;
     
-    // This is just a placeholder implementation
-    // In a real implementation, we would use spacetimedb_sdk to connect
+    // Build auth token if provided
+    let identity = match &params.auth_token {
+        Some(token) => {
+            match Identity::from_token(token) {
+                Ok(id) => Some(id),
+                Err(e) => {
+                    let mut state = CONNECTION_STATE.lock().unwrap();
+                    *state = ConnectionState::Failed;
+                    return Err(format!("Invalid auth token: {}", e));
+                }
+            }
+        },
+        None => None,
+    };
     
-    // Simulate successful connection
+    // Create client
+    let client = Client::new(address, identity);
+    
+    // Register event handlers
+    client.on_client_state_change(handle_client_state_change);
+    client.on_subscription_applied(handle_subscription_applied);
+    client.on_disconnect(handle_disconnect);
+    client.on_subscription_failed(handle_subscription_failed);
+    
+    // Store client
     {
-        let mut state = CONNECTION_STATE.lock().unwrap();
-        *state = ConnectionState::Connected;
+        let mut client_instance = CLIENT.lock().unwrap();
+        *client_instance = Some(client.clone());
     }
     
-    // Assign a client ID
+    // Connect and subscribe
+    let subscription = match tokio::runtime::Handle::try_current() {
+        Ok(handle) => {
+            // If we're in a tokio runtime, use that
+            handle.block_on(client.subscribe())
+                .map_err(|e| format!("Failed to subscribe: {}", e))?
+        },
+        Err(_) => {
+            // If not, create a new runtime for this call
+            let rt = tokio::runtime::Runtime::new()
+                .map_err(|e| format!("Failed to create runtime: {}", e))?;
+            rt.block_on(client.subscribe())
+                .map_err(|e| format!("Failed to subscribe: {}", e))?
+        }
+    };
+    
+    // Store subscription
     {
-        let mut client_id = CLIENT_ID.lock().unwrap();
-        *client_id = rand::random::<u64>();
+        let mut sub = SUBSCRIPTION.lock().unwrap();
+        *sub = Some(subscription);
     }
     
-    // Call the on_connected handler
-    if let Some(handler) = &*ON_CONNECTED.lock().unwrap() {
-        handler();
-    }
+    info!("Connection to SpacetimeDB initiated");
     
     Ok(())
 }
@@ -122,8 +164,37 @@ pub fn disconnect() -> bool {
     // Check if connected
     {
         let state = *CONNECTION_STATE.lock().unwrap();
-        if state != ConnectionState::Connected {
+        if state != ConnectionState::Connected && state != ConnectionState::Connecting {
             return false;
+        }
+    }
+    
+    // Unsubscribe
+    {
+        let mut sub = SUBSCRIPTION.lock().unwrap();
+        if let Some(subscription) = sub.take() {
+            let client = CLIENT.lock().unwrap();
+            if let Some(client) = &*client {
+                let rt = match tokio::runtime::Runtime::new() {
+                    Ok(rt) => rt,
+                    Err(e) => {
+                        error!("Failed to create runtime for disconnect: {}", e);
+                        return false;
+                    }
+                };
+                
+                rt.block_on(subscription.unsubscribe(client));
+                debug!("Unsubscribed from SpacetimeDB");
+            }
+        }
+    }
+    
+    // Close client
+    {
+        let mut client = CLIENT.lock().unwrap();
+        if let Some(c) = client.take() {
+            // Client will be dropped here
+            debug!("SpacetimeDB client closed");
         }
     }
     
@@ -133,21 +204,15 @@ pub fn disconnect() -> bool {
         *state = ConnectionState::Disconnected;
     }
     
-    // Call the on_disconnected handler
-    if let Some(handler) = &*ON_DISCONNECTED.lock().unwrap() {
-        handler("Disconnected by client");
-    }
-    
     // Clear client ID
     {
         let mut client_id = CLIENT_ID.lock().unwrap();
         *client_id = 0;
     }
     
-    // Clear client
-    {
-        let mut client = CLIENT.lock().unwrap();
-        *client = None;
+    // Call the on_disconnected handler
+    if let Some(handler) = &*ON_DISCONNECTED.lock().unwrap() {
+        handler("Disconnected by client");
     }
     
     true
@@ -211,14 +276,46 @@ pub fn send_property_update(
         return Err("Not connected to server".to_string());
     }
     
-    // In a real implementation, we would call the server reducer here
-    // For now, just log the update
-    println!(
-        "Would send property update: object_id={}, property_name={}, value={}",
-        object_id, property_name, value_json
-    );
+    // Get client
+    let client_lock = CLIENT.lock().unwrap();
+    let client = match &*client_lock {
+        Some(c) => c,
+        None => return Err("Client not available".to_string()),
+    };
     
-    Ok(())
+    // Get client_id
+    let client_id = *CLIENT_ID.lock().unwrap();
+    
+    // Call the server reducer
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => return Err(format!("Failed to create runtime: {}", e)),
+    };
+    
+    // Call set_object_property reducer
+    let result = rt.block_on(client.call_reducer(
+        "set_object_property", 
+        (client_id, object_id, property_name, value_json)
+    ));
+    
+    match result {
+        Ok(status) => {
+            match status {
+                ReducerStatus::Committed => {
+                    debug!("Property update committed: object_id={}, property={}", object_id, property_name);
+                    Ok(())
+                },
+                ReducerStatus::Failed(e) => {
+                    error!("Property update failed: {}", e);
+                    Err(format!("Property update failed: {}", e))
+                },
+            }
+        },
+        Err(e) => {
+            error!("Failed to call set_object_property reducer: {}", e);
+            Err(format!("Failed to call property update: {}", e))
+        }
+    }
 }
 
 /// Send an RPC request to the server
@@ -228,10 +325,238 @@ pub fn send_rpc_request(request_json: &str) -> Result<(), String> {
         return Err("Not connected to server".to_string());
     }
     
-    // In a real implementation, we would use spacetimedb_sdk to call a reducer
-    info!("Sending RPC request: {}", request_json);
+    // Parse the request JSON
+    let request: Value = match serde_json::from_str(request_json) {
+        Ok(req) => req,
+        Err(e) => return Err(format!("Invalid RPC request JSON: {}", e)),
+    };
     
-    // For now, simply log the request and return success
-    debug!("RPC request sent successfully");
-    Ok(())
-} 
+    // Extract the function name and arguments
+    let function_name = match request.get("function") {
+        Some(Value::String(name)) => name,
+        _ => return Err("RPC request missing 'function' field".to_string()),
+    };
+    
+    let object_id = match request.get("object_id") {
+        Some(Value::Number(id)) => {
+            match id.as_u64() {
+                Some(id) => id,
+                None => return Err("Invalid object_id in RPC request".to_string()),
+            }
+        },
+        _ => return Err("RPC request missing 'object_id' field".to_string()),
+    };
+    
+    let args_json = match request.get("args") {
+        Some(args) => serde_json::to_string(args)
+            .map_err(|e| format!("Failed to serialize RPC arguments: {}", e))?,
+        None => return Err("RPC request missing 'args' field".to_string()),
+    };
+    
+    // Get client
+    let client_lock = CLIENT.lock().unwrap();
+    let client = match &*client_lock {
+        Some(c) => c,
+        None => return Err("Client not available".to_string()),
+    };
+    
+    // Get client_id
+    let client_id = *CLIENT_ID.lock().unwrap();
+    
+    // Create runtime
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => return Err(format!("Failed to create runtime: {}", e)),
+    };
+    
+    // Call execute_rpc reducer
+    let result = rt.block_on(client.call_reducer(
+        "execute_rpc", 
+        (client_id, object_id, function_name, args_json)
+    ));
+    
+    match result {
+        Ok(status) => {
+            match status {
+                ReducerStatus::Committed => {
+                    debug!("RPC call committed: function={}, object_id={}", function_name, object_id);
+                    Ok(())
+                },
+                ReducerStatus::Failed(e) => {
+                    error!("RPC call failed: {}", e);
+                    Err(format!("RPC call failed: {}", e))
+                },
+            }
+        },
+        Err(e) => {
+            error!("Failed to call execute_rpc reducer: {}", e);
+            Err(format!("Failed to call RPC: {}", e))
+        }
+    }
+}
+
+// ---- SpacetimeDB event handlers ----
+
+/// Handle client state changes
+fn handle_client_state_change(state: ClientState) {
+    match state {
+        ClientState::Connected => {
+            debug!("SpacetimeDB client connected");
+            
+            // Update connection state
+            {
+                let mut conn_state = CONNECTION_STATE.lock().unwrap();
+                *conn_state = ConnectionState::Connected;
+            }
+            
+            // Get and store identity
+            let client_lock = CLIENT.lock().unwrap();
+            if let Some(client) = &*client_lock {
+                if let Some(identity) = client.identity() {
+                    let client_id_bytes = identity.as_bytes();
+                    let mut client_id_u64: u64 = 0;
+                    
+                    // Convert identity bytes to u64 (use first 8 bytes)
+                    for (i, &byte) in client_id_bytes.iter().take(8).enumerate() {
+                        client_id_u64 |= (byte as u64) << (i * 8);
+                    }
+                    
+                    // Store client ID
+                    {
+                        let mut client_id = CLIENT_ID.lock().unwrap();
+                        *client_id = client_id_u64;
+                    }
+                    
+                    info!("Connected to SpacetimeDB with client ID: {}", client_id_u64);
+                }
+            }
+            
+            // Call the on_connected handler
+            if let Some(handler) = &*ON_CONNECTED.lock().unwrap() {
+                handler();
+            }
+        },
+        ClientState::Connecting => {
+            debug!("SpacetimeDB client connecting");
+            
+            // Update connection state
+            let mut state = CONNECTION_STATE.lock().unwrap();
+            *state = ConnectionState::Connecting;
+        },
+        ClientState::Disconnecting => {
+            debug!("SpacetimeDB client disconnecting");
+        },
+        ClientState::Disconnected => {
+            debug!("SpacetimeDB client disconnected");
+            
+            // Update connection state
+            {
+                let mut state = CONNECTION_STATE.lock().unwrap();
+                *state = ConnectionState::Disconnected;
+            }
+            
+            // Call the on_disconnected handler
+            if let Some(handler) = &*ON_DISCONNECTED.lock().unwrap() {
+                handler("Disconnected from server");
+            }
+        },
+    }
+}
+
+/// Handle subscription applied
+fn handle_subscription_applied() {
+    info!("SpacetimeDB subscription applied");
+    
+    // This is called when the initial snapshot has been applied
+    // In your system, you might want to trigger initial state synchronization here
+}
+
+/// Handle disconnect
+fn handle_disconnect(reason: DisconnectReason) {
+    warn!("SpacetimeDB disconnected: {:?}", reason);
+    
+    // Update connection state
+    {
+        let mut state = CONNECTION_STATE.lock().unwrap();
+        *state = ConnectionState::Disconnected;
+    }
+    
+    // Clear client ID
+    {
+        let mut client_id = CLIENT_ID.lock().unwrap();
+        *client_id = 0;
+    }
+    
+    // Clear subscription
+    {
+        let mut sub = SUBSCRIPTION.lock().unwrap();
+        *sub = None;
+    }
+    
+    // Call the on_disconnected handler
+    if let Some(handler) = &*ON_DISCONNECTED.lock().unwrap() {
+        let reason_str = match reason {
+            DisconnectReason::Normal => "Normal disconnect",
+            DisconnectReason::Error(e) => e,
+            DisconnectReason::Reconnecting => "Reconnecting",
+        };
+        
+        handler(reason_str);
+    }
+}
+
+/// Handle subscription failed
+fn handle_subscription_failed(error: String) {
+    error!("SpacetimeDB subscription failed: {}", error);
+    
+    // Update connection state
+    {
+        let mut state = CONNECTION_STATE.lock().unwrap();
+        *state = ConnectionState::Failed;
+    }
+    
+    // Call the on_error handler
+    if let Some(handler) = &*ON_ERROR.lock().unwrap() {
+        handler(&format!("Subscription failed: {}", error));
+    }
+}
+
+// ---- Table update handlers ----
+
+// These would be used to handle specific table updates from the server
+// based on your schema. For example:
+
+/* 
+/// Handle property updates from the server
+fn handle_property_update(update: &PropertyUpdate) {
+    if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
+        handler(
+            update.object_id,
+            &update.property_name,
+            &update.value_json
+        );
+    }
+}
+
+/// Handle object created events
+fn handle_object_created(obj: &ObjectInstance) {
+    if let Some(handler) = &*ON_OBJECT_CREATED.lock().unwrap() {
+        // Serialize initial properties to JSON
+        let props_json = serde_json::to_string(&obj.initial_properties)
+            .unwrap_or_else(|_| "{}".to_string());
+            
+        handler(
+            obj.id,
+            &obj.class_name,
+            &props_json
+        );
+    }
+}
+
+/// Handle object destroyed events
+fn handle_object_destroyed(obj_id: ObjectId) {
+    if let Some(handler) = &*ON_OBJECT_DESTROYED.lock().unwrap() {
+        handler(obj_id);
+    }
+}
+*/ 
