@@ -114,10 +114,6 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
     *   [X] The `unsafe static mut NEXT_ACTOR_ID` is simple. Consider if SpacetimeDB offers more robust unique ID generation mechanisms or if this needs to be persisted across server restarts.
     *   [X] **FIX:** Replaced the static ID generator with a persistent `IdCounter` table in SpacetimeDB. Added `initialize_id_counter` reducer to set up the counter and improved `generate_actor_id` to use the database-backed counter, ensuring IDs persist across server restarts and remain unique.
 
----
-## V. ClientModule Evaluation (To Be Added)
-
-1.  [ ] *(Placeholder for ClientModule analysis)* 
 
 ---
 ## V. Critical Missing Client-Side Functionality:
