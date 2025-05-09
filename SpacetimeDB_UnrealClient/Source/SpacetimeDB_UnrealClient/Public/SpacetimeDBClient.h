@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Containers/UnrealString.h"
 #include "Containers/Array.h"
+#include "SpacetimeDB_ErrorHandler.h"
 
 // Forward declarations for SpacetimeDB FFI types
 namespace stdb {
@@ -37,8 +38,8 @@ public:
     /** Delegate for handling SpacetimeDB table events */
     DECLARE_MULTICAST_DELEGATE_TwoParams(FOnEventReceived, const FString& /* TableName */, const FString& /* EventData */);
     
-    /** Delegate for handling SpacetimeDB error events */
-    DECLARE_MULTICAST_DELEGATE_OneParam(FOnErrorOccurred, const FString& /* ErrorMessage */);
+    /** Delegate for handling SpacetimeDB error events with detailed error info */
+    DECLARE_MULTICAST_DELEGATE_OneParam(FOnErrorOccurred, const FSpacetimeDBErrorInfo& /* ErrorInfo */);
     
     /** Delegate for when a property is updated on an object */
     DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnPropertyUpdated, uint64 /* ObjectId */, const FString& /* PropertyName */, const FString& /* ValueJson */);

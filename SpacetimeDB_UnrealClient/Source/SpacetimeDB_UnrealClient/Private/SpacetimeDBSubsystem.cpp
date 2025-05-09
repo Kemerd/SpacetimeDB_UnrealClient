@@ -220,15 +220,25 @@ void USpacetimeDBSubsystem::HandleEventReceived(const FString& TableName, const 
 
 void USpacetimeDBSubsystem::HandleErrorOccurred(const FString& ErrorMessage)
 {
-    UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Error occurred: %s"), *ErrorMessage);
-    OnErrorOccurred.Broadcast(ErrorMessage);
+    UE_LOG(LogSpacetimeDB, Error, TEXT("SpacetimeDBSubsystem: Error event received: %s"), *ErrorMessage);
     
-    // Optional: Display a notification in game if desired
+    // Create a basic error info object (more context would already be in the FFI error from client)
+    FSpacetimeDBErrorInfo ErrorInfo(
+        ErrorMessage,
+        ESpacetimeDBErrorSeverity::Error,
+        TEXT("Subsystem")
+    );
+    
+    // Broadcast the error
+    OnErrorOccurred.Broadcast(ErrorInfo);
+    
+    // Display an on-screen error message in development builds
+#if !UE_BUILD_SHIPPING
     if (GEngine)
     {
-        FString Message = FString::Printf(TEXT("SpacetimeDB Error: %s"), *ErrorMessage);
-        GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, Message);
+        GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, FString::Printf(TEXT("SpacetimeDB Error: %s"), *ErrorMessage));
     }
+#endif
 }
 
 // Object system event handlers

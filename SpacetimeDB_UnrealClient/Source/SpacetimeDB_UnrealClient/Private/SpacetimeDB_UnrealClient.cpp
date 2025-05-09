@@ -7,6 +7,12 @@
 #include "SpacetimeDBSubsystem.h"
 #include "Net/UnrealNetwork.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/Paths.h"
+#include "HAL/PlatformFileManager.h"
+#include "HAL/PlatformProcess.h"
+
+// Define the log category
+DEFINE_LOG_CATEGORY(LogSpacetimeDB);
 
 #define LOCTEXT_NAMESPACE "FSpacetimeDB_UnrealClientModule"
 

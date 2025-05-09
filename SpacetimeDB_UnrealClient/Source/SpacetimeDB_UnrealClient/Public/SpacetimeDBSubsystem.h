@@ -8,6 +8,7 @@
 #include "SpacetimeDB_Types.h"
 #include "SpacetimeDB_PropertyValue.h"
 #include "SpacetimeDBFFI.h"
+#include "SpacetimeDB_ErrorHandler.h"
 #include "SpacetimeDBSubsystem.generated.h"
 
 /**
@@ -130,6 +131,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnComponentAddedDynamic, int64, 
 /** Delegate for component removed events */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnComponentRemovedDynamic, int64, ActorId, int64, ComponentId);
 
+/** Delegate for handling SpacetimeDB error events with detailed error info */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSpacetimeDBErrorOccurred, const FSpacetimeDBErrorInfo&, ErrorInfo);
+
 /**
  * @class USpacetimeDBSubsystem
  * @brief Game Instance Subsystem for managing SpacetimeDB connections.
@@ -244,7 +248,7 @@ public:
     
     /** Event that fires when an error occurs */
     UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Events")
-    FOnErrorOccurredDynamic OnErrorOccurred;
+    FOnSpacetimeDBErrorOccurred OnErrorOccurred;
     
     /** Event that fires when a property is updated on an object */
     UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Objects")
