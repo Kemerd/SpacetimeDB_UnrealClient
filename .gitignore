@@ -1,0 +1,135 @@
+# Unreal Engine specific ignores
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+/.vscode/
+/.vs/
+/.idea/
+/Build/
+/Plugins/*/Binaries/
+/Plugins/*/Intermediate/
+
+# Don't ignore the Plugins source
+!/Plugins/**/Source/
+
+# Engine plugins built locally that we can ignore
+/Plugins/*/Binaries/
+/Plugins/*/Intermediate/
+
+# Ignore iOS & Android project files that are auto-generated
+/Platforms/
+
+# Ignore temporary and backup files
+*.bak
+*.tmp
+*.temp
+*.swp
+
+# Ignore OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ignore compiled and packaged files
+*.pdb
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.lib
+*.exp
+*.a
+*.pch
+*.ipch
+*.ncb
+*.suo
+*.tlb
+*.tlh
+*.ilk
+*.idb
+*.debug
+*.opendb
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.VC.opendb
+
+# Ignore logs and databases
+*.log
+*.sql
+*.sqlite
+
+# Ignore packaged builds
+/WindowsNoEditor/
+/LinuxNoEditor/
+/MacNoEditor/
+/PS4/
+/XboxOne/
+/Switch/
+/Android_*/
+/IOS/
+
+# Ignore content that can be generated or may be very large
+/Content/Collections/
+/Content/Developers/
+
+# Ignore crash dumps
+/Crashes/
+
+# Ignore large media files that should be managed separately using Git LFS
+# Uncomment if needed
+#*.mov
+#*.mp4
+#*.mp3
+#*.wav
+#*.ogg
+
+# Ignore generated blueprint documentation
+/BlueprintAPI/
+
+# Ignore VS Code .history
+.history/
+
+# Ignore packaged game
+/Packaged/
+
+# Visual Studio user specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio cache files
+# files ending in .cache can be ignored
+*.[Cc]ache
+# but keep track of directories ending in .cache
+!?*.[Cc]ache/
+
+# User-specific files (MonoDevelop/Xamarin Studio)
+*.userprefs
+
+# ReSharper is a .NET coding add-in
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Cache
+__pycache__/
+
+# SpacetimeDB-specific (if applicable)
+# Add any SpacetimeDB-specific ignores here 
+/STDB_UE_Example/.vs
+/STDB_UE_Example/Intermediate
+/STDB_UE_Example/Intermediate
+/STDB_UE_Example/Saved
