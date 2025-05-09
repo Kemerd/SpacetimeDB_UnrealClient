@@ -5,7 +5,6 @@
 use serde::{Serialize, Deserialize};
 use crate::types::*;
 use crate::object::ObjectId;
-use std::collections::HashMap;
 
 /// Represents the different types of properties that can be stored in a UObject
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

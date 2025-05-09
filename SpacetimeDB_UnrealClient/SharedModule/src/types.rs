@@ -3,7 +3,6 @@
 //! Common type definitions used across both client and server modules.
 
 use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 
 /// Status code for operation results
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

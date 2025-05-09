@@ -20,7 +20,6 @@ pub mod actor;
 pub use types::*;
 pub use property::{PropertyType, PropertyValue};
 pub use object::ObjectId;
-pub use actor::ActorId;
 pub use connection::{ConnectionState, ClientConnection};
 pub use rpc::{RpcType, RpcCall, RpcStatus};
 pub use lifecycle::{ObjectLifecycleState, ActorLifecycleState};
