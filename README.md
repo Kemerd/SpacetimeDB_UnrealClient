@@ -11,6 +11,7 @@ This plugin provides integration between Unreal Engine and SpacetimeDB, allowing
 - **Cross-platform Support**: Works on Windows, macOS, and Linux
 - **Seamless Integration**: Connect to SpacetimeDB instances with minimal code
 - **High Performance**: Optimized Rust core with minimal overhead
+- **Game-Specific Customization**: Extend with your own game functions in CustomServerModule
 
 ## Architecture
 
@@ -20,6 +21,7 @@ The plugin uses a modular, layered architecture:
    - **SharedModule**: Common types, interfaces, and utilities used by both client and server
    - **ServerModule**: Server-side implementation that manages game state in SpacetimeDB
    - **ClientModule**: Client-side implementation that communicates with the server
+   - **CustomServerModule**: Game-specific functionality and example game functions
 
 2. **Module Structure**:
    - **Object System**: Manages UObject lifecycle, creation, and destruction
@@ -27,6 +29,7 @@ The plugin uses a modular, layered architecture:
    - **Network Layer**: Manages connections, subscriptions, and data transfer
    - **RPC System**: Facilitates remote procedure calls between client and server
    - **Relevancy System**: Determines which objects are relevant to which clients
+   - **Game Functions**: Custom game-specific functions in the CustomServerModule
 
 3. **Integration Layers**:
    - **FFI Layer**: C++ bindings generated via CXX that bridge Rust and C++
@@ -91,6 +94,43 @@ The relevancy system optimizes network usage by controlling which objects and pr
 - Automatic integration with property replication system
 - Zone management for logical grouping of objects and clients
 - Distance-based relevancy using spatial partitioning for efficiency
+
+### CustomServerModule
+The CustomServerModule provides game-specific functionality built on top of the core replication system:
+- Separation of game logic from core replication functionality
+- Example functions for common game operations:
+  - `spawn_sphere`: Spawn a sphere with customizable properties
+  - `spawn_cube`: Spawn a cube with size, rotation, and material options
+  - `teleport_actor`: Teleport an actor to a new position
+  - `change_color`: Change the color of an actor with optional animation
+  - `spawn_projectile`: Spawn a projectile with velocity and attributes
+- Easy extensibility for your own game functions
+- Integration with the ServerModule through the `game` namespace
+
+#### Using CustomServerModule
+The CustomServerModule is integrated into the ServerModule:
+```rust
+// In ServerModule/src/lib.rs
+extern crate custom_server_module;
+pub use custom_server_module as game;
+```
+
+This allows ServerModule code to call game functions:
+```rust
+// Example of calling a game function from the ServerModule
+let sphere_id = game::spawn_sphere(ctx, &params);
+```
+
+From the C++ side, these functions are exposed through SpacetimeDB's RPC system:
+```cpp
+// Example of calling a game function from C++
+FSpawnSphereParams Params;
+Params.Position = FVector(100.0f, 0.0f, 50.0f);
+Params.Radius = 50.0f;
+Params.Color = FColor::Red;
+Params.PhysicsEnabled = true;
+SpacetimeDB->CallServerFunction("spawn_sphere", Params.ToJson());
+```
 
 ## How It Works
 
@@ -269,6 +309,17 @@ fn initialize_default_components(ctx: &ReducerContext, actor_id: ActorId, class_
 │       ├── rpc/              # RPC functionality
 │       └── ffi.rs            # FFI definitions for C++
 │
+├── /CustomServerModule/       # Game-specific functionality
+│   ├── Cargo.toml            # Custom server module dependencies
+│   └── /src/                 # Custom server module source code
+│       ├── lib.rs            # Module entry point
+│       └── functions/        # Game-specific functions
+│           ├── spawn_sphere.rs     # Example function to spawn a sphere
+│           ├── spawn_cube.rs       # Example function to spawn a cube
+│           ├── teleport_actor.rs   # Example function to teleport an actor
+│           ├── change_color.rs     # Example function to change actor color
+│           └── spawn_projectile.rs # Example function to spawn projectiles
+│
 ├── /Source/                   # Unreal Engine C++ code
 │   └── /SpacetimeDB_UnrealClient/
 │       ├── SpacetimeDB_UnrealClient.Build.cs
@@ -310,6 +361,26 @@ SpacetimeDB->SetActorProperty(ObjectID, "Location", FVector(200.0f, 0.0f, 0.0f))
 FRPCParams Params;
 Params.AddInt("Damage", 25);
 SpacetimeDB->CallServerFunction(ObjectID, "TakeDamage", Params);
+```
+
+### Using CustomServerModule Functions
+
+```cpp
+// Spawn a sphere using the CustomServerModule function
+FSpawnSphereParams SphereParams;
+SphereParams.Position = FVector(100.0f, 0.0f, 50.0f);
+SphereParams.Radius = 50.0f;
+SphereParams.Color = FColor::Red;
+SphereParams.PhysicsEnabled = true;
+FObjectID SphereID = SpacetimeDB->CallServerFunction("spawn_sphere", SphereParams.ToJson());
+
+// Change the color of an actor
+FChangeColorParams ColorParams;
+ColorParams.ActorID = SphereID;
+ColorParams.Color = FColor::Blue;
+ColorParams.AnimateTransition = true;
+ColorParams.TransitionDuration = 2.0f;
+SpacetimeDB->CallServerFunction("change_color", ColorParams.ToJson());
 ```
 
 ### Registering for Client RPC Callbacks
