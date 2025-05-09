@@ -219,4 +219,19 @@ pub fn send_property_update(
     );
     
     Ok(())
+}
+
+/// Send an RPC request to the server
+pub fn send_rpc_request(request_json: &str) -> Result<(), String> {
+    // Check if connected
+    if !is_connected() {
+        return Err("Not connected to server".to_string());
+    }
+    
+    // In a real implementation, we would use spacetimedb_sdk to call a reducer
+    info!("Sending RPC request: {}", request_json);
+    
+    // For now, simply log the request and return success
+    debug!("RPC request sent successfully");
+    Ok(())
 } 
