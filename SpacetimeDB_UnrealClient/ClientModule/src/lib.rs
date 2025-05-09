@@ -27,6 +27,7 @@ pub use property::{PropertyType, PropertyValue};
 pub use object::{ObjectId, ClientObject};
 pub use actor::ClientActor;
 pub use net::{ConnectionState, ClientConnection};
+pub use rpc::RpcResult;
 
 /// Initialize the client module
 pub fn init() {
@@ -37,6 +38,9 @@ pub fn init() {
     
     // Initialize object system
     object::init();
+    
+    // Initialize RPC system
+    rpc::init();
     
     println!("UnrealReplication client module initialized!");
 }
@@ -79,13 +83,43 @@ pub fn call_server_rpc(
     function_name: &str,
     args_json: &str,
 ) -> Result<(), String> {
-    rpc::call_server_function(object_id, function_name, args_json)
+    match rpc::call_server_function(object_id, function_name, args_json) {
+        Ok(_) => Ok(()),
+        Err(err) => Err(err),
+    }
 }
 
 /// Register a client-side RPC handler
 pub fn register_client_rpc(
     function_name: &str,
-    handler: Box<dyn Fn(ObjectId, &str) -> Result<(), String>>,
+    handler: Box<dyn Fn(ObjectId, &str) -> Result<(), String> + Send + 'static>,
 ) {
-    rpc::register_client_function(function_name, handler);
+    rpc::register_handler(function_name, handler);
+}
+
+/// Handle an incoming RPC call from the server
+pub fn handle_server_rpc(
+    object_id: ObjectId,
+    function_name: &str,
+    args_json: &str,
+) -> Result<RpcResult, String> {
+    rpc::handle_server_call(object_id, function_name, args_json)
+}
+
+/// Create a new actor
+pub fn create_actor(
+    class_name: &str,
+    params_json: &str,
+) -> Result<ObjectId, String> {
+    let params = serde_json::from_str(params_json)
+        .map_err(|e| format!("Failed to parse spawn parameters: {}", e))?;
+    
+    object::create_object(class_name, params)
+}
+
+/// Destroy an actor
+pub fn destroy_actor(
+    object_id: ObjectId,
+) -> Result<(), String> {
+    object::destroy_object(object_id)
 } 
