@@ -5,6 +5,7 @@
 //! RPCs, and network relevancy.
 //!
 //! The system is organized into several sub-modules:
+//! - `object`: Core UObject functionality (base for all Unreal objects)
 //! - `actor`: Actor lifecycle management (spawn, destroy, registration)
 //! - `property`: Property replication and serialization
 //! - `connection`: Client connection management and authentication
@@ -14,13 +15,15 @@
 use spacetimedb::{ReducerContext, Table};
 
 // Module declarations
-pub mod actor;
-pub mod property;
-pub mod connection;
-pub mod rpc;
-pub mod relevancy;
+pub mod object;    // Base UObject functionality
+pub mod actor;     // Actor-specific functionality
+pub mod property;  // Property system
+pub mod connection;  // Connection management
+pub mod rpc;         // Remote procedure calls
+pub mod relevancy;   // Network relevancy
 
 // Re-export commonly used items
+pub use object::{ObjectInstance, ObjectClass, ObjectId, ObjectLifecycleState};
 pub use actor::{ActorInfo, ActorClass};
 pub use property::{PropertyType, PropertyValue};
 pub use connection::{ClientConnection, ConnectionState};
@@ -32,7 +35,10 @@ pub use relevancy::{RelevancyZone, VisibilityFlag};
 pub fn init(ctx: &ReducerContext) {
     log::info!("UnrealReplication server module initialized");
     
-    // Initialize game world and default actors
+    // Initialize core UObject system
+    object::class::initialize_object_classes(ctx);
+    
+    // Initialize actor system
     actor::init::initialize_world(ctx);
     
     // Set up any global game state
