@@ -66,15 +66,24 @@ echo Checking for SpacetimeDB CLI...
 where spacetime >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo SpacetimeDB CLI is not installed. Installing...
-    echo Please visit https://spacetimedb.com/install in your browser
-    echo to download and install the SpacetimeDB CLI.
+    echo Running SpacetimeDB installer...
     echo.
-    echo After installation, run the following commands:
+    
+    REM Run PowerShell with the SpacetimeDB installation command
+    powershell -Command "iwr https://windows.spacetimedb.com -useb | iex"
+    
+    if %ERRORLEVEL% NEQ 0 (
+        echo.
+        echo There was an error installing SpacetimeDB.
+        echo Please visit https://spacetimedb.com/install in your browser
+        echo to download and install the SpacetimeDB CLI manually.
+        echo.
+        pause
+        exit /b 1
+    )
+    
     echo.
-    echo     spacetime start       # Start a local SpacetimeDB instance
-    echo     spacetime login       # Log in to SpacetimeDB via GitHub
-    echo.
-    pause
+    echo SpacetimeDB CLI installation completed.
 ) else (
     echo SpacetimeDB CLI is already installed.
     echo Starting local SpacetimeDB instance...
