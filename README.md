@@ -58,10 +58,14 @@ The network module handles all communication with the SpacetimeDB server:
 
 ### RPC System
 The RPC module enables bidirectional function calls between client and server:
-- Client-to-server function calls
-- Server-to-client callbacks
-- Argument serialization and transport
-- Error handling and retry logic
+- Client-to-server function calls (via SpacetimeDB reducers)
+- Server-to-client callbacks (via subscription updates)
+- Multicast RPC support for broadcasting to multiple clients
+- Owner-only RPC targeting for secure operations
+- Relevancy-based RPC delivery to optimize network usage
+- JSON-based argument serialization and transport
+- Comprehensive error handling and logging
+- Type-safe function registration and invocation
 
 ## Prerequisites
 - Unreal Engine 5.3+
@@ -92,6 +96,9 @@ The RPC module enables bidirectional function calls between client and server:
 │       ├── actor/            # Actor management
 │       ├── object/           # Object management
 │       ├── property/         # Property handling
+│       ├── connection/       # Client connection management
+│       ├── rpc/              # Remote procedure call functionality
+│       ├── relevancy/        # Network relevancy system
 │       └── reducer/          # SpacetimeDB reducers
 │
 ├── /ClientModule/             # Client-side implementation
@@ -137,11 +144,43 @@ The RPC module enables bidirectional function calls between client and server:
 5. Special handling exists for transform properties (location, rotation, scale) to optimize network usage
 
 ### RPC System
-1. Functions are registered on both client and server with serialization rules
-2. When a client calls a server function, arguments are serialized and sent via a reducer
-3. The server executes the function and returns results to the client
-4. Server-to-client RPCs use a similar mechanism but in reverse
-5. Error handling ensures failed calls are reported appropriately
+1. Functions are registered with the server using the `register_rpc` API:
+   ```rust
+   // Server-side registration
+   registry::register_rpc(
+       "heal_player",           // Function name
+       "PlayerCharacter",       // Class name
+       RpcType::Server,         // RPC type (Server, Client, Multicast, OwnerOnly)
+       true,                    // Is reliable
+       Arc::new(|ctx, object_id, args_json| {
+           // Function implementation
+           // Return Result<String, RpcError>
+       })
+   );
+   ```
+
+2. Clients call server functions via a SpacetimeDB reducer:
+   ```cpp
+   // Client-side C++ call
+   FRPCParams Params;
+   Params.AddInt("HealAmount", 25);
+   SpacetimeDB->CallServerFunction(PlayerID, "heal_player", Params);
+   ```
+
+3. The server processes the call through its dispatch system:
+   - Validates the function exists
+   - Verifies the object exists and is accessible
+   - Executes the function handler with proper error handling
+   - Returns results to the client
+
+4. Server-to-client RPCs work through several targeting mechanisms:
+   - `send_rpc_to_client`: Send to a specific client
+   - `broadcast_rpc`: Send to all connected clients
+   - `send_rpc_to_owner`: Send only to the owner of an object
+   - `send_rpc_to_relevant_clients`: Send to clients who have visibility of an object
+   - `send_rpc_to_zone`: Send to clients in a specific relevancy zone
+
+5. All RPC calls are logged for debugging and analytics
 
 ## Usage
 
@@ -175,6 +214,24 @@ SpacetimeDB->SetActorProperty(ActorID, "Location", FVector(200.0f, 0.0f, 0.0f));
 FRPCParams Params;
 Params.AddInt("Damage", 25);
 SpacetimeDB->CallServerFunction(ActorID, "TakeDamage", Params);
+```
+
+### Registering for Client RPC Callbacks
+
+```cpp
+// Register handler for a client RPC
+SpacetimeDB->RegisterRPCHandler("OnDamaged", this, &AMyCharacter::HandleDamageEvent);
+
+// Implement the handler
+void AMyCharacter::HandleDamageEvent(FObjectID SourceID, const FRPCParams& Params)
+{
+    int32 DamageAmount = Params.GetInt("Damage");
+    FString DamageType = Params.GetString("DamageType");
+    
+    // Process the event
+    PlayDamageEffects(DamageType);
+    UpdateHealthUI(CurrentHealth);
+}
 ```
 
 ### Handling Events
