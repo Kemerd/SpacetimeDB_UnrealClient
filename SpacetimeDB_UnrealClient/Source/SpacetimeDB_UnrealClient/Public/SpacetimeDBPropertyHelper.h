@@ -34,6 +34,28 @@ public:
      */
     static FString SerializePropertyToJson(UObject* Object, const FString& PropertyName);
 
+    /**
+     * Applies a JSON string to a property on an object.
+     * 
+     * @param Object The object that contains the property
+     * @param PropertyName The name of the property to modify
+     * @param Json The JSON string to apply
+     * @return True if the property was successfully applied
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
+    static bool ApplyJsonToProperty(UObject* Object, const FString& PropertyName, const FString& Json);
+
+    /**
+     * Applies a JSON value to a property on an object.
+     * 
+     * @param Object The object that contains the property
+     * @param PropertyName The name of the property to modify
+     * @param JsonValue The JSON value to apply
+     * @return True if the property was successfully applied
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
+    static bool ApplyJsonValueToProperty(UObject* Object, const FString& PropertyName, const TSharedPtr<FJsonValue>& JsonValue);
+
 private:
     // Helper functions for specific property types
     static bool DeserializeAndApplyNumericProperty(FNumericProperty* NumericProp, void* PropAddr, const TSharedPtr<FJsonValue>& JsonValue);

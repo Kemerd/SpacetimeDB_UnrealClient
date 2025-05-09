@@ -118,6 +118,18 @@ struct FPredictedTransformData
 	bool bHasVelocity = false;
 };
 
+/** Delegate for client RPC events */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnClientRpcReceived, int64, ObjectId, const TArray<FStdbRpcArg>&, Args);
+
+/** Delegate for server RPC events */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnServerRpcReceived, int64, ObjectId, const TArray<FStdbRpcArg>&, Args);
+
+/** Delegate for component added events */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnComponentAddedDynamic, int64, ActorId, int64, ComponentId, const FString&, ComponentClassName);
+
+/** Delegate for component removed events */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnComponentRemovedDynamic, int64, ActorId, int64, ComponentId);
+
 /**
  * @class USpacetimeDBSubsystem
  * @brief Game Instance Subsystem for managing SpacetimeDB connections.
@@ -421,6 +433,87 @@ public:
     /** Process a server transform update with sequence number */
     UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Prediction")
     void ProcessServerTransformUpdate(const FObjectID& ObjectID, const FTransform& Transform, const FVector& Velocity, int32 AckedSequence);
+
+    //============================
+    // Component Replication
+    //============================
+    
+    /**
+     * Handles a component being added to an actor from the server.
+     * 
+     * @param ActorId The SpacetimeDB object ID of the actor
+     * @param ComponentId The SpacetimeDB object ID of the component
+     * @param ComponentClassName The class name of the component
+     * @param DataJson JSON string containing the component's initial data
+     * @return The created component UObject, or nullptr if creation failed
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Components")
+    UActorComponent* HandleComponentAdded(int64 ActorId, int64 ComponentId, const FString& ComponentClassName, const FString& DataJson);
+    
+    /**
+     * Handles a component being removed from an actor from the server.
+     * 
+     * @param ActorId The SpacetimeDB object ID of the actor
+     * @param ComponentId The SpacetimeDB object ID of the component
+     * @return True if successfully removed, false otherwise
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Components")
+    bool HandleComponentRemoved(int64 ActorId, int64 ComponentId);
+    
+    /**
+     * Gets a component by its SpacetimeDB object ID.
+     * 
+     * @param ComponentId The SpacetimeDB object ID of the component
+     * @return The UActorComponent pointer, or nullptr if not found
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Components")
+    UActorComponent* GetComponentById(int64 ComponentId) const;
+    
+    /**
+     * Gets all components for an actor by its SpacetimeDB object ID.
+     * 
+     * @param ActorId The SpacetimeDB object ID of the actor
+     * @return Array of component IDs attached to the actor
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Components")
+    TArray<int64> GetComponentIdsForActor(int64 ActorId) const;
+    
+    /**
+     * Gets all components for an actor.
+     * 
+     * @param Actor The actor to get components for
+     * @return Array of component IDs attached to the actor
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Components")
+    TArray<int64> GetComponentIdsForActor(AActor* Actor) const;
+    
+    /**
+     * Adds a component to an actor (client-side request).
+     * 
+     * @param ActorId The SpacetimeDB object ID of the actor
+     * @param ComponentClassName The class name of the component to add
+     * @return The temporary component ID, or 0 if failed
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Components")
+    int64 RequestAddComponent(int64 ActorId, const FString& ComponentClassName);
+    
+    /**
+     * Removes a component from an actor (client-side request).
+     * 
+     * @param ActorId The SpacetimeDB object ID of the actor
+     * @param ComponentId The SpacetimeDB object ID of the component
+     * @return True if the request was sent successfully, false otherwise
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Components")
+    bool RequestRemoveComponent(int64 ActorId, int64 ComponentId);
+
+    /** Event that fires when a component is added to an actor */
+    UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Components")
+    FOnComponentAddedDynamic OnComponentAdded;
+    
+    /** Event that fires when a component is removed from an actor */
+    UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Components")
+    FOnComponentRemovedDynamic OnComponentRemoved;
 
 private:
     // RPC delegate types

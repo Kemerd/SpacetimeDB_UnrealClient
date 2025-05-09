@@ -1364,4 +1364,305 @@ bool USpacetimeDBSubsystem::RequestSetOwner(int64 ObjectId, int64 NewOwnerClient
     // This must go through a server RPC since changing ownership is a privileged operation
     return CallServerFunction(ObjectId, TEXT("set_owner"), 
         TArray<FStdbRpcArg>{FStdbRpcArg(TEXT("new_owner_id"), NewOwnerClientId)});
+}
+
+//============================
+// Component Replication Implementation
+//============================
+
+UActorComponent* USpacetimeDBSubsystem::HandleComponentAdded(int64 ActorId, int64 ComponentId, const FString& ComponentClassName, const FString& DataJson)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: HandleComponentAdded - Actor: %lld, Component: %lld, Class: %s"), 
+        ActorId, ComponentId, *ComponentClassName);
+    
+    // First check if the actor exists
+    AActor* OwnerActor = Cast<AActor>(FindObjectById(ActorId));
+    if (!OwnerActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: HandleComponentAdded - Actor with ID %lld not found"), ActorId);
+        return nullptr;
+    }
+    
+    // Check if the component already exists (could be a remap)
+    if (UActorComponent* ExistingComponent = Cast<UActorComponent>(FindObjectById(ComponentId)))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: Component with ID %lld already exists"), ComponentId);
+        return ExistingComponent;
+    }
+    
+    // Parse JSON data for component properties
+    TSharedPtr<FJsonObject> ComponentDataJson;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(DataJson);
+    if (!FJsonSerializer::Deserialize(Reader, ComponentDataJson))
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to parse component data JSON: %s"), *DataJson);
+        return nullptr;
+    }
+    
+    // Find the component class by name
+    UClass* ComponentClass = FindObject<UClass>(ANY_PACKAGE, *ComponentClassName);
+    if (!ComponentClass)
+    {
+        // Try with a U prefix if not found
+        if (!ComponentClassName.StartsWith(TEXT("U")))
+        {
+            FString PrefixedClassName = FString::Printf(TEXT("U%s"), *ComponentClassName);
+            ComponentClass = FindObject<UClass>(ANY_PACKAGE, *PrefixedClassName);
+        }
+        
+        if (!ComponentClass)
+        {
+            UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Could not find component class '%s'"), *ComponentClassName);
+            return nullptr;
+        }
+    }
+    
+    // Verify it's actually a UActorComponent class
+    if (!ComponentClass->IsChildOf(UActorComponent::StaticClass()))
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Class '%s' is not a UActorComponent"), *ComponentClassName);
+        return nullptr;
+    }
+    
+    // Create the component
+    UActorComponent* NewComponent = NewObject<UActorComponent>(OwnerActor, ComponentClass);
+    if (!NewComponent)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to create component of class '%s'"), *ComponentClassName);
+        return nullptr;
+    }
+    
+    // Register the component with the actor
+    NewComponent->RegisterComponent();
+    
+    // Apply initial properties from JSON if provided
+    TSharedPtr<FJsonObject> PropertiesObj = ComponentDataJson->GetObjectField("properties");
+    if (PropertiesObj.IsValid())
+    {
+        // Apply each property from JSON to the component
+        for (const auto& Pair : PropertiesObj->Values)
+        {
+            const FString& PropertyName = Pair.Key;
+            const TSharedPtr<FJsonValue>& JsonValue = Pair.Value;
+            
+            // Apply property using our property helper
+            bool bSuccess = FSpacetimeDBPropertyHelper::ApplyJsonValueToProperty(NewComponent, PropertyName, JsonValue);
+            if (!bSuccess)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: Failed to apply property '%s' to component"), *PropertyName);
+            }
+        }
+    }
+    
+    // Register the component in our registry
+    ObjectRegistry.Add(ComponentId, NewComponent);
+    ObjectToIdMap.Add(NewComponent, ComponentId);
+    
+    // Broadcast the component added event
+    OnComponentAdded.Broadcast(ActorId, ComponentId, ComponentClassName);
+    
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Successfully added component '%s' with ID %lld to actor %lld"), 
+        *ComponentClassName, ComponentId, ActorId);
+    
+    return NewComponent;
+}
+
+bool USpacetimeDBSubsystem::HandleComponentRemoved(int64 ActorId, int64 ComponentId)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: HandleComponentRemoved - Actor: %lld, Component: %lld"), 
+        ActorId, ComponentId);
+    
+    // Find the actor and component
+    AActor* OwnerActor = Cast<AActor>(FindObjectById(ActorId));
+    UActorComponent* Component = Cast<UActorComponent>(FindObjectById(ComponentId));
+    
+    if (!OwnerActor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: HandleComponentRemoved - Actor with ID %lld not found"), ActorId);
+        return false;
+    }
+    
+    if (!Component)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: HandleComponentRemoved - Component with ID %lld not found"), ComponentId);
+        return false;
+    }
+    
+    // Verify the component is actually attached to this actor
+    if (Component->GetOwner() != OwnerActor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: HandleComponentRemoved - Component %lld is not attached to actor %lld"), 
+            ComponentId, ActorId);
+        return false;
+    }
+    
+    // Remove from registry first
+    ObjectRegistry.Remove(ComponentId);
+    ObjectToIdMap.Remove(Component);
+    
+    // Unregister and destroy the component
+    Component->UnregisterComponent();
+    Component->DestroyComponent();
+    
+    // Broadcast the component removed event
+    OnComponentRemoved.Broadcast(ActorId, ComponentId);
+    
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Successfully removed component with ID %lld from actor %lld"), 
+        ComponentId, ActorId);
+    
+    return true;
+}
+
+UActorComponent* USpacetimeDBSubsystem::GetComponentById(int64 ComponentId) const
+{
+    UObject* Object = FindObjectById(ComponentId);
+    return Cast<UActorComponent>(Object);
+}
+
+TArray<int64> USpacetimeDBSubsystem::GetComponentIdsForActor(int64 ActorId) const
+{
+    TArray<int64> Result;
+    
+    // Get the actor
+    AActor* Actor = Cast<AActor>(FindObjectById(ActorId));
+    if (!Actor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: GetComponentIdsForActor - Actor with ID %lld not found"), ActorId);
+        return Result;
+    }
+    
+    // Request the components from the Rust client
+    FString ArgsJson = FString::Printf(TEXT("{\"actor_id\":%lld}"), ActorId);
+    FString ResultJson = Client.CallReducerSync(TEXT("get_components"), ArgsJson);
+    
+    // Parse the result
+    TSharedPtr<FJsonObject> ResultObj;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ResultJson);
+    if (!FJsonSerializer::Deserialize(Reader, ResultObj))
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to parse get_components result JSON: %s"), *ResultJson);
+        return Result;
+    }
+    
+    // Extract the component IDs
+    TArray<TSharedPtr<FJsonValue>> ComponentIds = ResultObj->GetArrayField(TEXT("components"));
+    for (const TSharedPtr<FJsonValue>& ComponentIdValue : ComponentIds)
+    {
+        Result.Add(static_cast<int64>(ComponentIdValue->AsNumber()));
+    }
+    
+    return Result;
+}
+
+TArray<int64> USpacetimeDBSubsystem::GetComponentIdsForActor(AActor* Actor) const
+{
+    if (!Actor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: GetComponentIdsForActor - Actor is null"));
+        return TArray<int64>();
+    }
+    
+    int64 ActorId = GetObjectId(Actor);
+    if (ActorId == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: GetComponentIdsForActor - Actor %s has no SpacetimeDB ID"), 
+            *Actor->GetName());
+        return TArray<int64>();
+    }
+    
+    return GetComponentIdsForActor(ActorId);
+}
+
+int64 USpacetimeDBSubsystem::RequestAddComponent(int64 ActorId, const FString& ComponentClassName)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: RequestAddComponent - Actor: %lld, Component Class: %s"), 
+        ActorId, *ComponentClassName);
+    
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RequestAddComponent - Not connected to SpacetimeDB"));
+        return 0;
+    }
+    
+    // SECURITY: Check if client has authority to modify this actor
+    if (!HasAuthority(ActorId))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RequestAddComponent - Client does not have authority to modify actor %lld"), 
+            ActorId);
+        return 0;
+    }
+    
+    // Find the actor in our registry
+    AActor* Actor = Cast<AActor>(FindObjectById(ActorId));
+    if (!Actor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RequestAddComponent - Actor with ID %lld not found"), ActorId);
+        return 0;
+    }
+    
+    // Create JSON args for the reducer call
+    FString ArgsJson = FString::Printf(TEXT("{\"actor_id\":%lld,\"component_class\":\"%s\"}"), 
+        ActorId, *ComponentClassName);
+    
+    // Call the reducer
+    if (!Client.CallReducer(TEXT("create_and_attach_component"), ArgsJson))
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: RequestAddComponent - Failed to call reducer"));
+        return 0;
+    }
+    
+    // NOTE: We don't have the component ID yet - it will come from the server via HandleComponentAdded
+    // For now, return a placeholder/temporary ID
+    return -1; // Temporary ID that will be replaced
+}
+
+bool USpacetimeDBSubsystem::RequestRemoveComponent(int64 ActorId, int64 ComponentId)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: RequestRemoveComponent - Actor: %lld, Component: %lld"), 
+        ActorId, ComponentId);
+    
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RequestRemoveComponent - Not connected to SpacetimeDB"));
+        return false;
+    }
+    
+    // SECURITY: Check if client has authority to modify this actor
+    if (!HasAuthority(ActorId))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RequestRemoveComponent - Client does not have authority to modify actor %lld"), 
+            ActorId);
+        return false;
+    }
+    
+    // Find the actor and component
+    AActor* Actor = Cast<AActor>(FindObjectById(ActorId));
+    UActorComponent* Component = Cast<UActorComponent>(FindObjectById(ComponentId));
+    
+    if (!Actor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RequestRemoveComponent - Actor with ID %lld not found"), ActorId);
+        return false;
+    }
+    
+    if (!Component)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RequestRemoveComponent - Component with ID %lld not found"), ComponentId);
+        return false;
+    }
+    
+    // Verify the component is actually attached to this actor
+    if (Component->GetOwner() != Actor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RequestRemoveComponent - Component %lld is not attached to actor %lld"), 
+            ComponentId, ActorId);
+        return false;
+    }
+    
+    // Create JSON args for the reducer call
+    FString ArgsJson = FString::Printf(TEXT("{\"actor_id\":%lld,\"component_id\":%lld}"), 
+        ActorId, ComponentId);
+    
+    // Call the reducer
+    return Client.CallReducer(TEXT("remove_component"), ArgsJson);
 } 

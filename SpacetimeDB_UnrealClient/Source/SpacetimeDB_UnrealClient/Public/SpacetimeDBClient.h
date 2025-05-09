@@ -52,6 +52,14 @@ public:
     /** Delegate for when an object ID is remapped (temporary to server-assigned) */
     DECLARE_MULTICAST_DELEGATE_TwoParams(FOnObjectIdRemapped, uint64 /* TempId */, uint64 /* ServerId */);
     
+    /** Delegate that is broadcast when a component is added to an actor */
+    DECLARE_MULTICAST_DELEGATE_THREEARGS(FOnComponentAdded, uint64 /* ActorId */, uint64 /* ComponentId */, const FString& /* ComponentClassName */);
+    FOnComponentAdded OnComponentAdded;
+    
+    /** Delegate that is broadcast when a component is removed from an actor */
+    DECLARE_MULTICAST_DELEGATE_TWOPARAMS(FOnComponentRemoved, uint64 /* ActorId */, uint64 /* ComponentId */);
+    FOnComponentRemoved OnComponentRemoved;
+    
 public:
     /** Default constructor */
     FSpacetimeDBClient();
@@ -154,6 +162,10 @@ private:
     static void OnObjectCreatedCallback(uint64 ObjectId, const char* ClassName, const char* DataJson);
     static void OnObjectDestroyedCallback(uint64 ObjectId);
     static void OnObjectIdRemappedCallback(uint64 TempId, uint64 ServerId);
+    
+    // FFI callback functions for component management
+    static void OnComponentAddedCallback(uint64 ActorId, uint64 ComponentId, const char* ComponentClassName, const char* DataJson);
+    static void OnComponentRemovedCallback(uint64 ActorId, uint64 ComponentId);
     
     // Singleton instance pointer for callbacks
     static FSpacetimeDBClient* Instance;

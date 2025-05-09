@@ -886,4 +886,132 @@ TSharedPtr<FJsonValue> FSpacetimeDBPropertyHelper::SerializeEnumProperty(FEnumPr
     FString EnumName = Enum->GetNameStringByValue(EnumValue);
     
     return MakeShared<FJsonValueString>(EnumName);
+}
+
+bool FSpacetimeDBPropertyHelper::ApplyJsonValueToProperty(UObject* Object, const FString& PropertyName, const TSharedPtr<FJsonValue>& JsonValue)
+{
+    if (!Object)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FSpacetimeDBPropertyHelper::ApplyJsonValueToProperty - Object is null"));
+        return false;
+    }
+
+    if (PropertyName.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("FSpacetimeDBPropertyHelper::ApplyJsonValueToProperty - Property name is empty"));
+        return false;
+    }
+
+    if (!JsonValue.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("FSpacetimeDBPropertyHelper::ApplyJsonValueToProperty - JSON value is invalid"));
+        return false;
+    }
+
+    // Find the property on the object
+    UClass* ObjectClass = Object->GetClass();
+    FProperty* Property = FindFProperty<FProperty>(ObjectClass, *PropertyName);
+    if (!Property)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FSpacetimeDBPropertyHelper::ApplyJsonValueToProperty - Property '%s' not found on object of class '%s'"), 
+            *PropertyName, *ObjectClass->GetName());
+        return false;
+    }
+
+    // Get the address of the property in the object
+    void* PropertyAddress = Property->ContainerPtrToValuePtr<void>(Object);
+    bool bSuccess = false;
+
+    // Handle different property types - reuse existing helpers where possible
+    if (FNumericProperty* NumericProp = CastField<FNumericProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyNumericProperty(NumericProp, PropertyAddress, JsonValue);
+    }
+    else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyBoolProperty(BoolProp, PropertyAddress, JsonValue);
+    }
+    else if (FStrProperty* StrProp = CastField<FStrProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyStrProperty(StrProp, PropertyAddress, JsonValue);
+    }
+    else if (FTextProperty* TextProp = CastField<FTextProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyTextProperty(TextProp, PropertyAddress, JsonValue);
+    }
+    else if (FNameProperty* NameProp = CastField<FNameProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyNameProperty(NameProp, PropertyAddress, JsonValue);
+    }
+    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyStructProperty(StructProp, PropertyAddress, JsonValue);
+    }
+    else if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyArrayProperty(ArrayProp, PropertyAddress, JsonValue);
+    }
+    else if (FMapProperty* MapProp = CastField<FMapProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyMapProperty(MapProp, PropertyAddress, JsonValue);
+    }
+    else if (FObjectProperty* ObjProp = CastField<FObjectProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyObjectProperty(ObjProp, PropertyAddress, JsonValue);
+    }
+    else if (FSoftObjectProperty* SoftObjProp = CastField<FSoftObjectProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplySoftObjectProperty(SoftObjProp, PropertyAddress, JsonValue);
+    }
+    else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+    {
+        bSuccess = DeserializeAndApplyEnumProperty(EnumProp, PropertyAddress, JsonValue);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FSpacetimeDBPropertyHelper::ApplyJsonValueToProperty - Unsupported property type for property '%s'"), 
+            *PropertyName);
+        return false;
+    }
+
+    // Fire RepNotify if available
+    if (bSuccess && Property->HasAnyPropertyFlags(CPF_RepNotify))
+    {
+        FName RepNotifyFuncName = Property->RepNotifyFunc;
+        if (RepNotifyFuncName != NAME_None)
+        {
+            UFunction* RepNotifyFunc = Object->GetClass()->FindFunctionByName(RepNotifyFuncName);
+            if (RepNotifyFunc)
+            {
+                // Check if the RepNotify function takes a parameter
+                if (RepNotifyFunc->NumParms > 0)
+                {
+                    // Create a buffer for the parameter
+                    uint8* Buffer = (uint8*)FMemory::Malloc(RepNotifyFunc->ParmsSize);
+                    FMemory::Memzero(Buffer, RepNotifyFunc->ParmsSize);
+                    
+                    // Copy the property value to the parameter
+                    for (TFieldIterator<FProperty> It(RepNotifyFunc); It && It->HasAnyPropertyFlags(CPF_Parm) && !It->HasAnyPropertyFlags(CPF_ReturnParm); ++It)
+                    {
+                        void* Parm = It->ContainerPtrToValuePtr<void>(Buffer);
+                        It->CopyCompleteValue(Parm, PropertyAddress);
+                        break; // Only copy the first parameter
+                    }
+                    
+                    // Call the function
+                    Object->ProcessEvent(RepNotifyFunc, Buffer);
+                    
+                    // Clean up
+                    FMemory::Free(Buffer);
+                }
+                else
+                {
+                    // Call the function without parameters
+                    Object->ProcessEvent(RepNotifyFunc, nullptr);
+                }
+            }
+        }
+    }
+
+    return bSuccess;
 } 

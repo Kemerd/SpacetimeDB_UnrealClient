@@ -133,10 +133,10 @@ This subsystem will be the main interface for Unreal C++ and Blueprints to inter
     *   [X] Implement logic to respect object/actor ownership as defined by the server (`owner_id`, `owner_identity`).
     *   [X] Only allow sending property updates or certain RPCs if the client has authority (e.g., for its PlayerController or owned Pawns).
 
-4.  [ ] **Component Replication:**
-    *   [ ] The current Rust `ClientActor.components` only stores `ObjectId`s. A full C++ implementation would need to:
-        *   [ ] Spawn/destroy actual `UActorComponent` instances on the client when the server signals component changes for an actor.
-        *   [ ] Handle replicated properties on these components.
+4.  [X] **Component Replication:**
+    *   [X] The current Rust `ClientActor.components` only stores `ObjectId`s. A full C++ implementation would need to:
+        *   [X] Spawn/destroy actual `UActorComponent` instances on the client when the server signals component changes for an actor.
+        *   [X] Handle replicated properties on these components.
 
 5.  [ ] **Error Handling & Logging:**
     *   [ ] Properly handle errors returned from FFI calls.

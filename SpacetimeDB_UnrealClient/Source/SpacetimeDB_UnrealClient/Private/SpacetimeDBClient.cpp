@@ -2,6 +2,9 @@
 
 #include "SpacetimeDBClient.h"
 #include "HAL/UnrealMemory.h"
+#include "Async/Async.h"
+#include "SpacetimeDBSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "rust/stdb.hpp" // Include the generated FFI header file
 
 // Initialize static singleton instance for callbacks
@@ -55,6 +58,10 @@ bool FSpacetimeDBClient::Connect(const FString& Host, const FString& DatabaseNam
     callbacks.on_object_created = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnObjectCreatedCallback);
     callbacks.on_object_destroyed = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnObjectDestroyedCallback);
     callbacks.on_object_id_remapped = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnObjectIdRemappedCallback);
+    
+    // Add component system callbacks
+    callbacks.on_component_added = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnComponentAddedCallback);
+    callbacks.on_component_removed = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnComponentRemovedCallback);
     
     // Call the Rust function through FFI
     return stdb::ffi::connect_to_server(config, callbacks);
@@ -234,8 +241,68 @@ void FSpacetimeDBClient::OnObjectIdRemappedCallback(uint64 TempId, uint64 Server
     {
         // Execute on game thread
         AsyncTask(ENamedThreads::GameThread, [=]() {
-            UE_LOG(LogTemp, Log, TEXT("SpacetimeDBClient: Object ID remapped - Temp ID %llu -> Server ID %llu"), TempId, ServerId);
+            UE_LOG(LogTemp, Log, TEXT("SpacetimeDBClient: Object ID remapped - %llu -> %llu"), TempId, ServerId);
             Instance->OnObjectIdRemapped.Broadcast(TempId, ServerId);
+        });
+    }
+}
+
+void FSpacetimeDBClient::OnComponentAddedCallback(uint64 ActorId, uint64 ComponentId, const char* ComponentClassName, const char* DataJson)
+{
+    if (Instance)
+    {
+        FString ComponentClassNameStr = UTF8_TO_TCHAR(ComponentClassName);
+        FString DataJsonStr = UTF8_TO_TCHAR(DataJson);
+        
+        // Execute on game thread
+        AsyncTask(ENamedThreads::GameThread, [=]() {
+            UE_LOG(LogTemp, Log, TEXT("SpacetimeDBClient: Component added - Actor %llu, Component %llu, Class %s"), 
+                ActorId, ComponentId, *ComponentClassNameStr);
+            Instance->OnComponentAdded.Broadcast(ActorId, ComponentId, ComponentClassNameStr);
+            
+            // Find the subsystem to handle component creation
+            for (TObjectIterator<UGameInstance> It; It; ++It)
+            {
+                if (UGameInstance* GameInstance = *It)
+                {
+                    if (!GameInstance->IsPendingKill() && GameInstance->GetWorld() && GameInstance->GetWorld()->IsGameWorld())
+                    {
+                        if (USpacetimeDBSubsystem* Subsystem = GameInstance->GetSubsystem<USpacetimeDBSubsystem>())
+                        {
+                            Subsystem->HandleComponentAdded(ActorId, ComponentId, ComponentClassNameStr, DataJsonStr);
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+void FSpacetimeDBClient::OnComponentRemovedCallback(uint64 ActorId, uint64 ComponentId)
+{
+    if (Instance)
+    {
+        // Execute on game thread
+        AsyncTask(ENamedThreads::GameThread, [=]() {
+            UE_LOG(LogTemp, Log, TEXT("SpacetimeDBClient: Component removed - Actor %llu, Component %llu"), ActorId, ComponentId);
+            Instance->OnComponentRemoved.Broadcast(ActorId, ComponentId);
+            
+            // Find the subsystem to handle component removal
+            for (TObjectIterator<UGameInstance> It; It; ++It)
+            {
+                if (UGameInstance* GameInstance = *It)
+                {
+                    if (!GameInstance->IsPendingKill() && GameInstance->GetWorld() && GameInstance->GetWorld()->IsGameWorld())
+                    {
+                        if (USpacetimeDBSubsystem* Subsystem = GameInstance->GetSubsystem<USpacetimeDBSubsystem>())
+                        {
+                            Subsystem->HandleComponentRemoved(ActorId, ComponentId);
+                            break;
+                        }
+                    }
+                }
+            }
         });
     }
 } 
