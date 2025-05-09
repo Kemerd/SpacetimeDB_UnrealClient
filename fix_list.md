@@ -10,10 +10,10 @@ Key:
 
 The following core modules/functionalities are declared in `ServerModule/src/lib.rs` and/or the `README.md` but their corresponding directories in `ServerModule/src/` are empty or implementations are critically incomplete:
 
-1.  [ ] **`ServerModule/src/connection/` is empty:**
-    *   [ ] Missing logic for `connection::handlers::register_client()` and `connection::handlers::unregister_client()` (called by `client_connected`/`client_disconnected` reducers in `ServerModule/src/lib.rs`).
-    *   [ ] Missing actual authentication/authorization logic (e.g., `connection::auth::can_spawn_actor()`, `connection::auth::is_admin()` used in `ServerModule/src/actor/spawn.rs` and `ServerModule/src/actor/lifecycle.rs`).
-    *   [ ] No handling of `ConnectionParams` from `SharedModule`.
+1.  [X] **`ServerModule/src/connection/` is empty:**
+    *   [X] Missing logic for `connection::handlers::register_client()` and `connection::handlers::unregister_client()` (called by `client_connected`/`client_disconnected` reducers in `ServerModule/src/lib.rs`).
+    *   [X] Missing actual authentication/authorization logic (e.g., `connection::auth::can_spawn_actor()`, `connection::auth::is_admin()` used in `ServerModule/src/actor/spawn.rs` and `ServerModule/src/actor/lifecycle.rs`).
+    *   [X] No handling of `ConnectionParams` from `SharedModule`.
 
 2.  [ ] **`ServerModule/src/rpc/` is empty:**
     *   [ ] Missing server-side RPC function registration mechanism.
