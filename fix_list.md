@@ -40,12 +40,12 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
         *   [X] Explicitly commented as placeholder: `// In a real implementation, you'd have a system to define which components are needed for each class`.
         *   [X] Uses hardcoded `component_class_id: 101`.
 
-3.  [ ] **`ServerModule/src/actor/lifecycle.rs`:**
-    *   [ ] `destroy_actor()`:
-        *   [ ] Explicitly commented as placeholder for cleanup: `// In a real implementation, you'd have a system to clean up destroyed actors`.
-    *   [ ] `cleanup_destroyed_actors()`:
-        *   [ ] Timestamp logic for deleting `Destroyed` actors seems to use `created_at` instead of a destruction timestamp, and comment suggests it's placeholder: `// (In a real implementation, you'd check timestamps)`.
-        *   [ ] Comment `// In a real implementation, you might clean up related data, or delay deletion further...` indicates incomplete logic.
+3.  [X] **`ServerModule/src/actor/lifecycle.rs`:**
+    *   [X] `destroy_actor()`:
+        *   [X] Replaced placeholder comment with proper implementation including destruction timestamp tracking and notification of relevant systems.
+    *   [X] `cleanup_destroyed_actors()`:
+        *   [X] Fixed timestamp logic to use proper `destroyed_at` timestamp instead of `created_at`.
+        *   [X] Implemented comprehensive cleanup logic for destroying actors, including components, properties, transform data, relevancy data, and RPC handlers.
 
 4.  [ ] **Dynamic Class/Property Discovery (General Server Issue):**
     *   [ ] Both `ServerModule/src/object/class.rs` and `ServerModule/src/actor/init.rs` rely on hardcoding lists of Unreal classes and some of their properties. A "complete replacement" system would require dynamic discovery and registration of all relevant UClasses and UProperties from the active Unreal project, likely via FFI calls from Unreal to Rust during an initialization phase or a build-time code generation step.
