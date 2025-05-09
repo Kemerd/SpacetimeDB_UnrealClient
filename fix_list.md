@@ -130,8 +130,8 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
 3.  [X] **`ClientModule/src/rpc/mod.rs` - Sending RPCs to Server:**
     *   [X] `call_server_function()` & `send_rpc_to_server()`: Explicitly commented as placeholders: `// In a real implementation, we would use spacetimedb_sdk to call a reducer`. Client-to-server RPCs are not functionally implemented to use the SpacetimeDB SDK.
 
-4.  [ ] **`ClientModule/src/object/mod.rs` - Incomplete Transform Handling:**
-    *   [ ] Rotation conversion from `PropertyValue::Rotator` to `Quat` within `update_object_property` is a placeholder: `let quat = Quat::identity(); // Placeholder` and comment `// In a real implementation, we'd use proper conversion`.
+4.  [X] **`ClientModule/src/object/mod.rs` - Incomplete Transform Handling:**
+    *   [X] Rotation conversion from `PropertyValue::Rotator` to `Quat` within `update_object_property` is a placeholder: `let quat = Quat::identity(); // Placeholder` and comment `// In a real implementation, we'd use proper conversion`.
 
 ## VI. Client-Side Redundancies & Design Points:
 
