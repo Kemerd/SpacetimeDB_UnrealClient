@@ -133,3 +133,6 @@ __pycache__/
 /STDB_UE_Example/Intermediate
 /STDB_UE_Example/Intermediate
 /STDB_UE_Example/Saved
+/SpacetimeDB_UnrealClient/ClientModule/target
+/SpacetimeDB_UnrealClient/ClientModule/target
+/SpacetimeDB_UnrealClient/ClientModule/target/cxxbridge
