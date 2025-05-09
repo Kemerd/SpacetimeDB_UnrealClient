@@ -30,17 +30,19 @@ This document outlines the tasks required on the Unreal Engine C++ side to fully
 
 ## II. Data Type Management & Serialization:
 
-1.  [ ] **Shared Type Mirroring:**
-    *   [ ] Define C++ structs equivalent to those in `SharedModule/src/types.rs` (e.g., `FStdbVector3`, `FStdbRotator`, `FStdbTransform`, `FStdbColor`) if direct mapping to Unreal types like `FVector`, `FRotator` isn't perfectly 1:1 or if intermediate structures are needed.
-    *   [ ] Implement conversion functions between these C++ structs and native Unreal types.
+1.  [X] **Shared Type Mirroring:**
+    *   [X] Define C++ structs equivalent to those in `SharedModule/src/types.rs` (e.g., `FStdbVector3`, `FStdbRotator`, `FStdbTransform`, `FStdbColor`) if direct mapping to Unreal types like `FVector`, `FRotator` isn't perfectly 1:1 or if intermediate structures are needed.
+    *   [X] Implement conversion functions between these C++ structs and native Unreal types.
 
-2.  [ ] **JSON Processing for Properties & RPCs:**
-    *   [ ] **Crucial:** Develop robust C++ utility functions using Unreal's JSON libraries (`FJsonSerializer`, `FJsonDeserializer`, `TJsonReader`, `TJsonWriter`, `FJsonObject`, `FJsonValue`) to handle the JSON strings used extensively by the Rust modules for:
-        *   [ ] Property values (especially for containers like `TArray`, `TMap`, and custom UStructs which are passed as `PropertyValue::ArrayJson`, `MapJson`, `CustomJson`).
-        *   [ ] RPC arguments (`RpcCall::arguments_json`).
-        *   [ ] RPC results (`RpcResponse::result_json`).
-        *   [ ] Initial properties in `SpawnParams` and `ObjectDescription`.
-    *   [ ] This includes serializing Unreal data to JSON for `set_property` and `call_server_function` calls, and deserializing JSON from server updates/RPCs.
+TODO USE PROTOBUFS INSTEAD
+
+2.  [X] **JSON Processing for Properties & RPCs:**
+    *   [X] **Crucial:** Develop robust C++ utility functions using Unreal's JSON libraries (`FJsonSerializer`, `FJsonDeserializer`, `TJsonReader`, `TJsonWriter`, `FJsonObject`, `FJsonValue`) to handle the JSON strings used extensively by the Rust modules for:
+        *   [X] Property values (especially for containers like `TArray`, `TMap`, and custom UStructs which are passed as `PropertyValue::ArrayJson`, `MapJson`, `CustomJson`).
+        *   [X] RPC arguments (`RpcCall::arguments_json`).
+        *   [X] RPC results (`RpcResponse::result_json`).
+        *   [X] Initial properties in `SpawnParams` and `ObjectDescription`.
+    *   [X] This includes serializing Unreal data to JSON for `set_property` and `call_server_function` calls, and deserializing JSON from server updates/RPCs.
 
 3.  [ ] **`PropertyValue` Handling:**
     *   [ ] Create C++ logic to interpret the `PropertyValue` enum (from `SharedModule`) received from Rust (likely as part of a JSON string or via a dedicated FFI struct).
