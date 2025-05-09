@@ -299,7 +299,7 @@ pub fn create_object(class_name: &str, params: SpawnParams) -> Result<ObjectId, 
     register_object(object);
     
     // Request the server to create the object
-    request_server_create_object(temp_id, class_name, &params)?;
+    request_server_create_object(temp_object_id, class_name, &params)?;
     
     // Return the temporary object ID
     Ok(temp_object_id)
@@ -993,4 +993,163 @@ pub fn remove_component(
     } else {
         Err(format!("Actor {} not found", actor_id))
     }
+}
+
+/// Register an object on the client with the given class name and parameters
+pub fn register_object(class_name: &str, params: &serde_json::Value) -> Result<ObjectId, String> {
+    // Generate a temporary ID
+    let object_id = generate_temp_object_id();
+    
+    // Check if this class is an actor class
+    let is_actor = crate::class::is_actor_class(
+        crate::class::get_class_id_by_name(class_name).unwrap_or(0)
+    );
+    
+    // Extract initial properties from the params
+    let mut initial_properties = HashMap::new();
+    if let Some(props) = params.get("properties").and_then(|p| p.as_object()) {
+        for (key, value) in props {
+            if let Ok(value_str) = serde_json::to_string(value) {
+                initial_properties.insert(key.clone(), value_str);
+            }
+        }
+    }
+    
+    // Extract transform if provided
+    let transform = if let Some(transform_data) = params.get("transform") {
+        let location = transform_data.get("location").and_then(|l| {
+            if let (Some(x), Some(y), Some(z)) = (
+                l.get("x").and_then(|x| x.as_f64()),
+                l.get("y").and_then(|y| y.as_f64()),
+                l.get("z").and_then(|z| z.as_f64())
+            ) {
+                Some(Vector3 { x: x as f32, y: y as f32, z: z as f32 })
+            } else {
+                None
+            }
+        }).unwrap_or(Vector3::zero());
+        
+        let rotation = transform_data.get("rotation").and_then(|r| {
+            if let (Some(x), Some(y), Some(z), Some(w)) = (
+                r.get("x").and_then(|x| x.as_f64()),
+                r.get("y").and_then(|y| y.as_f64()),
+                r.get("z").and_then(|z| z.as_f64()),
+                r.get("w").and_then(|w| w.as_f64())
+            ) {
+                Some(Quat { x: x as f32, y: y as f32, z: z as f32, w: w as f32 })
+            } else {
+                None
+            }
+        }).unwrap_or(Quat::identity());
+        
+        let scale = transform_data.get("scale").and_then(|s| {
+            if let (Some(x), Some(y), Some(z)) = (
+                s.get("x").and_then(|x| x.as_f64()),
+                s.get("y").and_then(|y| y.as_f64()),
+                s.get("z").and_then(|z| z.as_f64())
+            ) {
+                Some(Vector3 { x: x as f32, y: y as f32, z: z as f32 })
+            } else {
+                None
+            }
+        }).unwrap_or(Vector3::one());
+        
+        Some(Transform { location, rotation, scale })
+    } else {
+        None
+    };
+    
+    // Extract owner_id if provided
+    let owner_id = params.get("owner_id").and_then(|o| o.as_u64());
+    
+    // Extract replicates flag
+    let replicates = params.get("replicates").and_then(|r| r.as_bool()).unwrap_or(true);
+    
+    // Pre-cache any initial properties in the staging cache
+    for (name, value_json) in &initial_properties {
+        if let Ok(value) = crate::property::serialization::deserialize_property_value(value_json) {
+            crate::property::cache_property_value(object_id, name, value);
+        }
+    }
+    
+    // Transfer properties from staging cache to the object
+    let properties = crate::property::transfer_cached_properties_to_object(object_id);
+    
+    // Create the object with the extracted data
+    let object = ClientObject {
+        id: object_id,
+        class_name: class_name.to_string(),
+        owner_id,
+        state: ObjectLifecycleState::Initializing,
+        transform,
+        properties,
+        needs_id_remap: true,
+        is_actor,
+        replicates,
+        components: Vec::new(),
+    };
+    
+    // Register the object
+    register_object(object);
+    
+    // Create a simplified SpawnParams for server request
+    let spawn_params = SpawnParams {
+        class_name: class_name.to_string(),
+        transform,
+        owner_id,
+        replicates,
+        initial_properties,
+        is_system: false,
+    };
+    
+    // Only request server creation if replicates is true and we're connected
+    if replicates && crate::net::is_connected() {
+        request_server_create_object(object_id, class_name, &spawn_params)?;
+    }
+    
+    Ok(object_id)
+}
+
+/// Dispatch an unreliable RPC (Remote Procedure Call) for an object
+pub fn dispatch_unreliable_rpc(
+    object_id: ObjectId,
+    function_name: &str,
+    params: &serde_json::Value,
+) -> Result<(), String> {
+    // Check if the object exists
+    let object = {
+        let objects = CLIENT_OBJECTS.lock().unwrap();
+        match objects.get(&object_id) {
+            Some(obj) => obj.clone(),
+            None => return Err(format!("Object {} not found", object_id))
+        }
+    };
+    
+    // Only allow RPCs for replicated objects
+    if !object.replicates {
+        return Err(format!("Cannot dispatch RPC for non-replicated object {}", object_id));
+    }
+    
+    // Check if we're connected to the server
+    if !crate::net::is_connected() {
+        return Err("Not connected to server".to_string());
+    }
+    
+    // Prepare the RPC request data
+    let request_data = serde_json::json!({
+        "object_id": object_id,
+        "function": function_name,
+        "args": params,
+        "reliable": false
+    });
+    
+    // Serialize to JSON
+    let request_json = serde_json::to_string(&request_data)
+        .map_err(|e| format!("Failed to serialize RPC request: {}", e))?;
+    
+    // Send the RPC request
+    crate::net::send_rpc_request(&request_json)?;
+    
+    debug!("Dispatched unreliable RPC {} for object {}", function_name, object_id);
+    Ok(())
 } 

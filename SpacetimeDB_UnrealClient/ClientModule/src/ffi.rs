@@ -8,21 +8,22 @@ use std::sync::{Arc, Mutex};
 use std::str::FromStr;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
-
+use serde::{Serialize, Deserialize};
 use stdb_shared::object::ObjectId;
-use stdb_shared::property::{PropertyType, PropertyValue};
+use stdb_shared::property::{PropertyType, PropertyValue, ReplicationCondition};
 use stdb_shared::types::*;
-
 use crate::property;
 use crate::object;
 use crate::net;
 use crate::rpc;
 use crate::prediction::{get_prediction_system, PredictedTransformUpdate, SequenceNumber};
 use stdb_shared::types::Transform;
+use log;
+use crate::{class, prediction};
 
 // Define the VelocityData struct since it doesn't seem to exist in the shared types
 // This matches the usage in the prediction module
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct VelocityData {
     pub linear: [f32; 3],
     pub angular: [f32; 3],
@@ -122,70 +123,65 @@ fn invoke_on_error(cb_ptr: usize, error_message: &str) {
 
 // --- FFI Bridge Definition ---
 // This section uses `cxx::bridge` to define the interface between Rust and C++.
-#[cxx::bridge(namespace = "stdb::ffi")]
-mod bridge {
-    // Configuration for connecting to SpacetimeDB.
-    struct ConnectionConfig {
-        host: String,
-        db_name: String,
-        auth_token: String, 
+#[cxx::bridge]
+mod ffi {
+    // External C++ types
+    extern "C++" {
+        include!("UnrealReplication.h");
     }
-
-    // Struct to pass callback function pointers from C++ to Rust.
-    // `usize` is used to represent raw function pointers.
-    #[derive(Debug, Default)]
-    struct EventCallbackPointers {
-        on_connected: usize,
-        on_disconnected: usize,
-        on_property_updated: usize,
-        on_object_created: usize,
-        on_object_destroyed: usize,
-        on_error_occurred: usize,
-        on_object_id_remapped: usize,
+    
+    // Rust types exposed to C++
+    #[derive(Debug)]
+    pub enum ConnectionState {
+        Disconnected = 0,
+        Connecting = 1,
+        Connected = 2,
     }
-
-    // Functions exposed from Rust to C++.
+    
+    #[derive(Debug)]
+    pub enum ReplicationCondition {
+        Never = 0,
+        OnChange = 1,
+        Initial = 2,
+        Always = 3,
+    }
+    
+    // Property system functions
     extern "Rust" {
-        // Connection management
-        fn connect_to_server(config: ConnectionConfig, callbacks: EventCallbackPointers) -> bool;
-        fn disconnect_from_server() -> bool;
-        fn is_connected() -> bool;
+        fn create_class(class_name: &CxxString, parent_class_name: &CxxString) -> bool;
         
-        // Property management
-        fn set_property(object_id: u64, property_name: &CxxString, value_json: &CxxString, replicate: bool) -> bool;
-        fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxString>;
+        fn add_property(
+            class_name: &CxxString,
+            property_name: &CxxString,
+            type_name: &CxxString,
+            replicated: bool,
+            replication_condition: ReplicationCondition,
+            readonly: bool,
+            flags: u32,
+        ) -> bool;
         
-        // Object management
-        fn create_object(class_name: &CxxString, params_json: &CxxString) -> u64;
-        fn destroy_object(object_id: u64) -> bool;
+        fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString>;
         
-        // Component management
-        fn add_component(actor_id: u64, component_id: u64) -> bool;
-        fn remove_component(actor_id: u64, component_id: u64) -> bool;
-        fn get_components(actor_id: u64) -> UniquePtr<CxxString>;
-        fn get_component_by_class(actor_id: u64, class_name: &CxxString) -> u64;
-        fn is_component(object_id: u64) -> bool;
-        fn get_component_owner(component_id: u64) -> u64;
-        fn create_and_attach_component(actor_id: u64, component_class: &CxxString) -> u64;
-        fn get_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString>;
-        fn set_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString, value_json: &CxxString) -> bool;
+        fn get_property_names_for_class(class_name: &CxxString) -> UniquePtr<CxxString>;
         
-        // RPC (Remote Procedure Calls)
-        fn call_server_function(object_id: u64, function_name: &CxxString, args_json: &CxxString) -> bool;
-        fn register_client_function(function_name: &CxxString, handler_ptr: usize) -> bool;
+        fn get_registered_class_names() -> UniquePtr<CxxString>;
         
-        // Utility functions
-        fn get_client_id() -> u64;
+        fn export_property_definitions_as_json() -> UniquePtr<CxxString>;
+        
+        fn import_property_definitions_from_json(json: &CxxString) -> bool;
+    }
+    
+    // Object system functions
+    extern "Rust" {
+        fn register_object(class_name: &CxxString, params: &CxxString) -> u64;
+        
         fn get_object_class(object_id: u64) -> UniquePtr<CxxString>;
         
-        // Property definition functions
-        fn get_property_definition_count() -> usize;
-        fn has_property_definitions_for_class(class_name: &CxxString) -> bool;
-        fn get_property_names_for_class(class_name: &CxxString) -> UniquePtr<CxxString>;
-        fn get_registered_class_names() -> UniquePtr<CxxString>;
-        fn import_property_definitions_from_json(json_str: &CxxString) -> bool;
-        fn export_property_definitions_as_json() -> UniquePtr<CxxString>;
-        fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString>;
+        fn set_property(object_id: u64, property_name: &CxxString, value_json: &CxxString, replicate: bool) -> bool;
+        
+        fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxString>;
+        
+        fn dispatch_unreliable_rpc(object_id: u64, function_name: &CxxString, params: &CxxString) -> bool;
     }
 }
 
@@ -295,27 +291,23 @@ fn is_connected() -> bool {
 
 /// Set a property on an object
 fn set_property(object_id: u64, property_name: &CxxString, value_json: &CxxString, replicate: bool) -> bool {
-    let prop_name = property_name.to_string();
-    let value_json_str = value_json.to_string();
+    let property_name_str = property_name.to_str().unwrap_or("");
+    let value_str = value_json.to_str().unwrap_or("null");
     
-    // Deserialize the value from JSON
-    match property::serialization::deserialize_property_value(&value_json_str) {
+    // Try to deserialize the value JSON
+    match serde_json::from_str::<serde_json::Value>(value_str) {
         Ok(value) => {
-            // Set the property
-            match crate::set_property(object_id, &prop_name, value, replicate) {
+            // Set the property with the given value
+            match object::set_object_property_with_replication(object_id, property_name_str, &value, replicate) {
                 Ok(_) => true,
                 Err(err) => {
-                    let error_msg = format!("Failed to set property: {}", err);
-                    let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
-                    invoke_on_error(error_ptr, &error_msg);
+                    log::error!("Failed to set property {}: {}", property_name_str, err);
                     false
                 }
             }
         },
         Err(err) => {
-            let error_msg = format!("Failed to parse property value: {}", err);
-            let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
-            invoke_on_error(error_ptr, &error_msg);
+            log::error!("Failed to parse value JSON for property {}: {}", property_name_str, err);
             false
         }
     }
@@ -323,25 +315,23 @@ fn set_property(object_id: u64, property_name: &CxxString, value_json: &CxxStrin
 
 /// Get a property from an object
 fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxString> {
-    let prop_name = property_name.to_string();
+    let property_name_str = property_name.to_str().unwrap_or("");
     
-    // Look up the property
-    if let Some(value) = property::get_cached_property_value(object_id, &prop_name) {
-        // Serialize to JSON
-        match property::serialization::serialize_property_value(&value) {
-            Ok(json) => {
-                let mut result = CxxString::new();
-                result.push_str(&json);
-                UniquePtr::new(result)
-            },
-            Err(_) => {
-                let mut result = CxxString::new();
-                UniquePtr::new(result)
-            },
+    // Get property value as JSON
+    match object::get_object_property(object_id, property_name_str) {
+        Some(value) => {
+            // Serialize property value to JSON
+            if let Ok(json) = property::serialize_property_value(&value) {
+                // Return JSON string
+                return UniquePtr::from(CxxString::new(&json));
+            }
+            // Return empty JSON if serialization fails
+            return UniquePtr::from(CxxString::new("{}"));
         }
-    } else {
-        let mut result = CxxString::new();
-        UniquePtr::new(result)
+        None => {
+            // Return empty JSON if property not found
+            return UniquePtr::from(CxxString::new("{}"));
+        }
     }
 }
 
@@ -444,17 +434,17 @@ fn get_client_id() -> u64 {
 
 /// Get an object's class name
 fn get_object_class(object_id: u64) -> UniquePtr<CxxString> {
-    match object::get_object_class(object_id) {
-        Some(class_name) => {
-            let mut result = CxxString::new();
-            result.push_str(&class_name);
-            UniquePtr::new(result)
-        },
-        None => {
-            let mut result = CxxString::new();
-            UniquePtr::new(result)
-        },
+    // Get class name
+    if let Some(class_name) = crate::class::get_class_name_by_id(
+        object::get_object_class(object_id)
+            .and_then(|name| crate::class::get_class_id_by_name(&name))
+            .unwrap_or(0)
+    ) {
+        return UniquePtr::from(CxxString::new(&class_name));
     }
+    
+    // Return empty string if no class found
+    UniquePtr::from(CxxString::new(""))
 }
 
 /// Get the total number of property definitions
@@ -470,53 +460,46 @@ fn has_property_definitions_for_class(class_name: &CxxString) -> bool {
 
 /// Get property names for a specific class as a JSON array
 fn get_property_names_for_class(class_name: &CxxString) -> UniquePtr<CxxString> {
-    let class_name_str = class_name.to_string();
-    let prop_names = crate::get_property_names_for_class(&class_name_str);
+    let class_name_str = class_name.to_str().unwrap_or("");
     
-    // Convert to JSON array
-    match serde_json::to_string(&prop_names) {
-        Ok(json) => {
-            let mut result = CxxString::new();
-            result.push_str(&json);
-            UniquePtr::new(result)
-        },
-        Err(_) => {
-            let mut result = CxxString::new();
-            result.push_str("[]");
-            UniquePtr::new(result)
-        },
+    // Get property names for class
+    let prop_names = property::get_property_names_for_class(class_name_str);
+    
+    // Convert to JSON
+    if let Ok(json) = serde_json::to_string(&prop_names) {
+        return UniquePtr::from(CxxString::new(&json));
     }
+    
+    // Return empty array if serialization failed
+    UniquePtr::from(CxxString::new("[]"))
 }
 
 /// Get all registered class names as a JSON array
 fn get_registered_class_names() -> UniquePtr<CxxString> {
-    let class_names = crate::get_registered_class_names();
+    // Get classes
+    let class_names = property::get_registered_class_names();
     
-    // Convert to JSON array
-    match serde_json::to_string(&class_names) {
-        Ok(json) => {
-            let mut result = CxxString::new();
-            result.push_str(&json);
-            UniquePtr::new(result)
-        },
-        Err(_) => {
-            let mut result = CxxString::new();
-            result.push_str("[]");
-            UniquePtr::new(result)
-        },
+    // Convert to JSON
+    if let Ok(json) = serde_json::to_string(&class_names) {
+        return UniquePtr::from(CxxString::new(&json));
     }
+    
+    // Return empty array if serialization failed
+    UniquePtr::from(CxxString::new("[]"))
 }
 
 /// Import property definitions from a JSON string
-fn import_property_definitions_from_json(json_str: &CxxString) -> bool {
-    let json_str_rust = json_str.to_string();
+fn import_property_definitions_from_json(json: &CxxString) -> bool {
+    let json_str = json.to_str().unwrap_or("{}");
     
-    match crate::import_property_definitions_from_json(&json_str_rust) {
-        Ok(_) => true,
+    // Try to import the property definitions from JSON
+    match property::import_property_definitions_from_json(json_str) {
+        Ok(count) => {
+            log::info!("Imported {} property definitions", count);
+            true
+        },
         Err(err) => {
-            let error_msg = format!("Failed to import property definitions: {}", err);
-            let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
-            invoke_on_error(error_ptr, &error_msg);
+            log::error!("Failed to import property definitions: {}", err);
             false
         }
     }
@@ -524,56 +507,31 @@ fn import_property_definitions_from_json(json_str: &CxxString) -> bool {
 
 /// Export all property definitions as a JSON string
 fn export_property_definitions_as_json() -> UniquePtr<CxxString> {
-    match crate::export_property_definitions_as_json() {
+    // Export the property definitions
+    match property::export_property_definitions_as_json() {
         Ok(json) => {
-            let mut result = CxxString::new();
-            result.push_str(&json);
-            UniquePtr::new(result)
+            return UniquePtr::from(CxxString::new(&json));
         },
         Err(_) => {
-            let mut result = CxxString::new();
-            result.push_str("{}");
-            UniquePtr::new(result)
+            return UniquePtr::from(CxxString::new("{}"));
         },
     }
 }
 
 /// Get a property definition as a JSON object
 fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString> {
-    let class_name_str = class_name.to_string();
-    let property_name_str = property_name.to_string();
+    let class_name_str = class_name.to_str().unwrap_or("");
+    let property_name_str = property_name.to_str().unwrap_or("");
     
-    match crate::get_property_definition(&class_name_str, &property_name_str) {
-        Some(def) => {
-            // Convert PropertyDefinition to a JSON object
-            let json = serde_json::json!({
-                "name": def.name,
-                "type": format!("{:?}", def.property_type),
-                "replicated": def.replicated,
-                "replication_condition": format!("{:?}", def.replication_condition),
-                "readonly": def.readonly,
-                "flags": def.flags
-            });
-            
-            match serde_json::to_string(&json) {
-                Ok(json_str) => {
-                    let mut result = CxxString::new();
-                    result.push_str(&json_str);
-                    UniquePtr::new(result)
-                },
-                Err(_) => {
-                    let mut result = CxxString::new();
-                    result.push_str("{}");
-                    UniquePtr::new(result)
-                },
-            }
-        },
-        None => {
-            let mut result = CxxString::new();
-            result.push_str("{}");
-            UniquePtr::new(result)
-        },
+    // Get property definition
+    if let Some(def) = property::get_property_definition(class_name_str, property_name_str) {
+        if let Ok(json) = serde_json::to_string(&def) {
+            return UniquePtr::from(CxxString::new(&json));
+        }
     }
+    
+    // Return null if property not found or serialization failed
+    UniquePtr::from(CxxString::new("null"))
 }
 
 /// Add a component to an actor
@@ -814,5 +772,84 @@ pub extern "C" fn get_last_acked_sequence(object_id: u64) -> u32 {
         pred_system.get_last_acked_sequence(object_id).unwrap_or(0)
     } else {
         0
+    }
+}
+
+fn create_class(class_name: &CxxString, parent_class_name: &CxxString) -> bool {
+    let class_name_str = class_name.to_str().unwrap_or("");
+    let parent_class_name_str = parent_class_name.to_str().unwrap_or("");
+    
+    // Create the class with the given parent class name
+    class::create_class(class_name_str, parent_class_name_str)
+}
+
+fn add_property(
+    class_name: &CxxString,
+    property_name: &CxxString,
+    type_name: &CxxString,
+    replicated: bool,
+    replication_condition: ReplicationCondition,
+    readonly: bool,
+    flags: u32,
+) -> bool {
+    let class_name_str = class_name.to_str().unwrap_or("");
+    let property_name_str = property_name.to_str().unwrap_or("");
+    let type_name_str = type_name.to_str().unwrap_or("");
+    
+    // Add the property to the class
+    property::add_property(
+        class_name_str,
+        property_name_str,
+        type_name_str,
+        replicated,
+        replication_condition,
+        readonly,
+        flags,
+    )
+}
+
+fn register_object(class_name: &CxxString, params: &CxxString) -> u64 {
+    let class_name_str = class_name.to_str().unwrap_or("");
+    let params_str = params.to_str().unwrap_or("{}");
+    
+    // Try to deserialize the parameter JSON
+    match serde_json::from_str::<serde_json::Value>(params_str) {
+        Ok(params_value) => {
+            // Register the object with the provided class name and parameters
+            match object::register_object(class_name_str, &params_value) {
+                Ok(object_id) => object_id,
+                Err(err) => {
+                    log::error!("Failed to register object: {}", err);
+                    0
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("Failed to parse parameters JSON: {}", err);
+            0
+        }
+    }
+}
+
+fn dispatch_unreliable_rpc(object_id: u64, function_name: &CxxString, params: &CxxString) -> bool {
+    let function_name_str = function_name.to_str().unwrap_or("");
+    let params_str = params.to_str().unwrap_or("{}");
+    
+    // Deserialize the parameters
+    match serde_json::from_str::<serde_json::Value>(params_str) {
+        Ok(params_value) => {
+            // Dispatch the RPC
+            match object::dispatch_unreliable_rpc(object_id, function_name_str, &params_value) {
+                Ok(_) => true,
+                Err(err) => {
+                    log::error!("Failed to dispatch unreliable RPC {}: {}", function_name_str, err);
+                    false
+                }
+            }
+        },
+        Err(err) => {
+            log::error!("Failed to parse RPC parameters for {}: {}", function_name_str, err);
+            false
+        }
     }
 } 

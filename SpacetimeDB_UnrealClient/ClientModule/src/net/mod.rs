@@ -6,11 +6,13 @@
 use stdb_shared::object::ObjectId;
 use stdb_shared::connection::{ConnectionState, ConnectionParams, ClientConnection, DisconnectReason as SharedDisconnectReason};
 use spacetimedb_sdk::{
-    Address, Client, Identity, ReducerCallError, subscribe::SubscriptionHandle, 
-    reducer::{Status as ReducerStatus, StdReducerCallResult},
-    ClientState, disconnect::DisconnectReason,
-    table::{TableUpdate, TableOp, TableType},
-    Value as StdbValue,
+    Address, identity::Identity, 
+    reducer::{Status as ReducerStatus, call_reducer::ReducerCallError},
+    subscribe::SubscriptionHandle,
+    client::Client, client::ClientState,
+    disconnect::DisconnectReason,
+    spacetimedb_client_api_messages::{TableUpdate, TableOp, TableType},
+    value::Value as StdbValue,
 };
 
 use std::sync::{Arc, Mutex};

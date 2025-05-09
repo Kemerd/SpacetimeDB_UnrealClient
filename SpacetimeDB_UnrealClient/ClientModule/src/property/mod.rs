@@ -12,8 +12,8 @@ use stdb_shared::object::ObjectId;
 use stdb_shared::property::{PropertyType, PropertyValue, PropertyDefinition};
 use log::{debug, trace, warn};
 use serde_json::{Value, json};
-use spacetimedb_sdk::client_api_messages::TableUpdate;
-use spacetimedb_sdk::client_api_messages::TableOp;
+use spacetimedb_sdk::table_update::TableUpdate;
+use spacetimedb_sdk::table_update::TableOp;
 
 // Import submodules
 pub mod serialization;
@@ -202,65 +202,108 @@ pub fn init() {
 
 /// Handle updates to the PropertyDefinition table
 fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String> {
-    match update.op() {
-        TableOp::Insert => {
-            // Get the property definition from the row data
-            let property_name = update.get_string_column(0)
-                .ok_or("Failed to get property name column")?;
+    // Process all rows in the update
+    for row in &update.rows {
+        match row.op {
+            TableOp::Insert => {
+                // Get the property definition from the row data
+                let property_name = row.data.get("property_name")
+                    .and_then(|v| v.as_str())
+                    .ok_or("Failed to get property name column")?;
+                    
+                let property_class = row.data.get("property_class")
+                    .and_then(|v| v.as_str())
+                    .ok_or("Failed to get property class column")?;
+                    
+                let property_type_str = row.data.get("property_type")
+                    .and_then(|v| v.as_str())
+                    .ok_or("Failed to get property type column")?;
+                    
+                let replicated = row.data.get("replicated")
+                    .and_then(|v| v.as_bool())
+                    .ok_or("Failed to get replicated column")?;
+                    
+                let readonly = row.data.get("readonly")
+                    .and_then(|v| v.as_bool())
+                    .ok_or("Failed to get readonly column")?;
+                    
+                let flags = row.data.get("flags")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as u32)
+                    .ok_or("Failed to get flags column")?;
+                    
+                let replication_condition_str = row.data.get("replication_condition")
+                    .and_then(|v| v.as_str())
+                    .ok_or("Failed to get replication condition column")?;
+                    
+                // Parse property type
+                let property_type = parse_property_type(&property_type_str)?;
                 
-            let property_class = update.get_string_column(1)
-                .ok_or("Failed to get property class column")?;
+                // Parse replication condition
+                let replication_condition = parse_replication_condition(&replication_condition_str)?;
                 
-            let property_type_str = update.get_string_column(2)
-                .ok_or("Failed to get property type column")?;
+                // Create property definition
+                let property_def = PropertyDefinition {
+                    name: property_name.to_string(),
+                    property_type,
+                    replicated,
+                    readonly,
+                    flags,
+                    replication_condition,
+                };
                 
-            let replicated = update.get_bool_column(3)
-                .ok_or("Failed to get replicated column")?;
+                // Register the property definition
+                register_property_definition(property_class, property_name, property_type, replicated);
                 
-            let readonly = update.get_bool_column(4)
-                .ok_or("Failed to get readonly column")?;
+                Ok(())
+            },
+            TableOp::Delete => {
+                // Get the property name and class from the row key
+                let property_name = row.data.get("property_name")
+                    .and_then(|v| v.as_str())
+                    .ok_or("Failed to get property name column")?;
+                    
+                let property_class = row.data.get("property_class")
+                    .and_then(|v| v.as_str())
+                    .ok_or("Failed to get property class column")?;
+                    
+                // Remove the property definition
+                unregister_property_definition(property_class, property_name);
                 
-            let flags = update.get_u32_column(5)
-                .ok_or("Failed to get flags column")?;
-                
-            let replication_condition_str = update.get_string_column(6)
-                .ok_or("Failed to get replication condition column")?;
-                
-            // Parse property type
-            let property_type = parse_property_type(&property_type_str)?;
-            
-            // Parse replication condition
-            let replication_condition = parse_replication_condition(&replication_condition_str)?;
-            
-            // Create property definition
-            let property_def = PropertyDefinition {
-                name: property_name.clone(),
-                property_type,
-                replicated,
-                readonly,
-                flags,
-                replication_condition,
-            };
-            
-            // Store the property definition
-            register_property_definition(&property_class, property_def);
-            
-            Ok(())
-        },
-        TableOp::Delete => {
-            // Get the property name and class from the row key
-            let property_name = update.get_string_column(0)
-                .ok_or("Failed to get property name column")?;
-                
-            let property_class = update.get_string_column(1)
-                .ok_or("Failed to get property class column")?;
-                
-            // Remove the property definition
-            unregister_property_definition(&property_class, &property_name);
-            
-            Ok(())
-        },
-        _ => Ok(()),
+                Ok(())
+            },
+            _ => Ok(()),
+        }
+    }
+}
+
+// Helper function to parse property types from strings
+fn parse_property_type(type_str: &str) -> Result<PropertyType, String> {
+    match type_str {
+        "Bool" => Ok(PropertyType::Bool),
+        "Int" => Ok(PropertyType::Int),
+        "Float" => Ok(PropertyType::Float),
+        "String" => Ok(PropertyType::String),
+        "Vector" => Ok(PropertyType::Vector),
+        "Rotator" => Ok(PropertyType::Rotator),
+        "Transform" => Ok(PropertyType::Transform),
+        "ObjectRef" => Ok(PropertyType::ObjectRef),
+        "Array" => Ok(PropertyType::Array),
+        "Map" => Ok(PropertyType::Map),
+        "Enum" => Ok(PropertyType::Enum),
+        "None" => Ok(PropertyType::None),
+        _ => Err(format!("Unknown property type: {}", type_str)),
+    }
+}
+
+// Helper function to parse replication conditions from strings
+fn parse_replication_condition(condition_str: &str) -> Result<stdb_shared::property::ReplicationCondition, String> {
+    match condition_str {
+        "OnChange" => Ok(stdb_shared::property::ReplicationCondition::OnChange),
+        "OnTimed" => Ok(stdb_shared::property::ReplicationCondition::OnTimed),
+        "ReliableRpc" => Ok(stdb_shared::property::ReplicationCondition::ReliableRpc),
+        "UnreliableRpc" => Ok(stdb_shared::property::ReplicationCondition::UnreliableRpc),
+        _ => Err(format!("Unknown replication condition: {}", condition_str)),
     }
 }
 
@@ -299,32 +342,7 @@ pub fn import_property_definitions_from_json(json_str: &str) -> Result<usize, St
             };
             
             // Parse property type
-            let prop_type = match prop_type_str.as_str() {
-                "Bool" => PropertyType::Bool,
-                "Byte" => PropertyType::Byte,
-                "Int32" => PropertyType::Int32,
-                "Int64" => PropertyType::Int64,
-                "UInt32" => PropertyType::UInt32,
-                "UInt64" => PropertyType::UInt64,
-                "Float" => PropertyType::Float,
-                "Double" => PropertyType::Double,
-                "String" => PropertyType::String,
-                "Vector" => PropertyType::Vector,
-                "Rotator" => PropertyType::Rotator,
-                "Quat" => PropertyType::Quat,
-                "Transform" => PropertyType::Transform,
-                "Color" => PropertyType::Color,
-                "ObjectReference" => PropertyType::ObjectReference,
-                "ClassReference" => PropertyType::ClassReference,
-                "Array" => PropertyType::Array,
-                "Map" => PropertyType::Map,
-                "Set" => PropertyType::Set,
-                "Name" => PropertyType::Name,
-                "Text" => PropertyType::Text,
-                "Custom" => PropertyType::Custom,
-                "None" => PropertyType::None,
-                _ => continue, // Skip unknown types
-            };
+            let prop_type = parse_property_type(prop_type_str)?;
             
             // Get replication flag
             let replicated = match prop_def_obj.get("replicated") {
@@ -441,4 +459,74 @@ pub fn get_property_definition_count() -> usize {
     }
     
     count
+}
+
+/// Add a property to a class definition
+pub fn add_property(
+    class_name: &str,
+    property_name: &str,
+    type_name: &str,
+    replicated: bool,
+    replication_condition: stdb_shared::property::ReplicationCondition,
+    readonly: bool,
+    flags: u32,
+) -> bool {
+    // Convert the type_name string to a PropertyType
+    let property_type = match type_name {
+        "Bool" => PropertyType::Bool,
+        "Byte" => PropertyType::Byte,
+        "Int32" => PropertyType::Int32,
+        "Int64" => PropertyType::Int64,
+        "UInt32" => PropertyType::UInt32,
+        "UInt64" => PropertyType::UInt64,
+        "Float" => PropertyType::Float,
+        "Double" => PropertyType::Double,
+        "String" => PropertyType::String,
+        "Vector" => PropertyType::Vector,
+        "Rotator" => PropertyType::Rotator,
+        "Quat" => PropertyType::Quat,
+        "Transform" => PropertyType::Transform,
+        "Color" => PropertyType::Color,
+        "ObjectReference" => PropertyType::ObjectReference,
+        "ClassReference" => PropertyType::ClassReference,
+        "Array" => PropertyType::Array,
+        "Map" => PropertyType::Map,
+        "Set" => PropertyType::Set,
+        "Name" => PropertyType::Name,
+        "Text" => PropertyType::Text,
+        "Custom" => PropertyType::Custom,
+        _ => {
+            warn!("Unknown property type: {}", type_name);
+            return false;
+        }
+    };
+    
+    // Create the property definition
+    let definition = PropertyDefinition {
+        name: property_name.to_string(),
+        property_type,
+        replicated,
+        replication_condition,
+        readonly,
+        flags,
+    };
+    
+    // Add the property definition to the class
+    let mut definitions = PROPERTY_DEFINITIONS.lock().unwrap();
+    
+    // Get or create the class property map
+    let class_props = definitions
+        .entry(class_name.to_string())
+        .or_insert_with(HashMap::new);
+    
+    // Check if property already exists
+    if class_props.contains_key(property_name) {
+        return false;
+    }
+    
+    // Add to map
+    class_props.insert(property_name.to_string(), definition);
+    
+    debug!("Added property {} to class {}", property_name, class_name);
+    true
 } 
