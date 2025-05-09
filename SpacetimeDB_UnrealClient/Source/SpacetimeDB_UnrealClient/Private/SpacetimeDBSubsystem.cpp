@@ -3,6 +3,9 @@
 #include "SpacetimeDBSubsystem.h"
 #include "Engine/Engine.h"
 #include "Async/Async.h"
+#include "SpacetimeDBFFI.h"
+#include "SpacetimeDBClient.h"
+#include "SpacetimeDB_PropertyValue.h"
 
 void USpacetimeDBSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -244,4 +247,50 @@ void USpacetimeDBSubsystem::HandleObjectIdRemapped(uint64 TempId, uint64 ServerI
     OnObjectIdRemapped.Broadcast(static_cast<int64>(TempId), static_cast<int64>(ServerId));
     
     // TODO: Once object tracking system is implemented, update object ID mappings
+}
+
+// Property update callback
+void USpacetimeDBSubsystem::OnPropertyUpdated(int64 ObjectId, const FString& PropertyName, const FString& ValueJson)
+{
+    // Queue this for processing on the game thread
+    AsyncTask(ENamedThreads::GameThread, [this, ObjectId, PropertyName, ValueJson]()
+    {
+        // Process the property update
+        if (USpacetimeDBPropertyHandler::HandlePropertyUpdate(ObjectId, PropertyName, ValueJson))
+        {
+            // Broadcast the property update event
+            FSpacetimeDBPropertyUpdateInfo UpdateInfo;
+            UpdateInfo.ObjectId = FSpacetimeDBObjectID(ObjectId);
+            UpdateInfo.PropertyName = PropertyName;
+            UpdateInfo.RawJsonValue = ValueJson;
+            
+            // Parse the property value for the delegate
+            UpdateInfo.PropertyValue = FSpacetimeDBPropertyValue::FromJsonString(ValueJson);
+
+            // Find the target object
+            USpacetimeDBClient* Client = USpacetimeDBClient::Get();
+            if (Client)
+            {
+                UpdateInfo.Object = Client->GetObjectById(UpdateInfo.ObjectId);
+            }
+            
+            // Broadcast the property update event
+            OnPropertyUpdated.Broadcast(UpdateInfo);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to handle property update for object %lld, property %s"),
+                ObjectId, *PropertyName);
+        }
+    });
+}
+
+// FFI callback handlers for property updates
+void OnPropertyUpdatedCallback(uint64 object_id, cxx::String property_name, cxx::String value_json)
+{
+    USpacetimeDBSubsystem* Subsystem = GEngine->GetEngineSubsystem<USpacetimeDBSubsystem>();
+    if (Subsystem)
+    {
+        Subsystem->OnPropertyUpdated(object_id, FromCxxString(property_name), FromCxxString(value_json));
+    }
 } 

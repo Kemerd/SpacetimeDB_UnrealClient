@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "SpacetimeDBClient.h"
+#include "SpacetimeDB_Types.h"
+#include "SpacetimeDB_PropertyValue.h"
 #include "SpacetimeDBSubsystem.generated.h"
 
 /**
@@ -125,10 +127,6 @@ public:
     
     /** Event that fires when a property is updated on an object */
     UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Objects")
-    FOnPropertyUpdatedDynamic OnPropertyUpdated;
-    
-    /** Event that fires when an object is created */
-    UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Objects")
     FOnObjectCreatedDynamic OnObjectCreated;
     
     /** Event that fires when an object is destroyed */
@@ -138,7 +136,11 @@ public:
     /** Event that fires when an object ID is remapped from temporary to server ID */
     UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Objects")
     FOnObjectIdRemappedDynamic OnObjectIdRemapped;
-    
+
+    /** Delegate that fires when a property is updated */
+    UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB")
+    FOnSpacetimeDBPropertyUpdated OnPropertyUpdated;
+
 private:
     // The client instance
     FSpacetimeDBClient Client;
@@ -149,7 +151,6 @@ private:
     FDelegateHandle OnIdentityReceivedHandle;
     FDelegateHandle OnEventReceivedHandle;
     FDelegateHandle OnErrorOccurredHandle;
-    FDelegateHandle OnPropertyUpdatedHandle;
     FDelegateHandle OnObjectCreatedHandle;
     FDelegateHandle OnObjectDestroyedHandle;
     FDelegateHandle OnObjectIdRemappedHandle;
@@ -160,7 +161,6 @@ private:
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnIdentityReceivedDynamic, const FString&, Identity);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEventReceivedDynamic, const FString&, TableName, const FString&, EventData);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnErrorOccurredDynamic, const FString&, ErrorMessage);
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnPropertyUpdatedDynamic, int64, ObjectId, const FString&, PropertyName, const FString&, ValueJson);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnObjectCreatedDynamic, int64, ObjectId, const FString&, ClassName, const FString&, InitialDataJson);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnObjectDestroyedDynamic, int64, ObjectId);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnObjectIdRemappedDynamic, int64, TempId, int64, ServerId);
@@ -171,8 +171,44 @@ private:
     void HandleIdentityReceived(const FString& Identity);
     void HandleEventReceived(const FString& TableName, const FString& EventData);
     void HandleErrorOccurred(const FString& ErrorMessage);
-    void HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson);
     void HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson);
     void HandleObjectDestroyed(uint64 ObjectId);
     void HandleObjectIdRemapped(uint64 TempId, uint64 ServerId);
+
+    /**
+     * Information about a property update
+     */
+    USTRUCT(BlueprintType)
+    struct FSpacetimeDBPropertyUpdateInfo
+    {
+        GENERATED_BODY()
+
+        /** The ID of the object that was updated */
+        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+        FSpacetimeDBObjectID ObjectId;
+
+        /** The object that was updated (may be null if object not found) */
+        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+        UObject* Object = nullptr;
+
+        /** The name of the property that was updated */
+        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+        FString PropertyName;
+
+        /** The raw JSON value of the property */
+        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+        FString RawJsonValue;
+
+        /** The parsed property value */
+        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+        FSpacetimeDBPropertyValue PropertyValue;
+    };
+
+    /**
+     * Delegate for property updates
+     */
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSpacetimeDBPropertyUpdated, const FSpacetimeDBPropertyUpdateInfo&, UpdateInfo);
+
+    // Property update handling
+    void OnPropertyUpdated(int64 ObjectId, const FString& PropertyName, const FString& ValueJson);
 }; 

@@ -44,9 +44,9 @@ TODO USE PROTOBUFS INSTEAD
         *   [X] Initial properties in `SpawnParams` and `ObjectDescription`.
     *   [X] This includes serializing Unreal data to JSON for `set_property` and `call_server_function` calls, and deserializing JSON from server updates/RPCs.
 
-3.  [ ] **`PropertyValue` Handling:**
-    *   [ ] Create C++ logic to interpret the `PropertyValue` enum (from `SharedModule`) received from Rust (likely as part of a JSON string or via a dedicated FFI struct).
-    *   [ ] Develop a system to apply these `PropertyValue` updates to Unreal UObject properties, handling type conversions and JSON deserialization for complex types.
+3.  [X] **`PropertyValue` Handling:**
+    *   [X] Create C++ logic to interpret the `PropertyValue` enum (from `SharedModule`) received from Rust (likely as part of a JSON string or via a dedicated FFI struct).
+    *   [X] Develop a system to apply these `PropertyValue` updates to Unreal UObject properties, handling type conversions and JSON deserialization for complex types.
 
 ## III. Subsystem Implementation (`USpacetimeDBSubsystem`):
 
