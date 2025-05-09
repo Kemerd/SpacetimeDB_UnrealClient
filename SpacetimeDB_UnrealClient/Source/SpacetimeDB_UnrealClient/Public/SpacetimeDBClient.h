@@ -40,6 +40,18 @@ public:
     /** Delegate for handling SpacetimeDB error events */
     DECLARE_MULTICAST_DELEGATE_OneParam(FOnErrorOccurred, const FString& /* ErrorMessage */);
     
+    /** Delegate for when a property is updated on an object */
+    DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnPropertyUpdated, uint64 /* ObjectId */, const FString& /* PropertyName */, const FString& /* ValueJson */);
+    
+    /** Delegate for when an object is created */
+    DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnObjectCreated, uint64 /* ObjectId */, const FString& /* ClassName */, const FString& /* DataJson */);
+    
+    /** Delegate for when an object is destroyed */
+    DECLARE_MULTICAST_DELEGATE_OneParam(FOnObjectDestroyed, uint64 /* ObjectId */);
+    
+    /** Delegate for when an object ID is remapped (temporary to server-assigned) */
+    DECLARE_MULTICAST_DELEGATE_TwoParams(FOnObjectIdRemapped, uint64 /* TempId */, uint64 /* ServerId */);
+    
 public:
     /** Default constructor */
     FSpacetimeDBClient();
@@ -117,6 +129,18 @@ public:
     /** Delegate that is broadcast when an error occurs */
     FOnErrorOccurred OnErrorOccurred;
     
+    /** Delegate that is broadcast when a property is updated on an object */
+    FOnPropertyUpdated OnPropertyUpdated;
+    
+    /** Delegate that is broadcast when an object is created */
+    FOnObjectCreated OnObjectCreated;
+    
+    /** Delegate that is broadcast when an object is destroyed */
+    FOnObjectDestroyed OnObjectDestroyed;
+    
+    /** Delegate that is broadcast when an object ID is remapped */
+    FOnObjectIdRemapped OnObjectIdRemapped;
+    
 private:
     // FFI callback functions
     static void OnConnectedCallback();
@@ -124,6 +148,12 @@ private:
     static void OnIdentityReceivedCallback(const char* Identity);
     static void OnEventReceivedCallback(const char* EventData, const char* TableName);
     static void OnErrorOccurredCallback(const char* ErrorMessage);
+    
+    // New FFI callback functions for object management
+    static void OnPropertyUpdatedCallback(uint64 ObjectId, const char* PropertyName, const char* ValueJson);
+    static void OnObjectCreatedCallback(uint64 ObjectId, const char* ClassName, const char* DataJson);
+    static void OnObjectDestroyedCallback(uint64 ObjectId);
+    static void OnObjectIdRemappedCallback(uint64 TempId, uint64 ServerId);
     
     // Singleton instance pointer for callbacks
     static FSpacetimeDBClient* Instance;

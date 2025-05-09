@@ -16,6 +16,12 @@ void USpacetimeDBSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     OnIdentityReceivedHandle = Client.OnIdentityReceived.AddUObject(this, &USpacetimeDBSubsystem::HandleIdentityReceived);
     OnEventReceivedHandle = Client.OnEventReceived.AddUObject(this, &USpacetimeDBSubsystem::HandleEventReceived);
     OnErrorOccurredHandle = Client.OnErrorOccurred.AddUObject(this, &USpacetimeDBSubsystem::HandleErrorOccurred);
+    
+    // Register for object system events
+    OnPropertyUpdatedHandle = Client.OnPropertyUpdated.AddUObject(this, &USpacetimeDBSubsystem::HandlePropertyUpdated);
+    OnObjectCreatedHandle = Client.OnObjectCreated.AddUObject(this, &USpacetimeDBSubsystem::HandleObjectCreated);
+    OnObjectDestroyedHandle = Client.OnObjectDestroyed.AddUObject(this, &USpacetimeDBSubsystem::HandleObjectDestroyed);
+    OnObjectIdRemappedHandle = Client.OnObjectIdRemapped.AddUObject(this, &USpacetimeDBSubsystem::HandleObjectIdRemapped);
 }
 
 void USpacetimeDBSubsystem::Deinitialize()
@@ -57,6 +63,31 @@ void USpacetimeDBSubsystem::Deinitialize()
     {
         Client.OnErrorOccurred.Remove(OnErrorOccurredHandle);
         OnErrorOccurredHandle.Reset();
+    }
+    
+    // Unregister from object system events
+    if (OnPropertyUpdatedHandle.IsValid())
+    {
+        Client.OnPropertyUpdated.Remove(OnPropertyUpdatedHandle);
+        OnPropertyUpdatedHandle.Reset();
+    }
+    
+    if (OnObjectCreatedHandle.IsValid())
+    {
+        Client.OnObjectCreated.Remove(OnObjectCreatedHandle);
+        OnObjectCreatedHandle.Reset();
+    }
+    
+    if (OnObjectDestroyedHandle.IsValid())
+    {
+        Client.OnObjectDestroyed.Remove(OnObjectDestroyedHandle);
+        OnObjectDestroyedHandle.Reset();
+    }
+    
+    if (OnObjectIdRemappedHandle.IsValid())
+    {
+        Client.OnObjectIdRemapped.Remove(OnObjectIdRemappedHandle);
+        OnObjectIdRemappedHandle.Reset();
     }
     
     Super::Deinitialize();
@@ -178,4 +209,39 @@ void USpacetimeDBSubsystem::HandleErrorOccurred(const FString& ErrorMessage)
         FString Message = FString::Printf(TEXT("SpacetimeDB Error: %s"), *ErrorMessage);
         GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, Message);
     }
+}
+
+// Object system event handlers
+
+void USpacetimeDBSubsystem::HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson)
+{
+    // Use Verbose log level since this could be high frequency
+    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Property updated - Object %llu, Property %s"), ObjectId, *PropertyName);
+    OnPropertyUpdated.Broadcast(static_cast<int64>(ObjectId), PropertyName, ValueJson);
+    
+    // TODO: Once object tracking system is implemented, apply property to local object
+}
+
+void USpacetimeDBSubsystem::HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object created - ID %llu, Class %s"), ObjectId, *ClassName);
+    OnObjectCreated.Broadcast(static_cast<int64>(ObjectId), ClassName, DataJson);
+    
+    // TODO: Once object tracking system is implemented, create local object
+}
+
+void USpacetimeDBSubsystem::HandleObjectDestroyed(uint64 ObjectId)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object destroyed - ID %llu"), ObjectId);
+    OnObjectDestroyed.Broadcast(static_cast<int64>(ObjectId));
+    
+    // TODO: Once object tracking system is implemented, destroy local object
+}
+
+void USpacetimeDBSubsystem::HandleObjectIdRemapped(uint64 TempId, uint64 ServerId)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object ID remapped - Temp ID %llu -> Server ID %llu"), TempId, ServerId);
+    OnObjectIdRemapped.Broadcast(static_cast<int64>(TempId), static_cast<int64>(ServerId));
+    
+    // TODO: Once object tracking system is implemented, update object ID mappings
 } 

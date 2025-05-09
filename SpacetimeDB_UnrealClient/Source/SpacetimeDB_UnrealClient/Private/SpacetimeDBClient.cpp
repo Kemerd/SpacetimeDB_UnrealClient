@@ -50,6 +50,12 @@ bool FSpacetimeDBClient::Connect(const FString& Host, const FString& DatabaseNam
     callbacks.on_event_received = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnEventReceivedCallback);
     callbacks.on_error_occurred = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnErrorOccurredCallback);
     
+    // Add object system callbacks
+    callbacks.on_property_updated = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnPropertyUpdatedCallback);
+    callbacks.on_object_created = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnObjectCreatedCallback);
+    callbacks.on_object_destroyed = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnObjectDestroyedCallback);
+    callbacks.on_object_id_remapped = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnObjectIdRemappedCallback);
+    
     // Call the Rust function through FFI
     return stdb::ffi::connect_to_server(config, callbacks);
 }
@@ -174,6 +180,62 @@ void FSpacetimeDBClient::OnErrorOccurredCallback(const char* ErrorMessage)
         AsyncTask(ENamedThreads::GameThread, [=]() {
             UE_LOG(LogTemp, Error, TEXT("SpacetimeDBClient: Error - %s"), *ErrorMessageStr);
             Instance->OnErrorOccurred.Broadcast(ErrorMessageStr);
+        });
+    }
+}
+
+// --- New callback implementations ---
+
+void FSpacetimeDBClient::OnPropertyUpdatedCallback(uint64 ObjectId, const char* PropertyName, const char* ValueJson)
+{
+    if (Instance)
+    {
+        FString PropertyNameStr = UTF8_TO_TCHAR(PropertyName);
+        FString ValueJsonStr = UTF8_TO_TCHAR(ValueJson);
+        
+        // Execute on game thread
+        AsyncTask(ENamedThreads::GameThread, [=]() {
+            UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBClient: Property updated - Object %llu, Property %s"), ObjectId, *PropertyNameStr);
+            Instance->OnPropertyUpdated.Broadcast(ObjectId, PropertyNameStr, ValueJsonStr);
+        });
+    }
+}
+
+void FSpacetimeDBClient::OnObjectCreatedCallback(uint64 ObjectId, const char* ClassName, const char* DataJson)
+{
+    if (Instance)
+    {
+        FString ClassNameStr = UTF8_TO_TCHAR(ClassName);
+        FString DataJsonStr = UTF8_TO_TCHAR(DataJson);
+        
+        // Execute on game thread
+        AsyncTask(ENamedThreads::GameThread, [=]() {
+            UE_LOG(LogTemp, Log, TEXT("SpacetimeDBClient: Object created - ID %llu, Class %s"), ObjectId, *ClassNameStr);
+            Instance->OnObjectCreated.Broadcast(ObjectId, ClassNameStr, DataJsonStr);
+        });
+    }
+}
+
+void FSpacetimeDBClient::OnObjectDestroyedCallback(uint64 ObjectId)
+{
+    if (Instance)
+    {
+        // Execute on game thread
+        AsyncTask(ENamedThreads::GameThread, [=]() {
+            UE_LOG(LogTemp, Log, TEXT("SpacetimeDBClient: Object destroyed - ID %llu"), ObjectId);
+            Instance->OnObjectDestroyed.Broadcast(ObjectId);
+        });
+    }
+}
+
+void FSpacetimeDBClient::OnObjectIdRemappedCallback(uint64 TempId, uint64 ServerId)
+{
+    if (Instance)
+    {
+        // Execute on game thread
+        AsyncTask(ENamedThreads::GameThread, [=]() {
+            UE_LOG(LogTemp, Log, TEXT("SpacetimeDBClient: Object ID remapped - Temp ID %llu -> Server ID %llu"), TempId, ServerId);
+            Instance->OnObjectIdRemapped.Broadcast(TempId, ServerId);
         });
     }
 } 

@@ -21,12 +21,12 @@ This document outlines the tasks required on the Unreal Engine C++ side to fully
             *   [X] `EventCallbackPointers`: Pointers to static C++ wrapper functions that will handle callbacks from Rust.
         *   [X] On subsystem deinitialization, call the Rust FFI function `disconnect_from_server()`.
 
-3.  [ ] **Implement C++ Callback Wrappers:**
-    *   [ ] Create static C++ functions matching the signatures expected by Rust for each callback defined in `ClientModule/src/ffi.rs` (`EventCallbackPointers`). These functions will be passed to Rust via FFI.
-    *   [ ] These C++ wrappers should:
-        *   [ ] Convert Rust FFI data types (e.g., `c_char*`, `u64`) to appropriate C++/Unreal types (e.g., `FString`, `uint64`).
-        *   [ ] Safely queue the event data to be processed on the Unreal game thread (e.g., using a thread-safe queue or `AsyncTask(ENamedThreads::GameThread, ...)`).
-        *   [ ] **Callback Types:** `on_connected`, `on_disconnected`, `on_property_updated`, `on_object_created`, `on_object_destroyed`, `on_error_occurred`.
+3.  [X] **Implement C++ Callback Wrappers:**
+    *   [X] Create static C++ functions matching the signatures expected by Rust for each callback defined in `ClientModule/src/ffi.rs` (`EventCallbackPointers`). These functions will be passed to Rust via FFI.
+    *   [X] These C++ wrappers should:
+        *   [X] Convert Rust FFI data types (e.g., `c_char*`, `u64`) to appropriate C++/Unreal types (e.g., `FString`, `uint64`).
+        *   [X] Safely queue the event data to be processed on the Unreal game thread (e.g., using a thread-safe queue or `AsyncTask(ENamedThreads::GameThread, ...)`).
+        *   [X] **Callback Types:** `on_connected`, `on_disconnected`, `on_property_updated`, `on_object_created`, `on_object_destroyed`, `on_error_occurred`.
 
 ## II. Data Type Management & Serialization:
 

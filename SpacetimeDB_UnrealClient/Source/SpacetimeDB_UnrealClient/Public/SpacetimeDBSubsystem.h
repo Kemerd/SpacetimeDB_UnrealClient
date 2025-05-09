@@ -123,6 +123,22 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Events")
     FOnErrorOccurredDynamic OnErrorOccurred;
     
+    /** Event that fires when a property is updated on an object */
+    UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Objects")
+    FOnPropertyUpdatedDynamic OnPropertyUpdated;
+    
+    /** Event that fires when an object is created */
+    UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Objects")
+    FOnObjectCreatedDynamic OnObjectCreated;
+    
+    /** Event that fires when an object is destroyed */
+    UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Objects")
+    FOnObjectDestroyedDynamic OnObjectDestroyed;
+    
+    /** Event that fires when an object ID is remapped from temporary to server ID */
+    UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Objects")
+    FOnObjectIdRemappedDynamic OnObjectIdRemapped;
+    
 private:
     // The client instance
     FSpacetimeDBClient Client;
@@ -133,6 +149,10 @@ private:
     FDelegateHandle OnIdentityReceivedHandle;
     FDelegateHandle OnEventReceivedHandle;
     FDelegateHandle OnErrorOccurredHandle;
+    FDelegateHandle OnPropertyUpdatedHandle;
+    FDelegateHandle OnObjectCreatedHandle;
+    FDelegateHandle OnObjectDestroyedHandle;
+    FDelegateHandle OnObjectIdRemappedHandle;
     
     // Dynamic multicast delegate declarations for Blueprint exposed events
     DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnConnectedDynamic);
@@ -140,6 +160,10 @@ private:
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnIdentityReceivedDynamic, const FString&, Identity);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEventReceivedDynamic, const FString&, TableName, const FString&, EventData);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnErrorOccurredDynamic, const FString&, ErrorMessage);
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnPropertyUpdatedDynamic, int64, ObjectId, const FString&, PropertyName, const FString&, ValueJson);
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnObjectCreatedDynamic, int64, ObjectId, const FString&, ClassName, const FString&, InitialDataJson);
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnObjectDestroyedDynamic, int64, ObjectId);
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnObjectIdRemappedDynamic, int64, TempId, int64, ServerId);
     
     // Event handlers to forward client events to Blueprint events
     void HandleConnected();
@@ -147,4 +171,8 @@ private:
     void HandleIdentityReceived(const FString& Identity);
     void HandleEventReceived(const FString& TableName, const FString& EventData);
     void HandleErrorOccurred(const FString& ErrorMessage);
+    void HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson);
+    void HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson);
+    void HandleObjectDestroyed(uint64 ObjectId);
+    void HandleObjectIdRemapped(uint64 TempId, uint64 ServerId);
 }; 
