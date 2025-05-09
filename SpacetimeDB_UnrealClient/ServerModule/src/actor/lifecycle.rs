@@ -26,12 +26,14 @@ pub fn destroy_actor(ctx: &ReducerContext, actor_id: ActorId) -> bool {
     // Mark as pending destroy
     let mut updated_actor = actor.clone();
     updated_actor.state = ActorLifecycleState::PendingDestroy;
+    // Record the destruction timestamp
+    updated_actor.destroyed_at = Some(ctx.timestamp);
     ctx.db.actor_info().update(&updated_actor);
     
     log::info!("Actor {} marked for destruction by {:?}", actor_id, ctx.sender);
     
-    // Schedule cleanup for the next tick
-    // In a real implementation, you'd have a system to clean up destroyed actors
+    // Notify relevant systems about pending destruction
+    notify_actor_pending_destroy(ctx, actor_id);
     
     true
 }
@@ -49,6 +51,7 @@ pub fn force_destroy_actor(ctx: &ReducerContext, actor_id: ActorId) -> bool {
     if let Some(mut actor) = ctx.db.actor_info().filter_by_actor_id(&actor_id).first() {
         // Mark as destroyed
         actor.state = ActorLifecycleState::Destroyed;
+        actor.destroyed_at = Some(ctx.timestamp);
         ctx.db.actor_info().update(&actor);
         
         log::info!("Actor {} force destroyed by {:?}", actor_id, ctx.sender);
@@ -103,18 +106,32 @@ pub fn cleanup_destroyed_actors(ctx: &ReducerContext) {
         // Update state to Destroyed
         let mut updated_actor = actor.clone();
         updated_actor.state = ActorLifecycleState::Destroyed;
+        
+        // Ensure destruction timestamp is set if missing
+        if updated_actor.destroyed_at.is_none() {
+            updated_actor.destroyed_at = Some(ctx.timestamp);
+        }
+        
         ctx.db.actor_info().update(&updated_actor);
         
-        // In a real implementation, you might clean up related data,
-        // or delay deletion further to ensure clients have time to process the destruction
+        // Clean up any temporary resources
+        cleanup_actor_resources(ctx, actor.actor_id);
     }
     
-    // Find actors that have been in Destroyed state for a while and delete them
-    // (In a real implementation, you'd check timestamps)
+    // Set a reasonable time delay for fully removing destroyed actors (10 seconds)
+    let destruction_delay_ms: u64 = 10000;
+    
+    // Find actors that have been in Destroyed state for long enough to be deleted
     let destroyed: Vec<_> = ctx.db.actor_info()
         .iter()
         .filter(|actor| actor.state == ActorLifecycleState::Destroyed)
-        .filter(|actor| ctx.timestamp - actor.created_at > 60000) // 60 seconds for example
+        .filter(|actor| {
+            if let Some(destroyed_at) = actor.destroyed_at {
+                // Use the proper destruction timestamp
+                return ctx.timestamp - destroyed_at > destruction_delay_ms;
+            }
+            false
+        })
         .collect();
     
     for actor in destroyed {
@@ -135,9 +152,60 @@ pub fn cleanup_destroyed_actors(ctx: &ReducerContext) {
         // Delete transform
         ctx.db.actor_transform().delete_by_actor_id(&actor.actor_id);
         
+        // Delete any relevancy data
+        remove_from_relevancy_system(ctx, actor.actor_id);
+        
+        // Delete any RPC handlers
+        deregister_rpc_handlers(ctx, actor.actor_id);
+        
         // Finally delete the actor info
         ctx.db.actor_info().delete_by_actor_id(&actor.actor_id);
     }
+}
+
+/// Notifies relevant systems about a pending actor destruction
+fn notify_actor_pending_destroy(ctx: &ReducerContext, actor_id: ActorId) {
+    log::debug!("Notifying systems of pending destroy for actor {}", actor_id);
+    
+    // Notify relevancy system to prepare clients for this actor's removal
+    crate::relevancy::notify_actor_pending_destroy(ctx, actor_id);
+    
+    // Cancel any pending actions or timers for this actor
+    crate::action::cancel_pending_actions(ctx, actor_id);
+    
+    // Notify any attached components
+    for component in ctx.db.actor_component()
+        .iter()
+        .filter(|c| c.owner_actor_id == actor_id) {
+        // Signal components about destruction
+        crate::component::notify_pending_destroy(ctx, component.component_id);
+    }
+}
+
+/// Cleans up resources associated with an actor that's being destroyed
+fn cleanup_actor_resources(ctx: &ReducerContext, actor_id: ActorId) {
+    log::debug!("Cleaning up resources for actor {}", actor_id);
+    
+    // Remove from any gameplay systems
+    crate::gameplay::remove_actor_from_gameplay(ctx, actor_id);
+    
+    // Remove from any active zones
+    crate::zone::remove_actor_from_all_zones(ctx, actor_id);
+    
+    // Release any reserved resources
+    crate::resource::release_actor_resources(ctx, actor_id);
+}
+
+/// Removes actor from the relevancy system during final cleanup
+fn remove_from_relevancy_system(ctx: &ReducerContext, actor_id: ActorId) {
+    log::debug!("Removing actor {} from relevancy system", actor_id);
+    crate::relevancy::remove_actor(ctx, actor_id);
+}
+
+/// Deregisters any RPC handlers associated with the actor
+fn deregister_rpc_handlers(ctx: &ReducerContext, actor_id: ActorId) {
+    log::debug!("Deregistering RPC handlers for actor {}", actor_id);
+    crate::rpc::deregister_handlers_for_actor(ctx, actor_id);
 }
 
 /// Checks if a client can modify the given actor
