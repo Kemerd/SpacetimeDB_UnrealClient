@@ -11,7 +11,7 @@ echo.
 SETLOCAL EnableDelayedExpansion
 
 REM Check if Rust is installed
-rustc --version > nul 2>&1
+where rustc >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo Rust is not installed. Installing Rust...
     echo This will download the rustup-init.exe installer.
@@ -28,7 +28,7 @@ if %ERRORLEVEL% NEQ 0 (
     echo Adding Rust to the current PATH...
     
     REM Set the PATH to include Cargo and Rust (without requiring restart)
-    set PATH=%USERPROFILE%\.cargo\bin;%PATH%
+    set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
     
     REM Clean up the installer
     del rustup-init.exe
@@ -42,12 +42,12 @@ if %ERRORLEVEL% NEQ 0 (
 REM Verify that cargo is in the PATH and working
 echo.
 echo Checking for Cargo...
-cargo --version > nul 2>&1
+where cargo >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo Cargo not found in PATH despite Rust being installed.
     echo This may indicate an issue with your Rust installation.
     echo.
-    echo Please make sure %USERPROFILE%\.cargo\bin is in your PATH.
+    echo Please make sure "%USERPROFILE%\.cargo\bin" is in your PATH.
     echo You may need to restart your terminal or computer.
     echo.
     echo After ensuring Cargo is available, run this script again.
@@ -63,7 +63,7 @@ cargo install cxxbridge-cmd
 
 echo.
 echo Checking for SpacetimeDB CLI...
-spacetime --version > nul 2>&1
+where spacetime >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo SpacetimeDB CLI is not installed. Installing...
     echo Please visit https://spacetimedb.com/install in your browser
@@ -78,7 +78,7 @@ if %ERRORLEVEL% NEQ 0 (
 ) else (
     echo SpacetimeDB CLI is already installed.
     echo Starting local SpacetimeDB instance...
-    start cmd /k "spacetime start"
+    start cmd /c "spacetime start"
     
     echo.
     echo In a new terminal window, log in to SpacetimeDB with:
