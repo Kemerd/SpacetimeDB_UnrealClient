@@ -71,6 +71,68 @@ impl ClientObject {
         &self.components
     }
     
+    /// Get all components as ClientObject instances (if it's an actor)
+    pub fn get_component_objects(&self) -> Vec<ClientObject> {
+        if !self.is_actor {
+            return Vec::new();
+        }
+        
+        let objects = CLIENT_OBJECTS.lock().unwrap();
+        self.components.iter()
+            .filter_map(|&component_id| objects.get(&component_id).cloned())
+            .collect()
+    }
+    
+    /// Get a specific component by class name (returns the first matching component)
+    pub fn get_component_by_class(&self, class_name: &str) -> Option<ObjectId> {
+        if !self.is_actor {
+            return None;
+        }
+        
+        let objects = CLIENT_OBJECTS.lock().unwrap();
+        for &component_id in &self.components {
+            if let Some(component) = objects.get(&component_id) {
+                if component.class_name == class_name {
+                    return Some(component_id);
+                }
+            }
+        }
+        
+        None
+    }
+    
+    /// Get a specific component object by class name (returns the first matching component)
+    pub fn get_component_object_by_class(&self, class_name: &str) -> Option<ClientObject> {
+        self.get_component_by_class(class_name).and_then(|id| {
+            let objects = CLIENT_OBJECTS.lock().unwrap();
+            objects.get(&id).cloned()
+        })
+    }
+    
+    /// Check if this object is a component
+    pub fn is_component(&self) -> bool {
+        let owners = COMPONENT_OWNERS.lock().unwrap();
+        owners.contains_key(&self.id)
+    }
+    
+    /// Get the owner of this component (if it is a component)
+    pub fn get_owner_id(&self) -> Option<ObjectId> {
+        if self.is_component() {
+            let owners = COMPONENT_OWNERS.lock().unwrap();
+            owners.get(&self.id).copied()
+        } else {
+            None
+        }
+    }
+    
+    /// Get the owner object of this component (if it is a component)
+    pub fn get_owner(&self) -> Option<ClientObject> {
+        self.get_owner_id().and_then(|owner_id| {
+            let objects = CLIENT_OBJECTS.lock().unwrap();
+            objects.get(&owner_id).cloned()
+        })
+    }
+    
     /// Add a component to this object (if it's an actor)
     pub fn add_component(&mut self, component_id: ObjectId) -> Result<(), String> {
         if !self.is_actor {
@@ -78,7 +140,19 @@ impl ClientObject {
         }
         
         if !self.components.contains(&component_id) {
+            // Add component to this actor's component list
             self.components.push(component_id);
+            
+            // Register the component's owner
+            let mut owners = COMPONENT_OWNERS.lock().unwrap();
+            owners.insert(component_id, self.id);
+            
+            // Update the component's owner_id
+            let mut objects = CLIENT_OBJECTS.lock().unwrap();
+            if let Some(component) = objects.get_mut(&component_id) {
+                component.owner_id = Some(self.id);
+            }
+            
             Ok(())
         } else {
             Err(format!("Component {} already attached to actor {}", component_id, self.id))
@@ -91,13 +165,93 @@ impl ClientObject {
             return Err(format!("Cannot remove component from non-actor object {}", self.id));
         }
         
-        self.components.retain(|&id| id != component_id);
+        if self.components.contains(&component_id) {
+            // Remove component from this actor's component list
+            self.components.retain(|&id| id != component_id);
+            
+            // Unregister the component's owner
+            let mut owners = COMPONENT_OWNERS.lock().unwrap();
+            owners.remove(&component_id);
+            
+            // Update the component's owner_id
+            let mut objects = CLIENT_OBJECTS.lock().unwrap();
+            if let Some(component) = objects.get_mut(&component_id) {
+                component.owner_id = None;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Get a property value from this object
+    pub fn get_property(&self, property_name: &str) -> Option<PropertyValue> {
+        // Special handling for transform properties
+        match property_name {
+            "Location" => {
+                self.transform.as_ref().map(|t| PropertyValue::Vector(t.location))
+            },
+            "Rotation" => {
+                self.transform.as_ref().map(|t| PropertyValue::Quat(t.rotation))
+            },
+            "Scale" => {
+                self.transform.as_ref().map(|t| PropertyValue::Vector(t.scale))
+            },
+            _ => {
+                // Regular property - check the object's property map
+                self.properties.get(property_name).cloned()
+            }
+        }
+    }
+    
+    /// Set a property value on this object
+    pub fn set_property(&mut self, property_name: &str, value: PropertyValue) -> Result<(), String> {
+        // Special handling for transform properties
+        match property_name {
+            "Location" => {
+                if let PropertyValue::Vector(location) = value {
+                    self.get_transform().location = location;
+                } else {
+                    return Err(format!("Invalid value type for Location property"));
+                }
+            },
+            "Rotation" => {
+                match value {
+                    PropertyValue::Quat(rotation) => {
+                        self.get_transform().rotation = rotation;
+                    },
+                    PropertyValue::Rotator(rotator) => {
+                        // Convert Rotator to Quaternion
+                        // This is a simplified conversion - in a real implementation, 
+                        // we'd use proper conversion logic
+                        warn!("Using placeholder Rotator to Quat conversion");
+                        self.get_transform().rotation = Quat::identity();
+                    },
+                    _ => return Err(format!("Invalid value type for Rotation property")),
+                }
+            },
+            "Scale" => {
+                if let PropertyValue::Vector(scale) = value {
+                    self.get_transform().scale = scale;
+                } else {
+                    return Err(format!("Invalid value type for Scale property"));
+                }
+            },
+            _ => {
+                // Regular property - store in the property map
+                self.properties.insert(property_name.to_string(), value);
+            }
+        }
+        
         Ok(())
     }
 }
 
 /// Global registry of client objects (both actors and non-actors)
 static CLIENT_OBJECTS: Lazy<Mutex<HashMap<ObjectId, ClientObject>>> = 
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// Mapping of component owners - tracks which actor owns which component
+static COMPONENT_OWNERS: Lazy<Mutex<HashMap<ObjectId, ObjectId>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Mapping of temporary client-generated IDs to server-authorized IDs
@@ -340,16 +494,29 @@ fn request_server_destroy_object(object_id: ObjectId, class_name: &str) -> Resul
 
 /// Handle server notification about an object being destroyed
 pub fn handle_server_destroy_notification(object_id: ObjectId) {
-    // Clean up the object
+    // First clean up any component ownership records
     {
+        let mut owners = COMPONENT_OWNERS.lock().unwrap();
+        owners.remove(&object_id); // If it's a component, remove its owner record
+        
+        // If it's an actor with components, remove all component owner records
         let mut objects = CLIENT_OBJECTS.lock().unwrap();
-        objects.remove(&object_id);
+        if let Some(actor) = objects.get(&object_id) {
+            if actor.is_actor {
+                for &component_id in &actor.components {
+                    owners.remove(&component_id);
+                }
+            }
+        }
     }
     
-    // Clean up any cached properties
-    crate::property::clear_property_cache(object_id);
+    // Now proceed with existing destruction logic
+    let mut objects = CLIENT_OBJECTS.lock().unwrap();
+    objects.remove(&object_id);
     
-    // Notify any listeners about the destroyed object
+    debug!("Removed object {} from client registry (server notification)", object_id);
+    
+    // Notify FFI layer about the destruction
     crate::ffi::invoke_on_object_destroyed(object_id);
 }
 
@@ -579,35 +746,17 @@ pub fn update_lifecycle_state(
     }
 }
 
-/// Add a component to an actor
-pub fn add_component(
-    actor_id: ObjectId,
-    component_id: ObjectId,
-) -> Result<(), String> {
-    let mut objects = CLIENT_OBJECTS.lock().unwrap();
-    
-    if let Some(actor) = objects.get_mut(&actor_id) {
-        actor.add_component(component_id)
-    } else {
-        Err(format!("Actor {} not found", actor_id))
+/// Get a component by ID, ensuring it's actually a component
+pub fn get_component(component_id: ObjectId) -> Option<ClientObject> {
+    let owners = COMPONENT_OWNERS.lock().unwrap();
+    if !owners.contains_key(&component_id) {
+        return None; // Not a component
     }
+    
+    get_object(component_id)
 }
 
-/// Remove a component from an actor
-pub fn remove_component(
-    actor_id: ObjectId,
-    component_id: ObjectId,
-) -> Result<(), String> {
-    let mut objects = CLIENT_OBJECTS.lock().unwrap();
-    
-    if let Some(actor) = objects.get_mut(&actor_id) {
-        actor.remove_component(component_id)
-    } else {
-        Err(format!("Actor {} not found", actor_id))
-    }
-}
-
-/// Get all components attached to an actor
+/// Get all components of a specific actor
 pub fn get_components(actor_id: ObjectId) -> Result<Vec<ObjectId>, String> {
     let objects = CLIENT_OBJECTS.lock().unwrap();
     
@@ -618,6 +767,143 @@ pub fn get_components(actor_id: ObjectId) -> Result<Vec<ObjectId>, String> {
         Ok(actor.components.clone())
     } else {
         Err(format!("Actor {} not found", actor_id))
+    }
+}
+
+/// Get all component objects of a specific actor
+pub fn get_component_objects(actor_id: ObjectId) -> Result<Vec<ClientObject>, String> {
+    let objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(actor) = objects.get(&actor_id) {
+        if !actor.is_actor {
+            return Err(format!("Object {} is not an actor", actor_id));
+        }
+        
+        Ok(actor.components.iter()
+            .filter_map(|&component_id| objects.get(&component_id).cloned())
+            .collect())
+    } else {
+        Err(format!("Actor {} not found", actor_id))
+    }
+}
+
+/// Get a component by class name
+pub fn get_component_by_class(actor_id: ObjectId, class_name: &str) -> Result<Option<ClientObject>, String> {
+    let objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(actor) = objects.get(&actor_id) {
+        if !actor.is_actor {
+            return Err(format!("Object {} is not an actor", actor_id));
+        }
+        
+        for &component_id in &actor.components {
+            if let Some(component) = objects.get(&component_id) {
+                if component.class_name == class_name {
+                    return Ok(Some(component.clone()));
+                }
+            }
+        }
+        
+        Ok(None) // No component with that class name found
+    } else {
+        Err(format!("Actor {} not found", actor_id))
+    }
+}
+
+/// Get the owner of a component
+pub fn get_component_owner(component_id: ObjectId) -> Option<ObjectId> {
+    let owners = COMPONENT_OWNERS.lock().unwrap();
+    owners.get(&component_id).copied()
+}
+
+/// Check if an object is a component
+pub fn is_component(object_id: ObjectId) -> bool {
+    let owners = COMPONENT_OWNERS.lock().unwrap();
+    owners.contains_key(&object_id)
+}
+
+/// Add a component to an actor
+pub fn add_component(
+    actor_id: ObjectId,
+    component_id: ObjectId,
+) -> Result<(), String> {
+    let mut objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(actor) = objects.get_mut(&actor_id) {
+        // Validate the component actually exists
+        if !objects.contains_key(&component_id) {
+            return Err(format!("Component {} does not exist", component_id));
+        }
+        
+        actor.add_component(component_id)
+    } else {
+        Err(format!("Actor {} not found", actor_id))
+    }
+}
+
+/// Create a new component and attach it to an actor
+pub fn create_and_attach_component(
+    actor_id: ObjectId,
+    component_class: &str,
+) -> Result<ObjectId, String> {
+    // First check if actor exists
+    {
+        let objects = CLIENT_OBJECTS.lock().unwrap();
+        if !objects.contains_key(&actor_id) || !objects.get(&actor_id).unwrap().is_actor {
+            return Err(format!("Actor {} not found or not an actor", actor_id));
+        }
+    }
+    
+    // Create the component object
+    let component_params = SpawnParams {
+        class_name: component_class.to_string(),
+        transform: None, // Components typically inherit transform from owner
+        owner_id: Some(actor_id),
+        replicates: true, // Components typically replicate with their owner
+        initial_properties: HashMap::new(),
+    };
+    
+    // Create the component
+    let component_id = create_object(component_class, component_params)?;
+    
+    // Attach it to the actor
+    add_component(actor_id, component_id)?;
+    
+    Ok(component_id)
+}
+
+/// Get a property from a component
+pub fn get_component_property(
+    actor_id: ObjectId,
+    component_class: &str,
+    property_name: &str,
+) -> Result<Option<PropertyValue>, String> {
+    // Find the component by class name
+    let component = get_component_by_class(actor_id, component_class)?;
+    
+    // If component exists, get the property
+    if let Some(component) = component {
+        Ok(component.get_property(property_name))
+    } else {
+        Ok(None) // Component not found, but not an error
+    }
+}
+
+/// Set a property on a component
+pub fn set_component_property(
+    actor_id: ObjectId,
+    component_class: &str,
+    property_name: &str,
+    value: PropertyValue,
+) -> Result<(), String> {
+    // Find the component by class name
+    let component_result = get_component_by_class(actor_id, component_class)?;
+    
+    if let Some(component) = component_result {
+        // Update the component property
+        update_object_property(component.id, property_name, value)
+    } else {
+        Err(format!("Component of class {} not found on actor {}", component_class, actor_id))
     }
 }
 

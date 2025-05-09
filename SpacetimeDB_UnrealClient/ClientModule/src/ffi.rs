@@ -149,6 +149,17 @@ mod bridge {
         fn create_object(class_name: &CxxString, params_json: &CxxString) -> u64;
         fn destroy_object(object_id: u64) -> bool;
         
+        // Component management
+        fn add_component(actor_id: u64, component_id: u64) -> bool;
+        fn remove_component(actor_id: u64, component_id: u64) -> bool;
+        fn get_components(actor_id: u64) -> CxxString;
+        fn get_component_by_class(actor_id: u64, class_name: &CxxString) -> u64;
+        fn is_component(object_id: u64) -> bool;
+        fn get_component_owner(component_id: u64) -> u64;
+        fn create_and_attach_component(actor_id: u64, component_class: &CxxString) -> u64;
+        fn get_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString) -> CxxString;
+        fn set_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString, value_json: &CxxString) -> bool;
+        
         // RPC (Remote Procedure Calls)
         fn call_server_function(object_id: u64, function_name: &CxxString, args_json: &CxxString) -> bool;
         fn register_client_function(function_name: &CxxString, handler_ptr: usize) -> bool;
@@ -501,5 +512,112 @@ fn get_property_definition(class_name: &CxxString, property_name: &CxxString) ->
             }
         },
         None => CxxString::new("{}"),
+    }
+}
+
+/// Add a component to an actor
+fn add_component(actor_id: u64, component_id: u64) -> bool {
+    match object::add_component(actor_id, component_id) {
+        Ok(_) => true,
+        Err(e) => {
+            eprintln!("Failed to add component {}: {}", component_id, e);
+            false
+        }
+    }
+}
+
+/// Remove a component from an actor
+fn remove_component(actor_id: u64, component_id: u64) -> bool {
+    match object::remove_component(actor_id, component_id) {
+        Ok(_) => true,
+        Err(e) => {
+            eprintln!("Failed to remove component {}: {}", component_id, e);
+            false
+        }
+    }
+}
+
+/// Get all components attached to an actor as a JSON array of object IDs
+fn get_components(actor_id: u64) -> CxxString {
+    match object::get_components(actor_id) {
+        Ok(components) => {
+            match serde_json::to_string(&components) {
+                Ok(json) => json.into(),
+                Err(_) => "[]".into(), 
+            }
+        },
+        Err(_) => "[]".into(),
+    }
+}
+
+/// Get a component by class name, returns 0 if not found
+fn get_component_by_class(actor_id: u64, class_name: &CxxString) -> u64 {
+    match object::get_component_by_class(actor_id, class_name) {
+        Ok(component_opt) => {
+            match component_opt {
+                Some(component) => component.id,
+                None => 0,
+            }
+        },
+        Err(_) => 0,
+    }
+}
+
+/// Check if an object is a component
+fn is_component(object_id: u64) -> bool {
+    object::is_component(object_id)
+}
+
+/// Get the owner of a component, returns 0 if not a component or no owner
+fn get_component_owner(component_id: u64) -> u64 {
+    object::get_component_owner(component_id).unwrap_or(0)
+}
+
+/// Create a new component and attach it to an actor
+fn create_and_attach_component(actor_id: u64, component_class: &CxxString) -> u64 {
+    match object::create_and_attach_component(actor_id, component_class) {
+        Ok(component_id) => component_id,
+        Err(e) => {
+            eprintln!("Failed to create and attach component: {}", e);
+            0
+        }
+    }
+}
+
+/// Get a property from a component
+fn get_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString) -> CxxString {
+    match object::get_component_property(actor_id, component_class, property_name) {
+        Ok(value_opt) => {
+            match value_opt {
+                Some(value) => {
+                    // Serialize the property value to JSON
+                    match property::serialization::serialize_property_value(&value) {
+                        Ok(json) => json.into(),
+                        Err(_) => "null".into(),
+                    }
+                },
+                None => "null".into(),
+            }
+        },
+        Err(_) => "null".into(),
+    }
+}
+
+/// Set a property on a component
+fn set_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString, value_json: &CxxString) -> bool {
+    // Parse the JSON value into a PropertyValue
+    let value_result = property::serialization::deserialize_property_value(value_json);
+    if let Err(e) = value_result {
+        eprintln!("Failed to deserialize property value: {}", e);
+        return false;
+    }
+    
+    // Update the component property
+    match object::set_component_property(actor_id, component_class, property_name, value_result.unwrap()) {
+        Ok(_) => true,
+        Err(e) => {
+            eprintln!("Failed to set component property: {}", e);
+            false
+        }
     }
 } 

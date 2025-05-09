@@ -156,9 +156,9 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
          *   Created import/export functionality for property definitions via JSON
          *   Added mechanisms to query and check for property definitions by class name
 
-5.  [ ] **Component System (`ClientModule/src/actor/mod.rs`):**
-    *   [ ] The current system in `ClientActor` only tracks `ObjectId`s of components (`Vec<ObjectId>`).
-    *   [ ] **FIX (More of a Design Requirement):** A more complete client-side component system would involve managing actual `ClientObject` (or equivalent) instances for components, allowing them to have their own properties and potentially replicated state.
+5.  [X] **Component System (`ClientModule/src/actor/mod.rs`):**
+    *   [X] The current system in `ClientActor` only tracks `ObjectId`s of components (`Vec<ObjectId>`).
+    *   [X] **FIX (More of a Design Requirement):** A more complete client-side component system would involve managing actual `ClientObject` (or equivalent) instances for components, allowing them to have their own properties and potentially replicated state.
 
 ## VII. FFI Layer (`ClientModule/src/ffi.rs`):
 
