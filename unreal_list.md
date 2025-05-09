@@ -57,28 +57,28 @@ This subsystem will be the main interface for Unreal C++ and Blueprints to inter
     *   [X] Internally, these will call the FFI functions: `stdb::ffi::connect_to_server`, `stdb::ffi::disconnect_from_server`, `stdb::ffi::is_connected`, `stdb::ffi::get_client_id`.
     *   [X] Manage and broadcast Unreal delegates for connection events (e.g., `OnConnectedToSpacetimeDB`, `OnDisconnectedFromSpacetimeDB`, `OnSpacetimeDBError`).
 
-2.  [ ] **Object & Actor Lifecycle Management (Client-Side Mirroring):**
-    *   [ ] Maintain a TMap of `uint64 (ObjectId)` to `UObject*` (or a custom C++ wrapper class) for all replicated objects/actors known to the client.
-    *   [ ] **Object Creation (`on_object_created` callback):**
-        *   [ ] When Rust signals object creation via the FFI callback:
-            *   [ ] Deserialize the object description (likely JSON including `class_name`, initial properties, transform for actors).
-            *   [ ] Dynamically spawn the appropriate Unreal UObject/AActor using `StaticConstructObject_Internal` or `GetWorld()->SpawnActorDeferred` etc., based on `class_name`.
-            *   [ ] Apply initial properties (deserializing from JSON if needed).
-            *   [ ] If an actor, set its transform.
-            *   [ ] Store the `ObjectId` and the spawned `UObject*` in the local map.
-            *   [ ] Finalize spawning if `SpawnActorDeferred` was used.
-    *   [ ] **Object Destruction (`on_object_destroyed` callback):**
-        *   [ ] When Rust signals object destruction:
-            *   [ ] Find the corresponding `UObject*` using `ObjectId`.
-            *   [ ] Destroy the Unreal actor/object (e.g., `AActor::Destroy()`).
-            *   [ ] Remove from the local map.
-    *   [ ] **Spawning Local Requests (e.g., player input to spawn something):**
-        *   [ ] Provide C++/Blueprint functions e.g., `RequestSpawnActor(UClass* Class, FStdbSpawnParams Params)`.
-        *   [ ] This function will call `stdb::ffi::create_object(className, paramsJson)`.
-        *   [ ] Handle the asynchronous nature: the actor isn't truly spawned until the server confirms and the `on_object_created` callback fires.
-    *   [ ] **Destroying Local Requests:**
-        *   [ ] Provide C++/Blueprint functions e.g., `RequestDestroyActor(AActor* Actor)`.
-        *   [ ] This function will need to get the `ObjectId` for the `Actor` and call `stdb::ffi::destroy_object(objectId)`.
+2.  [X] **Object & Actor Lifecycle Management (Client-Side Mirroring):**
+    *   [X] Maintain a TMap of `uint64 (ObjectId)` to `UObject*` (or a custom C++ wrapper class) for all replicated objects/actors known to the client.
+    *   [X] **Object Creation (`on_object_created` callback):**
+        *   [X] When Rust signals object creation via the FFI callback:
+            *   [X] Deserialize the object description (likely JSON including `class_name`, initial properties, transform for actors).
+            *   [X] Dynamically spawn the appropriate Unreal UObject/AActor using `StaticConstructObject_Internal` or `GetWorld()->SpawnActorDeferred` etc., based on `class_name`.
+            *   [X] Apply initial properties (deserializing from JSON if needed).
+            *   [X] If an actor, set its transform.
+            *   [X] Store the `ObjectId` and the spawned `UObject*` in the local map.
+            *   [X] Finalize spawning if `SpawnActorDeferred` was used.
+    *   [X] **Object Destruction (`on_object_destroyed` callback):**
+        *   [X] When Rust signals object destruction:
+            *   [X] Find the corresponding `UObject*` using `ObjectId`.
+            *   [X] Destroy the Unreal actor/object (e.g., `AActor::Destroy()`).
+            *   [X] Remove from the local map.
+    *   [X] **Spawning Local Requests (e.g., player input to spawn something):**
+        *   [X] Provide C++/Blueprint functions e.g., `RequestSpawnActor(UClass* Class, FStdbSpawnParams Params)`.
+        *   [X] This function will call `stdb::ffi::create_object(className, paramsJson)`.
+        *   [X] Handle the asynchronous nature: the actor isn't truly spawned until the server confirms and the `on_object_created` callback fires.
+    *   [X] **Destroying Local Requests:**
+        *   [X] Provide C++/Blueprint functions e.g., `RequestDestroyActor(AActor* Actor)`.
+        *   [X] This function will need to get the `ObjectId` for the `Actor` and call `stdb::ffi::destroy_object(objectId)`.
 
 3.  [ ] **Property Replication (Client-Side Application):**
     *   [ ] **`on_property_updated` callback:**

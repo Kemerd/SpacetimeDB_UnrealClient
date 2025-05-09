@@ -10,6 +10,32 @@
 #include "SpacetimeDBSubsystem.generated.h"
 
 /**
+ * @struct FSpacetimeDBSpawnParams
+ * @brief Parameters for spawning an actor or object in SpacetimeDB
+ */
+USTRUCT(BlueprintType)
+struct SPACETIMEDB_UNREALCLIENT_API FSpacetimeDBSpawnParams
+{
+    GENERATED_BODY()
+
+    /** The class name of the object to spawn (must match a class registered with SpacetimeDB) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB")
+    FString ClassName;
+
+    /** Optional initial transform for actors */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB")
+    FTransform Transform = FTransform::Identity;
+
+    /** Initial properties as a JSON string */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB")
+    FString PropertiesJson;
+
+    /** Whether this object should be replicated to other clients */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB")
+    bool bReplicate = true;
+};
+
+/**
  * @class USpacetimeDBSubsystem
  * @brief Game Instance Subsystem for managing SpacetimeDB connections.
  * 
@@ -141,6 +167,56 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB")
     FOnSpacetimeDBPropertyUpdated OnPropertyUpdated;
 
+    //============================
+    // Object Lifecycle Management
+    //============================
+    
+    /**
+     * Requests the server to spawn an object or actor.
+     * The object won't be spawned until the server confirms via the OnObjectCreated callback.
+     * 
+     * @param Params The spawn parameters
+     * @return A temporary object ID that will be remapped when the server confirms creation
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Objects")
+    int64 RequestSpawnObject(const FSpacetimeDBSpawnParams& Params);
+    
+    /**
+     * Requests the server to destroy an object or actor.
+     * The object won't be destroyed until the server confirms via the OnObjectDestroyed callback.
+     * 
+     * @param ObjectId The ID of the object to destroy
+     * @return True if the request was sent successfully
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Objects")
+    bool RequestDestroyObject(int64 ObjectId);
+    
+    /**
+     * Finds an object by its SpacetimeDB object ID.
+     * 
+     * @param ObjectId The SpacetimeDB object ID
+     * @return The UObject pointer, or nullptr if not found
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Objects")
+    UObject* FindObjectById(int64 ObjectId) const;
+    
+    /**
+     * Finds the SpacetimeDB object ID for a UObject.
+     * 
+     * @param Object The UObject to find the ID for
+     * @return The SpacetimeDB object ID, or 0 if not found
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Objects")
+    int64 FindObjectId(UObject* Object) const;
+    
+    /**
+     * Gets all SpacetimeDB objects tracked by this subsystem.
+     * 
+     * @return An array of all objects
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Objects")
+    TArray<UObject*> GetAllObjects() const;
+
 private:
     // The client instance
     FSpacetimeDBClient Client;
@@ -174,6 +250,10 @@ private:
     void HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson);
     void HandleObjectDestroyed(uint64 ObjectId);
     void HandleObjectIdRemapped(uint64 TempId, uint64 ServerId);
+    
+    // Event handler for actor destruction
+    UFUNCTION()
+    void OnActorDestroyed(AActor* DestroyedActor);
 
     /**
      * Information about a property update
@@ -185,7 +265,7 @@ private:
 
         /** The ID of the object that was updated */
         UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
-        FSpacetimeDBObjectID ObjectId;
+        int64 ObjectId;
 
         /** The object that was updated (may be null if object not found) */
         UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
@@ -209,6 +289,18 @@ private:
      */
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSpacetimeDBPropertyUpdated, const FSpacetimeDBPropertyUpdateInfo&, UpdateInfo);
 
+    // Object Registry - Maps SpacetimeDB object IDs to Unreal UObjects
+    TMap<int64, UObject*> ObjectRegistry;
+    
+    // Reverse lookup - Maps UObjects to their SpacetimeDB IDs
+    TMap<UObject*, int64> ObjectToIdMap;
+    
+    // Internal method to spawn an object based on a server notification
+    UObject* SpawnObjectFromServer(int64 ObjectId, const FString& ClassName, const FString& DataJson);
+    
+    // Internal method to destroy an object based on a server notification
+    void DestroyObjectFromServer(int64 ObjectId);
+    
     // Property update handling
-    void OnPropertyUpdated(int64 ObjectId, const FString& PropertyName, const FString& ValueJson);
+    void HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson);
 }; 
