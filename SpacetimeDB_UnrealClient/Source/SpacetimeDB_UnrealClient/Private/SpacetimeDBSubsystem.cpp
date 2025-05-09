@@ -11,6 +11,7 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "SpacetimeDBPropertyHelper.h"
 
 void USpacetimeDBSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -225,9 +226,44 @@ void USpacetimeDBSubsystem::HandlePropertyUpdated(uint64 ObjectId, const FString
 {
     // Use Verbose log level since this could be high frequency
     UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Property updated - Object %llu, Property %s"), ObjectId, *PropertyName);
-    OnPropertyUpdated.Broadcast(static_cast<int64>(ObjectId), PropertyName, ValueJson);
     
-    // TODO: Once object tracking system is implemented, apply property to local object
+    // Find the object in our registry
+    UObject* Object = FindObjectById(static_cast<int64>(ObjectId));
+    
+    // Prepare update info to broadcast
+    FSpacetimeDBPropertyUpdateInfo UpdateInfo;
+    UpdateInfo.ObjectId = static_cast<int64>(ObjectId);
+    UpdateInfo.Object = Object;
+    UpdateInfo.PropertyName = PropertyName;
+    UpdateInfo.RawJsonValue = ValueJson;
+    
+    // Parse the JSON value into a proper FSpacetimeDBPropertyValue
+    // This would use the existing PropertyValue parsing system
+    UpdateInfo.PropertyValue = FSpacetimeDBPropertyValue::FromJsonString(ValueJson);
+    
+    if (Object)
+    {
+        // Apply the property to the object using our property helper
+        bool bSuccess = FSpacetimeDBPropertyHelper::ApplyJsonToProperty(Object, PropertyName, ValueJson);
+        
+        if (bSuccess)
+        {
+            UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Successfully applied property %s to object %s (ID: %llu)"), 
+                *PropertyName, *Object->GetName(), ObjectId);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to apply property %s to object %s (ID: %llu)"), 
+                *PropertyName, *Object->GetName(), ObjectId);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: Cannot apply property %s - Object with ID %llu not found"), *PropertyName, ObjectId);
+    }
+    
+    // Broadcast the update whether we successfully applied it or not
+    OnPropertyUpdated.Broadcast(UpdateInfo);
 }
 
 void USpacetimeDBSubsystem::HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson)
@@ -730,35 +766,92 @@ void USpacetimeDBSubsystem::HandleObjectIdRemapped(uint64 TempId, uint64 ServerI
     }
 }
 
-void USpacetimeDBSubsystem::HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson)
+// Add methods for setting properties
+
+bool USpacetimeDBSubsystem::SetPropertyValueFromJson(int64 ObjectId, const FString& PropertyName, const FString& ValueJson, bool bReplicateToServer)
 {
-    // Use Verbose log level since this could be high frequency
-    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Property updated - Object %llu, Property %s"), ObjectId, *PropertyName);
-    
-    // Find the object in our registry
-    UObject* Object = FindObjectById(static_cast<int64>(ObjectId));
-    
-    // Prepare update info to broadcast
-    FSpacetimeDBPropertyUpdateInfo UpdateInfo;
-    UpdateInfo.ObjectId = static_cast<int64>(ObjectId);
-    UpdateInfo.Object = Object;
-    UpdateInfo.PropertyName = PropertyName;
-    UpdateInfo.RawJsonValue = ValueJson;
-    
-    // TODO: Parse the JSON value into a proper FSpacetimeDBPropertyValue
-    // This would involve a JSON parsing system
-    
-    // Broadcast the update
-    OnPropertyUpdated.Broadcast(UpdateInfo);
-    
-    if (Object)
+    // Find the object by ID
+    UObject* Object = FindObjectById(ObjectId);
+    if (!Object)
     {
-        // Apply the property to the object
-        // TODO: Implement property application
-        // This should parse the JSON and apply it to the actual UObject property
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Cannot set property value for unknown object ID %lld, property %s"), 
+            ObjectId, *PropertyName);
+        return false;
     }
-    else
+
+    // Apply the JSON value to the property
+    bool bSuccess = FSpacetimeDBPropertyHelper::ApplyJsonToProperty(Object, PropertyName, ValueJson);
+    
+    if (!bSuccess)
     {
-        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: Cannot apply property %s - Object with ID %llu not found"), *PropertyName, ObjectId);
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to apply property %s from JSON to object %s (ID: %lld)"), 
+            *PropertyName, *Object->GetName(), ObjectId);
+        return false;
     }
+
+    // If we should replicate to the server, send the update
+    if (bReplicateToServer)
+    {
+        return SendPropertyUpdateToServer(ObjectId, PropertyName, ValueJson);
+    }
+
+    return true;
+}
+
+bool USpacetimeDBSubsystem::SetPropertyValue(int64 ObjectId, const FString& PropertyName, UObject* Object, bool bReplicateToServer)
+{
+    if (!Object)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Cannot set property value with null object. Property: %s"), *PropertyName);
+        return false;
+    }
+
+    // Serialize the property value to JSON
+    FString ValueJson = FSpacetimeDBPropertyHelper::SerializePropertyToJson(Object, PropertyName);
+    if (ValueJson.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to serialize property %s on object %s"), 
+            *PropertyName, *Object->GetName());
+        return false;
+    }
+
+    // Apply locally first if Object isn't the target (it's a different object with the same property)
+    UObject* TargetObject = FindObjectById(ObjectId);
+    if (TargetObject && TargetObject != Object)
+    {
+        bool bLocalSuccess = FSpacetimeDBPropertyHelper::ApplyJsonToProperty(TargetObject, PropertyName, ValueJson);
+        if (!bLocalSuccess)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: Failed to apply property %s locally to target object %s"), 
+                *PropertyName, *TargetObject->GetName());
+            // Continue anyway to try server update
+        }
+    }
+
+    // If we should replicate to the server, send the update
+    if (bReplicateToServer)
+    {
+        return SendPropertyUpdateToServer(ObjectId, PropertyName, ValueJson);
+    }
+
+    return true;
+}
+
+bool USpacetimeDBSubsystem::SendPropertyUpdateToServer(int64 ObjectId, const FString& PropertyName, const FString& ValueJson)
+{
+    // Create JSON for the property update
+    TSharedPtr<FJsonObject> UpdateParamsJson = MakeShared<FJsonObject>();
+    UpdateParamsJson->SetNumberField("object_id", static_cast<double>(ObjectId));
+    UpdateParamsJson->SetStringField("property_name", PropertyName);
+    UpdateParamsJson->SetStringField("value_json", ValueJson);
+    
+    // Serialize to JSON string
+    FString ParamsJsonStr;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ParamsJsonStr);
+    FJsonSerializer::Serialize(UpdateParamsJson.ToSharedRef(), Writer);
+    
+    // Call the reducer
+    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Sending property update to server - Object ID: %lld, Property: %s"), 
+        ObjectId, *PropertyName);
+    return Client.CallReducer("set_property", ParamsJsonStr);
 } 

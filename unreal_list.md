@@ -80,22 +80,22 @@ This subsystem will be the main interface for Unreal C++ and Blueprints to inter
         *   [X] Provide C++/Blueprint functions e.g., `RequestDestroyActor(AActor* Actor)`.
         *   [X] This function will need to get the `ObjectId` for the `Actor` and call `stdb::ffi::destroy_object(objectId)`.
 
-3.  [ ] **Property Replication (Client-Side Application):**
-    *   [ ] **`on_property_updated` callback:**
-        *   [ ] When Rust signals a property update:
-            *   [ ] Receive `ObjectId`, `PropertyName` (FString), and `ValueJson` (FString).
-            *   [ ] Find the local `UObject*` using `ObjectId`.
-            *   [ ] Find the `FProperty*` on the `UObject` using `PropertyName`.
-            *   [ ] Deserialize `ValueJson` into a temporary C++ representation or directly into the property's memory using appropriate Unreal property functions and the JSON utilities.
-            *   [ ] Handle type checking and conversion carefully.
-            *   [ ] For UStructs, TArrays, TMaps, this will involve more complex JSON deserialization.
-            *   [ ] Trigger any relevant RepNotify functions for the updated property.
-    *   [ ] **Sending Property Updates (Client to Server):**
-        *   [ ] When a replicated property changes on a client (that has authority or for client-side prediction that needs server validation):
-            *   [ ] Get the `ObjectId`, `PropertyName`.
-            *   [ ] Serialize the new property value to a JSON string.
-            *   [ ] Call `stdb::ffi::set_property(objectId, propertyName, valueJson, bReplicateToServer)`.
-        *   [ ] This requires a system to hook into Unreal's property system or for game code to explicitly call this.
+3.  [X] **Property Replication (Client-Side Application):**
+    *   [X] **`on_property_updated` callback:**
+        *   [X] When Rust signals a property update:
+            *   [X] Receive `ObjectId`, `PropertyName` (FString), and `ValueJson` (FString).
+            *   [X] Find the local `UObject*` using `ObjectId`.
+            *   [X] Find the `FProperty*` on the `UObject` using `PropertyName`.
+            *   [X] Deserialize `ValueJson` into a temporary C++ representation or directly into the property's memory using appropriate Unreal property functions and the JSON utilities.
+            *   [X] Handle type checking and conversion carefully.
+            *   [X] For UStructs, TArrays, TMaps, this will involve more complex JSON deserialization.
+            *   [X] Trigger any relevant RepNotify functions for the updated property.
+    *   [X] **Sending Property Updates (Client to Server):**
+        *   [X] When a replicated property changes on a client (that has authority or for client-side prediction that needs server validation):
+            *   [X] Get the `ObjectId`, `PropertyName`.
+            *   [X] Serialize the new property value to a JSON string.
+            *   [X] Call `stdb::ffi::set_property(objectId, propertyName, valueJson, bReplicateToServer)`.
+        *   [X] This requires a system to hook into Unreal's property system or for game code to explicitly call this.
 
 4.  [ ] **RPC Handling:**
     *   [ ] **Calling Server RPCs:**

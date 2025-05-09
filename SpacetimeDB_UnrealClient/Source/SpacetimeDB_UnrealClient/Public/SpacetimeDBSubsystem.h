@@ -217,6 +217,32 @@ public:
     UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Objects")
     TArray<UObject*> GetAllObjects() const;
 
+    //////////////////////////
+    // Property Replication //
+    //////////////////////////
+    
+    /**
+     * Set a property value directly from JSON and optionally replicate it to the server
+     * @param ObjectId The ID of the object to update
+     * @param PropertyName The name of the property to update
+     * @param ValueJson The JSON representation of the new property value
+     * @param bReplicateToServer Whether to send the update to the server
+     * @return True if the property was successfully updated
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
+    bool SetPropertyValueFromJson(int64 ObjectId, const FString& PropertyName, const FString& ValueJson, bool bReplicateToServer = true);
+    
+    /**
+     * Set a property value using an object as the source and optionally replicate it to the server
+     * @param ObjectId The ID of the object to update
+     * @param PropertyName The name of the property to update
+     * @param Object The object containing the property to use as the source value
+     * @param bReplicateToServer Whether to send the update to the server
+     * @return True if the property was successfully updated
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
+    bool SetPropertyValue(int64 ObjectId, const FString& PropertyName, UObject* Object, bool bReplicateToServer = true);
+
 private:
     // The client instance
     FSpacetimeDBClient Client;
@@ -303,4 +329,13 @@ private:
     
     // Property update handling
     void HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson);
+
+    /**
+     * Send a property update to the server
+     * @param ObjectId The ID of the object to update
+     * @param PropertyName The name of the property to update
+     * @param ValueJson The JSON representation of the new property value
+     * @return True if the property update was successfully sent
+     */
+    bool SendPropertyUpdateToServer(int64 ObjectId, const FString& PropertyName, const FString& ValueJson);
 }; 
