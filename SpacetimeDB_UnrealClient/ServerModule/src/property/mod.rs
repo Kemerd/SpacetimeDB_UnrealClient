@@ -64,6 +64,28 @@ pub struct PropertyDefinition {
     pub flags: u32,
 }
 
+/// Table to store property definitions that are shared with clients
+#[derive(TableType)]
+pub struct PropertyDefinitionTable {
+    #[primarykey]
+    /// Combined class_name + property_name
+    pub id: String,
+    /// The class name this property belongs to
+    pub class_name: String,
+    /// The property name
+    pub property_name: String,
+    /// String representation of property type
+    pub property_type: String,
+    /// Whether property is replicated
+    pub replicated: bool,
+    /// How the property replicates (as string)
+    pub replication_condition: String,
+    /// Whether property is read-only for clients
+    pub readonly: bool,
+    /// Additional flags
+    pub flags: u32,
+}
+
 /// Reducer for setting a property value on an object
 #[reducer]
 pub fn set_object_property(
@@ -260,36 +282,155 @@ fn validate_property_value(
 
 /// Initialize the property system
 pub fn init(ctx: &mut StageReducer) {
-    ctx.logger().info("Initializing property system...");
+    ctx.logger().info("Initializing property system");
     
-    // Load property definitions from configuration
+    // Load property definitions
     load_property_definitions(ctx);
     
-    // Schedule periodic replication task
+    // Sync the property registry to the PropertyDefinitionTable for client access
+    sync_property_definitions_to_table(ctx);
+    
+    // Set up periodic replication
     schedule_replication(ctx);
     
-    ctx.logger().info("Property system initialized!");
+    ctx.logger().info("Property system initialized");
 }
 
-/// Load property definitions from configuration or predefined sets
+/// Load property definitions into the registry
 fn load_property_definitions(ctx: &StageReducer) {
-    ctx.logger().info("Loading property definitions...");
+    let mut registry = match PROPERTY_REGISTRY.write() {
+        Ok(registry) => registry,
+        Err(e) => {
+            ctx.logger().error(format!("Failed to acquire registry lock: {}", e));
+            return;
+        }
+    };
     
-    // Create a new registry (or clear existing)
-    if let Ok(mut registry) = PROPERTY_REGISTRY.write() {
-        registry.clear();
-        
-        // Add standard property definitions
-        add_standard_properties(&mut registry);
-        
-        // Load custom properties from configuration
-        // This could be loaded from a file, database, or other configuration source
-        add_custom_properties(ctx, &mut registry);
-        
-        ctx.logger().info(format!("Loaded {} property definitions", registry.len()));
-    } else {
-        ctx.logger().error("Failed to acquire write lock for property registry");
+    // Clear existing definitions
+    registry.clear();
+    
+    // Add standard engine properties
+    add_standard_properties(&mut registry);
+    
+    // Add game-specific custom properties
+    add_custom_properties(ctx, &mut registry);
+    
+    // Include generated property definitions
+    if let Err(e) = crate::generated::register_property_definitions(&mut registry) {
+        ctx.logger().warn(format!("Error loading generated property definitions: {}", e));
     }
+    
+    ctx.logger().info(format!("Loaded {} property definitions", registry.len()));
+}
+
+/// Synchronize the property registry to the PropertyDefinitionTable
+fn sync_property_definitions_to_table(ctx: &StageReducer) {
+    // Get a read lock on the registry
+    let registry = match PROPERTY_REGISTRY.read() {
+        Ok(registry) => registry,
+        Err(e) => {
+            ctx.logger().error(format!("Failed to acquire registry lock: {}", e));
+            return;
+        }
+    };
+    
+    // Count for logging
+    let mut count = 0;
+    
+    // Group properties by class
+    let mut class_properties: HashMap<String, Vec<(&String, &PropertyDefinition)>> = HashMap::new();
+    
+    for (name, def) in registry.iter() {
+        // Extract class name from property path (Class.Property)
+        let parts: Vec<&str> = name.split('.').collect();
+        if parts.len() == 2 {
+            let class_name = parts[0].to_string();
+            let property_entries = class_properties.entry(class_name).or_insert_with(Vec::new);
+            property_entries.push((name, def));
+        } else {
+            // For properties without class prefix, use "Common"
+            let property_entries = class_properties.entry("Common".to_string()).or_insert_with(Vec::new);
+            property_entries.push((name, def));
+        }
+    }
+    
+    // Process each class
+    for (class_name, properties) in class_properties.iter() {
+        for (full_name, def) in properties {
+            // Extract property name from full name
+            let property_name = match full_name.split('.').last() {
+                Some(name) => name,
+                None => full_name.as_str(), // Use full name as fallback
+            };
+            
+            // Convert property type to string
+            let type_str = format!("{:?}", def.property_type);
+            
+            // Convert replication condition to string
+            let condition_str = format!("{:?}", def.replication_condition);
+            
+            // Create unique ID (class_name:property_name)
+            let id = format!("{}:{}", class_name, property_name);
+            
+            // Create table entry
+            let table_entry = PropertyDefinitionTable {
+                id,
+                class_name: class_name.clone(),
+                property_name: property_name.to_string(),
+                property_type: type_str,
+                replicated: def.replicated,
+                replication_condition: condition_str,
+                readonly: def.readonly,
+                flags: def.flags,
+            };
+            
+            // Insert or update in table
+            match PropertyDefinitionTable::filter_by_id(ctx, &table_entry.id).into_iter().next() {
+                Some(_existing) => {
+                    // Update existing entry
+                    if let Err(e) = PropertyDefinitionTable::update(ctx, table_entry) {
+                        ctx.logger().warn(format!("Failed to update property definition {}: {}", full_name, e));
+                        continue;
+                    }
+                },
+                None => {
+                    // Insert new entry
+                    if let Err(e) = PropertyDefinitionTable::insert(ctx, table_entry) {
+                        ctx.logger().warn(format!("Failed to insert property definition {}: {}", full_name, e));
+                        continue;
+                    }
+                }
+            }
+            
+            count += 1;
+        }
+    }
+    
+    ctx.logger().info(format!("Synchronized {} property definitions to client-accessible table", count));
+}
+
+/// Register a property definition
+pub fn register_property_definition(
+    registry: &mut HashMap<String, PropertyDefinition>,
+    full_name: &str,
+    property_type: PropertyType,
+    replicated: bool,
+    readonly: bool,
+    replication_condition: ReplicationCondition,
+    flags: u32,
+) {
+    // Create definition
+    let definition = PropertyDefinition {
+        name: full_name.to_string(),
+        property_type,
+        replicated,
+        replication_condition,
+        readonly,
+        flags,
+    };
+    
+    // Add to registry
+    registry.insert(full_name.to_string(), definition);
 }
 
 /// Add standard Unreal Engine property definitions

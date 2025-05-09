@@ -156,6 +156,15 @@ mod bridge {
         // Utility functions
         fn get_client_id() -> u64;
         fn get_object_class(object_id: u64) -> CxxString;
+        
+        // Property definition functions
+        fn get_property_definition_count() -> usize;
+        fn has_property_definitions_for_class(class_name: &CxxString) -> bool;
+        fn get_property_names_for_class(class_name: &CxxString) -> CxxString;
+        fn get_registered_class_names() -> CxxString;
+        fn import_property_definitions_from_json(json_str: &CxxString) -> bool;
+        fn export_property_definitions_as_json() -> CxxString;
+        fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> CxxString;
     }
 }
 
@@ -409,5 +418,88 @@ fn get_object_class(object_id: u64) -> CxxString {
     match object::get_object_class(object_id) {
         Some(class_name) => CxxString::new(&class_name),
         None => CxxString::new(""),
+    }
+}
+
+/// Get the total number of property definitions
+fn get_property_definition_count() -> usize {
+    crate::get_property_definition_count()
+}
+
+/// Check if property definitions are available for a specific class
+fn has_property_definitions_for_class(class_name: &CxxString) -> bool {
+    let class_name_str = class_name.to_string();
+    crate::has_property_definitions_for_class(&class_name_str)
+}
+
+/// Get property names for a specific class as a JSON array
+fn get_property_names_for_class(class_name: &CxxString) -> CxxString {
+    let class_name_str = class_name.to_string();
+    let prop_names = crate::get_property_names_for_class(&class_name_str);
+    
+    // Convert to JSON array
+    match serde_json::to_string(&prop_names) {
+        Ok(json) => CxxString::new(&json),
+        Err(_) => CxxString::new("[]"),
+    }
+}
+
+/// Get all registered class names as a JSON array
+fn get_registered_class_names() -> CxxString {
+    let class_names = crate::get_registered_class_names();
+    
+    // Convert to JSON array
+    match serde_json::to_string(&class_names) {
+        Ok(json) => CxxString::new(&json),
+        Err(_) => CxxString::new("[]"),
+    }
+}
+
+/// Import property definitions from a JSON string
+fn import_property_definitions_from_json(json_str: &CxxString) -> bool {
+    let json_str_rust = json_str.to_string();
+    
+    match crate::import_property_definitions_from_json(&json_str_rust) {
+        Ok(_) => true,
+        Err(err) => {
+            let error_msg = format!("Failed to import property definitions: {}", err);
+            let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+            invoke_on_error(error_ptr, &error_msg);
+            false
+        }
+    }
+}
+
+/// Export all property definitions as a JSON string
+fn export_property_definitions_as_json() -> CxxString {
+    match crate::export_property_definitions_as_json() {
+        Ok(json) => CxxString::new(&json),
+        Err(_) => CxxString::new("{}"),
+    }
+}
+
+/// Get a property definition as a JSON object
+fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> CxxString {
+    let class_name_str = class_name.to_string();
+    let property_name_str = property_name.to_string();
+    
+    match crate::get_property_definition(&class_name_str, &property_name_str) {
+        Some(def) => {
+            // Convert PropertyDefinition to a JSON object
+            let json = serde_json::json!({
+                "name": def.name,
+                "type": format!("{:?}", def.property_type),
+                "replicated": def.replicated,
+                "replication_condition": format!("{:?}", def.replication_condition),
+                "readonly": def.readonly,
+                "flags": def.flags
+            });
+            
+            match serde_json::to_string(&json) {
+                Ok(json_str) => CxxString::new(&json_str),
+                Err(_) => CxxString::new("{}"),
+            }
+        },
+        None => CxxString::new("{}"),
     }
 } 

@@ -23,7 +23,13 @@ pub mod net;         // Network layer
 mod ffi;
 
 // Re-export commonly used items
-pub use property::{PropertyType, PropertyValue};
+pub use property::{
+    PropertyType, PropertyValue, 
+    get_property_definition, get_property_definition_count, 
+    has_property_definitions_for_class, get_property_names_for_class,
+    get_registered_class_names, import_property_definitions_from_json, 
+    export_property_definitions_as_json
+};
 pub use object::{ObjectId, ClientObject};
 pub use actor::ClientActor;
 pub use net::{ConnectionState, ClientConnection};

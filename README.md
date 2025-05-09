@@ -50,6 +50,16 @@ The property system provides a robust way to manage and replicate object propert
 - Container types (arrays, maps, sets)
 - Automatic serialization/deserialization
 - Change detection and efficient replication
+- Automatic property definition synchronization between server and client
+- Runtime property inspection and discovery
+- JSON import/export support for property definitions
+
+The property system uses an efficient cache strategy:
+1. Property definitions are automatically synchronized from server to client
+2. Clients can query property information by class or property name
+3. A staging cache holds property values that haven't been assigned to objects yet
+4. Values are transferred from the staging cache to objects upon creation
+5. Property changes are tracked for efficient network replication
 
 ### Network Layer
 The network module handles all communication with the SpacetimeDB server:

@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::future::Future;
 use once_cell::sync::Lazy;
-use log::{info, debug, error, warn};
+use log::{info, debug, error, warn, trace};
 use serde_json::Value;
 
 // Global client state
@@ -78,6 +78,11 @@ fn init_default_table_handlers() {
 
     register_table_handler("ObjectTransform", |update| {
         handle_object_transform_update(update)
+    });
+    
+    // Add handler for PropertyDefinitionTable
+    register_table_handler("PropertyDefinitionTable", |update| {
+        handle_property_definition_update(update)
     });
     
     info!("Default table handlers initialized");
@@ -487,28 +492,45 @@ fn handle_client_state_change(state: ClientState) {
 fn handle_subscription_applied() {
     info!("SpacetimeDB subscription applied");
     
-    // Update connection state to Connected
+    // Update connection state
     {
         let mut state = CONNECTION_STATE.lock().unwrap();
         *state = ConnectionState::Connected;
-        
-        // Retrieve and set the client ID if available
-        if let Some(client) = &*CLIENT.lock().unwrap() {
+    }
+    
+    info!("Connected to SpacetimeDB server");
+    
+    // Get client identity and ID
+    {
+        let client = CLIENT.lock().unwrap();
+        if let Some(client) = &*client {
             if let Some(identity) = client.identity() {
-                let mut client_id = CLIENT_ID.lock().unwrap();
-                *client_id = identity.address().as_u64();
-                debug!("Client ID set: {}", *client_id);
+                // Calculate client ID from identity
+                let id_bytes = identity.as_bytes();
+                let mut client_id: u64 = 0;
+                
+                // Use first 8 bytes of identity to create a u64 client ID
+                for i in 0..std::cmp::min(8, id_bytes.len()) {
+                    client_id = (client_id << 8) | (id_bytes[i] as u64);
+                }
+                
+                // Store client ID
+                let mut id = CLIENT_ID.lock().unwrap();
+                *id = client_id;
+                
+                debug!("Client ID set to: {}", client_id);
             }
         }
     }
+    
+    // Log the property definition count after subscription
+    debug!("Property definitions available after connection: {}", 
+           crate::property::get_property_definition_count());
     
     // Call the on_connected handler
     if let Some(handler) = &*ON_CONNECTED.lock().unwrap() {
         handler();
     }
-    
-    // Now we would set up subscription handlers to process ongoing updates
-    // This is done via the register_table_handler function which has already set up handlers
 }
 
 /// Handle disconnect
@@ -775,6 +797,76 @@ fn handle_object_transform_update(update: &TableUpdate) -> Result<(), String> {
             }
         }
     }
+    
+    Ok(())
+}
+
+/// Handle updates to the PropertyDefinitionTable
+fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String> {
+    // Process all rows in the update
+    for row in &update.rows {
+        match &row.op {
+            spacetimedb_sdk::table::TableOp::Insert | spacetimedb_sdk::table::TableOp::Update => {
+                // Extract fields from the row
+                let class_name = row.get_string("class_name").ok_or("Missing class_name field")?;
+                let prop_name = row.get_string("property_name").ok_or("Missing property_name field")?;
+                let prop_type_str = row.get_string("property_type").ok_or("Missing property_type field")?;
+                let replicated = row.get_bool("replicated").unwrap_or(false);
+                let readonly = row.get_bool("readonly").unwrap_or(false);
+                
+                // Parse property type (removing the "PropertyType::" prefix if present)
+                let type_str = prop_type_str.replace("PropertyType::", "");
+                let prop_type = match type_str.as_str() {
+                    "Bool" => stdb_shared::property::PropertyType::Bool,
+                    "Byte" => stdb_shared::property::PropertyType::Byte,
+                    "Int32" => stdb_shared::property::PropertyType::Int32,
+                    "Int64" => stdb_shared::property::PropertyType::Int64,
+                    "UInt32" => stdb_shared::property::PropertyType::UInt32,
+                    "UInt64" => stdb_shared::property::PropertyType::UInt64,
+                    "Float" => stdb_shared::property::PropertyType::Float,
+                    "Double" => stdb_shared::property::PropertyType::Double,
+                    "String" => stdb_shared::property::PropertyType::String,
+                    "Vector" => stdb_shared::property::PropertyType::Vector,
+                    "Rotator" => stdb_shared::property::PropertyType::Rotator,
+                    "Quat" => stdb_shared::property::PropertyType::Quat,
+                    "Transform" => stdb_shared::property::PropertyType::Transform,
+                    "Color" => stdb_shared::property::PropertyType::Color,
+                    "ObjectReference" => stdb_shared::property::PropertyType::ObjectReference,
+                    "ClassReference" => stdb_shared::property::PropertyType::ClassReference,
+                    "Array" => stdb_shared::property::PropertyType::Array,
+                    "Map" => stdb_shared::property::PropertyType::Map,
+                    "Set" => stdb_shared::property::PropertyType::Set,
+                    "Name" => stdb_shared::property::PropertyType::Name,
+                    "Text" => stdb_shared::property::PropertyType::Text,
+                    "Custom" => stdb_shared::property::PropertyType::Custom,
+                    "None" => stdb_shared::property::PropertyType::None,
+                    _ => {
+                        warn!("Unknown property type: {}", type_str);
+                        stdb_shared::property::PropertyType::None
+                    }
+                };
+                
+                // Register the property definition
+                crate::property::register_property_definition(
+                    &class_name,
+                    &prop_name,
+                    prop_type,
+                    replicated
+                );
+                
+                trace!("Registered property definition from server: {}.{} (type: {:?}, replicated: {})", 
+                    class_name, prop_name, prop_type, replicated);
+            },
+            spacetimedb_sdk::table::TableOp::Delete => {
+                // For now, we don't handle property definition deletion
+                // In a more complete implementation, we could remove property definitions here
+            },
+            _ => {} // Ignore other operations
+        }
+    }
+    
+    // Log number of property definitions we have now
+    debug!("Total property definitions registered: {}", crate::property::get_property_definition_count());
     
     Ok(())
 } 

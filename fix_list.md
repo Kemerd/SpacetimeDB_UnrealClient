@@ -147,9 +147,14 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
     *   [X] Properties appear to be stored in `ClientModule/src/property/PROPERTY_CACHE` and also within `ClientModule/src/object/ClientObject.properties` (and subsequently potentially in `ClientActor` if it mirrors `ClientObject` properties).
     *   [X] **FIX:** Clarified the roles by making `ClientObject.properties` the authoritative source for object properties, and repurposing `PROPERTY_CACHE` as a staging area for properties that haven't been associated with objects yet. Updated documentation and code to reflect this design, ensuring property updates are properly synchronized between object properties and the staging cache when needed. Added property transfer mechanism when objects are created or remapped.
 
-4.  [ ] **Property Definitions Population (`ClientModule/src/property/mod.rs`):**
-    *   [ ] `PROPERTY_DEFINITIONS` cache: It's unclear how this cache is populated with all necessary property definitions for dynamic Unreal types. 
-    *   [ ] **FIX (More of a Design Requirement):** Implement a mechanism for the client to obtain comprehensive class and property definitions (e.g., from the server during connection, or from a shared configuration generated during a build step).
+4.  [X] **Property Definitions Population (`ClientModule/src/property/mod.rs`):**
+    *   [X] `PROPERTY_DEFINITIONS` cache: It's unclear how this cache is populated with all necessary property definitions for dynamic Unreal types. 
+    *   [X] **FIX:** Implemented an automatic property definition synchronization system where:
+         *   Server registers property definitions in a `PropertyDefinitionTable` table that is replicated to clients
+         *   Client automatically processes table updates and registers property definitions
+         *   Added FFI functions to expose property definitions to the C++ layer
+         *   Created import/export functionality for property definitions via JSON
+         *   Added mechanisms to query and check for property definitions by class name
 
 5.  [ ] **Component System (`ClientModule/src/actor/mod.rs`):**
     *   [ ] The current system in `ClientActor` only tracks `ObjectId`s of components (`Vec<ObjectId>`).
