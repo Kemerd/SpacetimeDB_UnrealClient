@@ -15,6 +15,7 @@ where cargo >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     echo Rust and Cargo must be installed to build the SpacetimeDB Unreal Client.
     echo Please install Rust from https://rustup.rs/
+    pause
     exit /b 1
 )
 
@@ -25,6 +26,7 @@ if %ERRORLEVEL% neq 0 (
     cargo install cxxbridge-cmd
     if %ERRORLEVEL% neq 0 (
         echo Failed to install cxxbridge-cmd.
+        pause
         exit /b %ERRORLEVEL%
     )
 )
@@ -55,6 +57,7 @@ echo Generating CXX bridge headers...
 cxxbridge src\ffi.rs --header > target\cxxbridge\ffi.h
 if %ERRORLEVEL% neq 0 (
     echo Failed to generate CXX bridge headers.
+    pause
     exit /b %ERRORLEVEL%
 )
 
@@ -68,8 +71,10 @@ if "%CARGO_PROFILE%"=="debug" (
 
 if %ERRORLEVEL% neq 0 (
     echo Failed to build Rust library.
+    pause
     exit /b %ERRORLEVEL%
 )
 
 echo Build completed successfully!
+pause
 exit /b 0 
