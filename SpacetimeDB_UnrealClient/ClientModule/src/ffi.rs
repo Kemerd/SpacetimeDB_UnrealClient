@@ -18,7 +18,15 @@ use crate::object;
 use crate::net;
 use crate::rpc;
 use crate::prediction::{get_prediction_system, PredictedTransformUpdate, SequenceNumber};
-use crate::object::{TransformData, VelocityData};
+use stdb_shared::types::Transform;
+
+// Define the VelocityData struct since it doesn't seem to exist in the shared types
+// This matches the usage in the prediction module
+#[derive(Debug, Clone, Copy)]
+pub struct VelocityData {
+    pub linear: [f32; 3],
+    pub angular: [f32; 3],
+}
 
 // --- Global state for FFI callbacks ---
 
@@ -35,7 +43,7 @@ struct EventCallbacks {
 }
 
 /// Global storage for callback function pointers
-static CALLBACKS: Lazy<Mutex<EventCallbacks>> = Lazy::new(|| Mutex::new(EventCallbacks::default()));
+pub static CALLBACKS: Lazy<Mutex<EventCallbacks>> = Lazy::new(|| Mutex::new(EventCallbacks::default()));
 
 // --- Helper functions for callback invocation ---
 // These functions safely convert `usize` back to function pointers and call them.
@@ -321,11 +329,19 @@ fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxStrin
     if let Some(value) = property::get_cached_property_value(object_id, &prop_name) {
         // Serialize to JSON
         match property::serialization::serialize_property_value(&value) {
-            Ok(json) => CxxString::make_unique(&json),
-            Err(_) => CxxString::make_unique(""),
+            Ok(json) => {
+                let mut result = CxxString::new();
+                result.push_str(&json);
+                UniquePtr::new(result)
+            },
+            Err(_) => {
+                let mut result = CxxString::new();
+                UniquePtr::new(result)
+            },
         }
     } else {
-        CxxString::make_unique("")
+        let mut result = CxxString::new();
+        UniquePtr::new(result)
     }
 }
 
@@ -429,8 +445,15 @@ fn get_client_id() -> u64 {
 /// Get an object's class name
 fn get_object_class(object_id: u64) -> UniquePtr<CxxString> {
     match object::get_object_class(object_id) {
-        Some(class_name) => CxxString::make_unique(&class_name),
-        None => CxxString::make_unique(""),
+        Some(class_name) => {
+            let mut result = CxxString::new();
+            result.push_str(&class_name);
+            UniquePtr::new(result)
+        },
+        None => {
+            let mut result = CxxString::new();
+            UniquePtr::new(result)
+        },
     }
 }
 
@@ -452,8 +475,16 @@ fn get_property_names_for_class(class_name: &CxxString) -> UniquePtr<CxxString> 
     
     // Convert to JSON array
     match serde_json::to_string(&prop_names) {
-        Ok(json) => CxxString::make_unique(&json),
-        Err(_) => CxxString::make_unique("[]"),
+        Ok(json) => {
+            let mut result = CxxString::new();
+            result.push_str(&json);
+            UniquePtr::new(result)
+        },
+        Err(_) => {
+            let mut result = CxxString::new();
+            result.push_str("[]");
+            UniquePtr::new(result)
+        },
     }
 }
 
@@ -463,8 +494,16 @@ fn get_registered_class_names() -> UniquePtr<CxxString> {
     
     // Convert to JSON array
     match serde_json::to_string(&class_names) {
-        Ok(json) => CxxString::make_unique(&json),
-        Err(_) => CxxString::make_unique("[]"),
+        Ok(json) => {
+            let mut result = CxxString::new();
+            result.push_str(&json);
+            UniquePtr::new(result)
+        },
+        Err(_) => {
+            let mut result = CxxString::new();
+            result.push_str("[]");
+            UniquePtr::new(result)
+        },
     }
 }
 
@@ -486,8 +525,16 @@ fn import_property_definitions_from_json(json_str: &CxxString) -> bool {
 /// Export all property definitions as a JSON string
 fn export_property_definitions_as_json() -> UniquePtr<CxxString> {
     match crate::export_property_definitions_as_json() {
-        Ok(json) => CxxString::make_unique(&json),
-        Err(_) => CxxString::make_unique("{}"),
+        Ok(json) => {
+            let mut result = CxxString::new();
+            result.push_str(&json);
+            UniquePtr::new(result)
+        },
+        Err(_) => {
+            let mut result = CxxString::new();
+            result.push_str("{}");
+            UniquePtr::new(result)
+        },
     }
 }
 
@@ -509,11 +556,23 @@ fn get_property_definition(class_name: &CxxString, property_name: &CxxString) ->
             });
             
             match serde_json::to_string(&json) {
-                Ok(json_str) => CxxString::make_unique(&json_str),
-                Err(_) => CxxString::make_unique("{}"),
+                Ok(json_str) => {
+                    let mut result = CxxString::new();
+                    result.push_str(&json_str);
+                    UniquePtr::new(result)
+                },
+                Err(_) => {
+                    let mut result = CxxString::new();
+                    result.push_str("{}");
+                    UniquePtr::new(result)
+                },
             }
         },
-        None => CxxString::make_unique("{}"),
+        None => {
+            let mut result = CxxString::new();
+            result.push_str("{}");
+            UniquePtr::new(result)
+        },
     }
 }
 
@@ -544,17 +603,30 @@ fn get_components(actor_id: u64) -> UniquePtr<CxxString> {
     match object::get_components(actor_id) {
         Ok(components) => {
             match serde_json::to_string(&components) {
-                Ok(json) => CxxString::make_unique(&json),
-                Err(_) => CxxString::make_unique("[]"), 
+                Ok(json) => {
+                    let mut result = CxxString::new();
+                    result.push_str(&json);
+                    UniquePtr::new(result)
+                },
+                Err(_) => {
+                    let mut result = CxxString::new();
+                    result.push_str("[]");
+                    UniquePtr::new(result)
+                }, 
             }
         },
-        Err(_) => CxxString::make_unique("[]"),
+        Err(_) => {
+            let mut result = CxxString::new();
+            result.push_str("[]");
+            UniquePtr::new(result)
+        },
     }
 }
 
 /// Get a component by class name, returns 0 if not found
 fn get_component_by_class(actor_id: u64, class_name: &CxxString) -> u64 {
-    match object::get_component_by_class(actor_id, class_name) {
+    let class_name_str = class_name.to_string();
+    match object::get_component_by_class(actor_id, &class_name_str) {
         Ok(component_opt) => {
             match component_opt {
                 Some(component) => component.id,
@@ -577,7 +649,8 @@ fn get_component_owner(component_id: u64) -> u64 {
 
 /// Create a new component and attach it to an actor
 fn create_and_attach_component(actor_id: u64, component_class: &CxxString) -> u64 {
-    match object::create_and_attach_component(actor_id, component_class) {
+    let component_class_str = component_class.to_string();
+    match object::create_and_attach_component(actor_id, &component_class_str) {
         Ok(component_id) => component_id,
         Err(e) => {
             eprintln!("Failed to create and attach component: {}", e);
@@ -588,34 +661,57 @@ fn create_and_attach_component(actor_id: u64, component_class: &CxxString) -> u6
 
 /// Get a property from a component
 fn get_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString> {
-    match object::get_component_property(actor_id, component_class, property_name) {
+    let component_class_str = component_class.to_string();
+    let property_name_str = property_name.to_string();
+    
+    match object::get_component_property(actor_id, &component_class_str, &property_name_str) {
         Ok(value_opt) => {
             match value_opt {
                 Some(value) => {
                     // Serialize the property value to JSON
                     match property::serialization::serialize_property_value(&value) {
-                        Ok(json) => CxxString::make_unique(&json),
-                        Err(_) => CxxString::make_unique("null"),
+                        Ok(json) => {
+                            let mut result = CxxString::new();
+                            result.push_str(&json);
+                            UniquePtr::new(result)
+                        },
+                        Err(_) => {
+                            let mut result = CxxString::new();
+                            result.push_str("null");
+                            UniquePtr::new(result)
+                        },
                     }
                 },
-                None => CxxString::make_unique("null"),
+                None => {
+                    let mut result = CxxString::new();
+                    result.push_str("null");
+                    UniquePtr::new(result)
+                },
             }
         },
-        Err(_) => CxxString::make_unique("null"),
+        Err(_) => {
+            let mut result = CxxString::new();
+            result.push_str("null");
+            UniquePtr::new(result)
+        },
     }
 }
 
 /// Set a property on a component
 fn set_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString, value_json: &CxxString) -> bool {
+    let component_class_str = component_class.to_string();
+    let property_name_str = property_name.to_string();
+    let value_json_str = value_json.to_string();
+    
     // Parse the JSON value into a PropertyValue
-    let value_result = property::serialization::deserialize_property_value(value_json);
+    let value_result = property::serialization::deserialize_property_value(&value_json_str);
     if let Err(e) = value_result {
         eprintln!("Failed to deserialize property value: {}", e);
         return false;
     }
     
     // Update the component property
-    match object::set_component_property(actor_id, component_class, property_name, value_result.unwrap()) {
+    match object::set_component_property(actor_id, &component_class_str, &property_name_str, value_result.unwrap()) {
         Ok(_) => true,
         Err(e) => {
             eprintln!("Failed to set component property: {}", e);
@@ -677,10 +773,10 @@ pub extern "C" fn send_predicted_transform(
     has_velocity: bool
 ) -> bool {
     // Create transform data
-    let transform = TransformData {
-        location: [location_x, location_y, location_z],
-        rotation: [rotation_x, rotation_y, rotation_z, rotation_w],
-        scale: [scale_x, scale_y, scale_z],
+    let transform = Transform {
+        location: Vector3 { x: location_x, y: location_y, z: location_z },
+        rotation: Quat { x: rotation_x, y: rotation_y, z: rotation_z, w: rotation_w },
+        scale: Vector3 { x: scale_x, y: scale_y, z: scale_z },
     };
     
     // Create velocity data if provided

@@ -13,9 +13,6 @@ use stdb_shared::lifecycle::ObjectLifecycleState;
 
 use log::{info};
 
-// Re-export from shared for convenience
-pub use stdb_shared::object::ObjectId;
-
 /// Initialize the actor system
 pub fn init() {
     info!("Initializing client-side actor system");

@@ -1687,6 +1687,7 @@ dependencies = [
  "serde_json",
  "spacetimedb-sdk",
  "stdb_shared",
+ "tokio",
 ]
 
 [[package]]

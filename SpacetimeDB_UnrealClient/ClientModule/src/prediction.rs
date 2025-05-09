@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
-use crate::object::{ObjectId, TransformData, VelocityData};
+use stdb_shared::object::ObjectId;
+use stdb_shared::types::Transform;
+use crate::ffi::VelocityData;
 
 /// Sequence number for prediction
 pub type SequenceNumber = u32;
@@ -27,7 +29,7 @@ pub struct PredictedTransformUpdate {
     pub sequence: SequenceNumber,
     
     /// The transform data
-    pub transform: TransformData,
+    pub transform: Transform,
     
     /// The velocity data if applicable
     pub velocity: Option<VelocityData>,
@@ -98,6 +100,11 @@ pub fn initialize() {
     unsafe {
         PREDICTION_SYSTEM = Some(PredictionSystem::new());
     }
+}
+
+/// Initialize function called from lib.rs
+pub fn init() {
+    initialize();
 }
 
 /// Get the prediction system instance

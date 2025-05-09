@@ -10,6 +10,7 @@
 //! - `rpc`: Remote procedure call client implementation
 //! - `net`: Network communication with the server
 //! - `prediction`: Client-side prediction handling
+//! - `class`: Class handling
 
 use std::collections::HashMap;
 
@@ -20,6 +21,7 @@ pub mod actor;       // Actor-specific functionality
 pub mod rpc;         // RPC handling
 pub mod net;         // Network layer
 pub mod prediction;  // Prediction handling
+pub mod class;       // Class handling
 
 // Internal module for FFI (will be extracted to ffi.rs later)
 mod ffi;
@@ -32,9 +34,9 @@ pub use property::{
     get_registered_class_names, import_property_definitions_from_json, 
     export_property_definitions_as_json
 };
-pub use object::{ObjectId, ClientObject};
-pub use actor::ClientActor;
-pub use net::{ConnectionState, ClientConnection};
+pub use object::ClientObject;
+pub use stdb_shared::object::ObjectId;
+pub use stdb_shared::connection::{ConnectionState, ClientConnection};
 pub use rpc::RpcResult;
 
 /// Initialize the client module

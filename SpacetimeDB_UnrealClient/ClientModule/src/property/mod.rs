@@ -12,7 +12,8 @@ use stdb_shared::object::ObjectId;
 use stdb_shared::property::{PropertyType, PropertyValue, PropertyDefinition};
 use log::{debug, trace, warn};
 use serde_json::{Value, json};
-use spacetimedb_sdk::table::TableUpdate;
+use spacetimedb_sdk::client_api_messages::TableUpdate;
+use spacetimedb_sdk::client_api_messages::TableOp;
 
 // Import submodules
 pub mod serialization;
@@ -201,57 +202,66 @@ pub fn init() {
 
 /// Handle updates to the PropertyDefinition table
 fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String> {
-    for row in &update.rows {
-        match &row.op {
-            spacetimedb_sdk::table::TableOp::Insert => {
-                // Extract fields from the row
-                let class_name = row.get_string("class_name").ok_or("Missing class_name field")?;
-                let prop_name = row.get_string("property_name").ok_or("Missing property_name field")?;
-                let prop_type_str = row.get_string("property_type").ok_or("Missing property_type field")?;
-                let replicated = row.get_bool("replicated").unwrap_or(false);
+    match update.op() {
+        TableOp::Insert => {
+            // Get the property definition from the row data
+            let property_name = update.get_string_column(0)
+                .ok_or("Failed to get property name column")?;
                 
-                // Parse property type
-                let prop_type = match prop_type_str.as_str() {
-                    "Bool" => PropertyType::Bool,
-                    "Byte" => PropertyType::Byte,
-                    "Int32" => PropertyType::Int32,
-                    "Int64" => PropertyType::Int64,
-                    "UInt32" => PropertyType::UInt32,
-                    "UInt64" => PropertyType::UInt64,
-                    "Float" => PropertyType::Float,
-                    "Double" => PropertyType::Double,
-                    "String" => PropertyType::String,
-                    "Vector" => PropertyType::Vector,
-                    "Rotator" => PropertyType::Rotator,
-                    "Quat" => PropertyType::Quat,
-                    "Transform" => PropertyType::Transform,
-                    "Color" => PropertyType::Color,
-                    "ObjectReference" => PropertyType::ObjectReference,
-                    "ClassReference" => PropertyType::ClassReference,
-                    "Array" => PropertyType::Array,
-                    "Map" => PropertyType::Map,
-                    "Set" => PropertyType::Set,
-                    "Name" => PropertyType::Name,
-                    "Text" => PropertyType::Text,
-                    "Custom" => PropertyType::Custom,
-                    "None" => PropertyType::None,
-                    _ => return Err(format!("Unknown property type: {}", prop_type_str)),
-                };
+            let property_class = update.get_string_column(1)
+                .ok_or("Failed to get property class column")?;
                 
-                // Register the property definition
-                register_property_definition(&class_name, &prop_name, prop_type, replicated);
-                debug!("Registered property definition: {}.{} (type: {:?}, replicated: {})", 
-                    class_name, prop_name, prop_type, replicated);
-            },
-            spacetimedb_sdk::table::TableOp::Delete => {
-                // For now, we don't handle property definition deletion
-                // In a more complete implementation, we could remove property definitions here
-            },
-            _ => {} // Ignore other operations
-        }
+            let property_type_str = update.get_string_column(2)
+                .ok_or("Failed to get property type column")?;
+                
+            let replicated = update.get_bool_column(3)
+                .ok_or("Failed to get replicated column")?;
+                
+            let readonly = update.get_bool_column(4)
+                .ok_or("Failed to get readonly column")?;
+                
+            let flags = update.get_u32_column(5)
+                .ok_or("Failed to get flags column")?;
+                
+            let replication_condition_str = update.get_string_column(6)
+                .ok_or("Failed to get replication condition column")?;
+                
+            // Parse property type
+            let property_type = parse_property_type(&property_type_str)?;
+            
+            // Parse replication condition
+            let replication_condition = parse_replication_condition(&replication_condition_str)?;
+            
+            // Create property definition
+            let property_def = PropertyDefinition {
+                name: property_name.clone(),
+                property_type,
+                replicated,
+                readonly,
+                flags,
+                replication_condition,
+            };
+            
+            // Store the property definition
+            register_property_definition(&property_class, property_def);
+            
+            Ok(())
+        },
+        TableOp::Delete => {
+            // Get the property name and class from the row key
+            let property_name = update.get_string_column(0)
+                .ok_or("Failed to get property name column")?;
+                
+            let property_class = update.get_string_column(1)
+                .ok_or("Failed to get property class column")?;
+                
+            // Remove the property definition
+            unregister_property_definition(&property_class, &property_name);
+            
+            Ok(())
+        },
+        _ => Ok(()),
     }
-    
-    Ok(())
 }
 
 /// Import property definitions from a JSON definition

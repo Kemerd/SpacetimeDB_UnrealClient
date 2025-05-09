@@ -14,9 +14,6 @@ use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 use log::{debug, error, info, warn};
 
-// Re-export from shared for convenience
-pub use stdb_shared::object::ObjectId;
-
 /// Client-side object representation
 /// Handles both regular objects and actors in a unified structure
 #[derive(Debug, Clone)]
@@ -302,7 +299,7 @@ pub fn create_object(class_name: &str, params: SpawnParams) -> Result<ObjectId, 
     register_object(object);
     
     // Request the server to create the object
-    request_server_create_object(temp_object_id, class_name, &params)?;
+    request_server_create_object(temp_id, class_name, &params)?;
     
     // Return the temporary object ID
     Ok(temp_object_id)
@@ -517,7 +514,8 @@ pub fn handle_server_destroy_notification(object_id: ObjectId) {
     debug!("Removed object {} from client registry (server notification)", object_id);
     
     // Notify FFI layer about the destruction
-    crate::ffi::invoke_on_object_destroyed(object_id);
+    let callbacks = crate::ffi::CALLBACKS.lock().unwrap();
+    crate::ffi::invoke_on_object_destroyed(callbacks.on_object_destroyed, object_id);
 }
 
 /// Get an object by ID
@@ -679,13 +677,28 @@ pub fn update_transform(
     let mut objects = CLIENT_OBJECTS.lock().unwrap();
     
     if let Some(object) = objects.get_mut(&object_id) {
-        // Ensure there's a transform to update
-        let transform = object.get_transform();
-        
-        // Update location if provided
-        if let Some(loc) = location {
-            transform.location = loc;
+        {
+            // Ensure there's a transform to update
+            let transform = object.get_transform();
             
+            // Update location if provided
+            if let Some(loc) = location {
+                transform.location = loc;
+            }
+            
+            // Update rotation if provided
+            if let Some(rot) = rotation {
+                transform.rotation = rot;
+            }
+            
+            // Update scale if provided
+            if let Some(scl) = scale {
+                transform.scale = scl;
+            }
+        }
+        
+        // Now update properties
+        if let Some(loc) = location {
             // Update the location property
             let loc_value = PropertyValue::Vector(loc);
             object.properties.insert("Location".to_string(), loc_value.clone());
@@ -694,10 +707,7 @@ pub fn update_transform(
             crate::property::cache_property_value(object_id, "Location", loc_value);
         }
         
-        // Update rotation if provided
         if let Some(rot) = rotation {
-            transform.rotation = rot;
-            
             // Update the rotation property
             let rot_value = PropertyValue::Quat(rot);
             object.properties.insert("Rotation".to_string(), rot_value.clone());
@@ -706,10 +716,7 @@ pub fn update_transform(
             crate::property::cache_property_value(object_id, "Rotation", rot_value);
         }
         
-        // Update scale if provided
         if let Some(scl) = scale {
-            transform.scale = scl;
-            
             // Update the scale property
             let scale_value = PropertyValue::Vector(scl);
             object.properties.insert("Scale".to_string(), scale_value.clone());
@@ -827,14 +834,18 @@ pub fn add_component(
     actor_id: ObjectId,
     component_id: ObjectId,
 ) -> Result<(), String> {
-    let mut objects = CLIENT_OBJECTS.lock().unwrap();
-    
-    if let Some(actor) = objects.get_mut(&actor_id) {
-        // Validate the component actually exists
+    // First check if the component exists
+    {
+        let objects = CLIENT_OBJECTS.lock().unwrap();
         if !objects.contains_key(&component_id) {
             return Err(format!("Component {} does not exist", component_id));
         }
-        
+    }
+    
+    // Now get the actor and add the component
+    let mut objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(actor) = objects.get_mut(&actor_id) {
         actor.add_component(component_id)
     } else {
         Err(format!("Actor {} not found", actor_id))
@@ -861,6 +872,7 @@ pub fn create_and_attach_component(
         owner_id: Some(actor_id),
         replicates: true, // Components typically replicate with their owner
         initial_properties: HashMap::new(),
+        is_system: false,
     };
     
     // Create the component
@@ -966,5 +978,19 @@ pub fn get_object_property(
         // If the object doesn't exist in the registry, check the staging cache
         // This happens during object creation or when properties arrive before objects
         crate::property::get_cached_property_value(object_id, property_name)
+    }
+}
+
+/// Remove a component from an actor
+pub fn remove_component(
+    actor_id: ObjectId,
+    component_id: ObjectId,
+) -> Result<(), String> {
+    let mut objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(actor) = objects.get_mut(&actor_id) {
+        actor.remove_component(component_id)
+    } else {
+        Err(format!("Actor {} not found", actor_id))
     }
 } 
