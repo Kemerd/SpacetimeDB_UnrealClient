@@ -21,6 +21,8 @@ The ServerModule serves as the authoritative game state manager, handling:
 - `src/rpc/` - Remote procedure call handling
 - `src/relevancy/` - Network relevancy and interest management
 - `src/generated/` - Generated code from the USpacetimeDBCodeGenerator
+- `deploy.sh` - Deployment script for Linux/macOS
+- `deploy.bat` - Deployment script for Windows
 
 ## Core Systems
 
@@ -70,6 +72,55 @@ This allows ServerModule code to access game-specific functions like:
 // In a ServerModule reducer
 let object_id = game::spawn_sphere(ctx, &params);
 ```
+
+## Deployment
+
+The ServerModule includes deployment scripts to easily publish your module to a SpacetimeDB instance.
+
+### Using deploy.sh (Linux/macOS)
+
+```bash
+# Make the script executable
+chmod +x deploy.sh
+
+# Deploy with default settings (database: unreal_game, host: localhost:3000)
+./deploy.sh
+
+# Deploy with custom database name
+./deploy.sh my_game_db
+
+# Deploy with custom database name and host
+./deploy.sh my_game_db my-server.spacetimedb.com:3000
+```
+
+### Using deploy.bat (Windows)
+
+```batch
+# Deploy with default settings (database: unreal_game, host: localhost:3000)
+deploy.bat
+
+# Deploy with custom database name
+deploy.bat my_game_db
+
+# Deploy with custom database name and host
+deploy.bat my_game_db my-server.spacetimedb.com:3000
+```
+
+### Deployment Process
+
+The deployment scripts:
+1. Check for the SpacetimeDB CLI installation
+2. Build the CustomServerModule (dependency)
+3. Build the ServerModule
+4. Create the database if it doesn't exist
+5. Publish the module to the specified SpacetimeDB instance
+
+### Prerequisites
+
+- SpacetimeDB CLI (`spacetime`) must be installed
+  - Install with: `cargo install spacetime`
+- Rust and Cargo must be installed
+- SpacetimeDB server must be running at the specified host
 
 ## Usage
 
