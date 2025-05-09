@@ -1,24 +1,43 @@
 @echo off
-setlocal enabledelayedexpansion
+REM setup-link.bat
+REM Script to create a symbolic link from an Unreal Engine project to the SpacetimeDB_UnrealClient plugin
+REM This allows for easier development and testing of the plugin
+
+echo ====================================================
+echo SpacetimeDB Unreal Client Plugin - Link Setup Script
+echo ====================================================
+echo.
 
 REM Set paths - modify these as needed
 SET "PLUGIN_PATH=%~dp0SpacetimeDB_UnrealClient"
 SET "PROJECT_PATH=%~1"
 
 if "%PROJECT_PATH%"=="" (
-    echo Usage: setup-link.bat [path\to\UE_Example]
-    echo Example: setup-link.bat C:\Projects\UE_Example
+    echo ERROR: Missing project path parameter.
+    echo.
+    echo Usage: setup-link.bat [path\to\UE_Project]
+    echo Example: setup-link.bat C:\Projects\MyUnrealProject
+    echo.
+    pause
     exit /b 1
 )
 
+echo Project path: %PROJECT_PATH%
+echo Plugin path: %PLUGIN_PATH%
+echo.
+
 REM Check if directories exist
 if not exist "%PLUGIN_PATH%" (
-    echo Error: Plugin directory not found at "%PLUGIN_PATH%"
+    echo ERROR: Plugin directory not found at "%PLUGIN_PATH%"
+    echo.
+    pause
     exit /b 1
 )
 
 if not exist "%PROJECT_PATH%" (
-    echo Error: Project directory not found at "%PROJECT_PATH%"
+    echo ERROR: Project directory not found at "%PROJECT_PATH%"
+    echo.
+    pause
     exit /b 1
 )
 
@@ -37,7 +56,11 @@ if exist "%TARGET_PATH%" (
     echo Removing existing link or directory...
     rmdir "%TARGET_PATH%" 2>nul
     if exist "%TARGET_PATH%" (
-        echo Failed to remove existing directory. Please remove it manually.
+        echo.
+        echo ERROR: Failed to remove existing directory.
+        echo Please remove it manually: %TARGET_PATH%
+        echo.
+        pause
         exit /b 1
     )
 )
@@ -46,17 +69,29 @@ REM Create the symbolic link (requires admin privileges)
 mklink /D "%TARGET_PATH%" "%PLUGIN_PATH%"
 
 if %ERRORLEVEL% neq 0 (
-    echo Failed to create symbolic link. Make sure you're running as administrator.
     echo.
-    echo You can manually copy the plugin to your project using:
+    echo ERROR: Failed to create symbolic link.
+    echo Make sure you're running this script as administrator.
+    echo.
+    echo Alternatively, you can manually copy the plugin to your project using:
     echo xcopy /E /I /H "%PLUGIN_PATH%" "%TARGET_PATH%"
+    echo.
+    pause
     exit /b 1
 )
 
 echo.
-echo Successfully linked SpacetimeDB_UnrealClient plugin to %PROJECT_PATH%\Plugins\
+echo ====================================================
+echo Success! SpacetimeDB Unreal Client plugin linked.
+echo ====================================================
 echo.
-echo IMPORTANT: You will need to regenerate project files and rebuild your project.
+echo Plugin linked to: %PROJECT_PATH%\Plugins\
+echo.
+echo IMPORTANT: You need to regenerate your project files 
+echo and rebuild your project in your IDE.
+echo.
+echo ====================================================
 echo.
 
+pause
 exit /b 0 
