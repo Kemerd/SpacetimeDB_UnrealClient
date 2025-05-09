@@ -2,222 +2,97 @@
 //!
 //! Handles client-side actor management, including actor creation, destruction,
 //! and transformation.
+//! 
+//! NOTE: This module is now a thin wrapper around the object module, which 
+//! has been consolidated to handle both actors and non-actor objects through
+//! a unified interface.
 
-use stdb_shared::object::{ObjectId, ObjectLifecycleState, SpawnParams};
-use stdb_shared::property::PropertyValue;
+use stdb_shared::object::{ObjectId, SpawnParams};
 use stdb_shared::types::*;
+use stdb_shared::lifecycle::ObjectLifecycleState;
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use once_cell::sync::Lazy;
-use log::{debug, error, info, warn};
+use log::{info};
 
 // Re-export from shared for convenience
 pub use stdb_shared::object::ObjectId;
 
-/// Client-side actor representation
-#[derive(Debug, Clone)]
-pub struct ClientActor {
-    /// Unique object ID
-    pub id: ObjectId,
-    
-    /// Class name
-    pub class_name: String,
-    
-    /// Owner ID (if any)
-    pub owner_id: Option<ObjectId>,
-    
-    /// Current lifecycle state
-    pub state: ObjectLifecycleState,
-    
-    /// Actor transform
-    pub transform: Transform,
-    
-    /// Whether this actor replicates
-    pub replicates: bool,
-    
-    /// Components attached to this actor
-    pub components: Vec<ObjectId>,
-}
-
-/// Global registry of client actors
-static CLIENT_ACTORS: Lazy<Mutex<HashMap<ObjectId, ClientActor>>> = 
-    Lazy::new(|| Mutex::new(HashMap::new()));
-
 /// Initialize the actor system
 pub fn init() {
     info!("Initializing client-side actor system");
-    // Nothing specific to initialize yet
+    // Just log, actual initialization happens in object module
     info!("Client-side actor system initialized");
 }
 
-/// Create a client-side actor
+/// Create a client-side actor (forwards to object::create_actor)
 pub fn create_actor(
-    object_id: ObjectId,
     class_name: &str,
     transform: Transform,
     owner_id: Option<ObjectId>,
     replicates: bool,
-) -> Result<ClientActor, String> {
-    let actor = ClientActor {
-        id: object_id,
-        class_name: class_name.to_string(),
-        owner_id,
-        state: ObjectLifecycleState::Initializing,
-        transform,
-        replicates,
-        components: Vec::new(),
-    };
-    
-    // Register the actor
-    {
-        let mut actors = CLIENT_ACTORS.lock().unwrap();
-        actors.insert(object_id, actor.clone());
+) -> Result<ObjectId, String> {
+    crate::object::create_actor(class_name, transform, owner_id, replicates)
+}
+
+/// Get an actor by ID (forwards to object::get_object with validation)
+pub fn get_actor(actor_id: ObjectId) -> Option<crate::object::ClientObject> {
+    let obj = crate::object::get_object(actor_id)?;
+    if obj.is_actor() {
+        Some(obj)
+    } else {
+        None
     }
-    
-    // Return the new actor
-    Ok(actor)
 }
 
-/// Get an actor by ID
-pub fn get_actor(actor_id: ObjectId) -> Option<ClientActor> {
-    let actors = CLIENT_ACTORS.lock().unwrap();
-    actors.get(&actor_id).cloned()
-}
-
-/// Check if an object ID is an actor
+/// Check if an object ID is an actor (forwards to object::is_actor)
 pub fn is_actor(object_id: ObjectId) -> bool {
-    let actors = CLIENT_ACTORS.lock().unwrap();
-    actors.contains_key(&object_id)
+    crate::object::is_actor(object_id)
 }
 
-/// Update an actor's transform
+/// Update an actor's transform (forwards to object::update_transform)
 pub fn update_transform(
     actor_id: ObjectId,
     location: Option<Vector3>,
     rotation: Option<Quat>,
     scale: Option<Vector3>,
 ) -> Result<(), String> {
-    let mut actors = CLIENT_ACTORS.lock().unwrap();
-    
-    if let Some(actor) = actors.get_mut(&actor_id) {
-        // Update location if provided
-        if let Some(loc) = location {
-            actor.transform.location = loc;
-            
-            // Also update the location property in the object system
-            let loc_value = PropertyValue::Vector(loc);
-            crate::property::cache_property_value(actor_id, "Location", loc_value);
-        }
-        
-        // Update rotation if provided
-        if let Some(rot) = rotation {
-            actor.transform.rotation = rot;
-            
-            // Also update the rotation property in the object system
-            let rot_value = PropertyValue::Quat(rot);
-            crate::property::cache_property_value(actor_id, "Rotation", rot_value);
-        }
-        
-        // Update scale if provided
-        if let Some(scl) = scale {
-            actor.transform.scale = scl;
-            
-            // Also update the scale property in the object system
-            let scale_value = PropertyValue::Vector(scl);
-            crate::property::cache_property_value(actor_id, "Scale", scale_value);
-        }
-        
-        Ok(())
-    } else {
-        Err(format!("Actor {} not found", actor_id))
-    }
+    crate::object::update_transform(actor_id, location, rotation, scale)
 }
 
-/// Update an actor's lifecycle state
+/// Update an actor's lifecycle state (forwards to object::update_lifecycle_state)
 pub fn update_lifecycle_state(
     actor_id: ObjectId,
     state: ObjectLifecycleState,
 ) -> Result<(), String> {
-    let mut actors = CLIENT_ACTORS.lock().unwrap();
-    
-    if let Some(actor) = actors.get_mut(&actor_id) {
-        actor.state = state;
-        
-        // If destroyed, remove from registry
-        if state == ObjectLifecycleState::Destroyed {
-            drop(actors); // Release lock before calling destroy_actor
-            destroy_actor(actor_id)?;
-        }
-        
-        Ok(())
-    } else {
-        Err(format!("Actor {} not found", actor_id))
-    }
+    crate::object::update_lifecycle_state(actor_id, state)
 }
 
-/// Destroy an actor
+/// Destroy an actor (forwards to object::destroy_object)
 pub fn destroy_actor(actor_id: ObjectId) -> Result<(), String> {
-    // Remove from actor registry
-    {
-        let mut actors = CLIENT_ACTORS.lock().unwrap();
-        actors.remove(&actor_id);
-    }
-    
-    // Clean up properties
-    crate::property::clear_object_cache(actor_id);
-    
-    info!("Actor {} destroyed", actor_id);
-    Ok(())
+    crate::object::destroy_object(actor_id)
 }
 
-/// Add a component to an actor
+/// Add a component to an actor (forwards to object::add_component)
 pub fn add_component(
     actor_id: ObjectId,
     component_id: ObjectId,
 ) -> Result<(), String> {
-    let mut actors = CLIENT_ACTORS.lock().unwrap();
-    
-    if let Some(actor) = actors.get_mut(&actor_id) {
-        if !actor.components.contains(&component_id) {
-            actor.components.push(component_id);
-            Ok(())
-        } else {
-            Err(format!("Component {} already attached to actor {}", component_id, actor_id))
-        }
-    } else {
-        Err(format!("Actor {} not found", actor_id))
-    }
+    crate::object::add_component(actor_id, component_id)
 }
 
-/// Remove a component from an actor
+/// Remove a component from an actor (forwards to object::remove_component)
 pub fn remove_component(
     actor_id: ObjectId,
     component_id: ObjectId,
 ) -> Result<(), String> {
-    let mut actors = CLIENT_ACTORS.lock().unwrap();
-    
-    if let Some(actor) = actors.get_mut(&actor_id) {
-        actor.components.retain(|&id| id != component_id);
-        Ok(())
-    } else {
-        Err(format!("Actor {} not found", actor_id))
-    }
+    crate::object::remove_component(actor_id, component_id)
 }
 
-/// Get all components attached to an actor
+/// Get all components attached to an actor (forwards to object::get_components)
 pub fn get_components(actor_id: ObjectId) -> Result<Vec<ObjectId>, String> {
-    let actors = CLIENT_ACTORS.lock().unwrap();
-    
-    if let Some(actor) = actors.get(&actor_id) {
-        Ok(actor.components.clone())
-    } else {
-        Err(format!("Actor {} not found", actor_id))
-    }
+    crate::object::get_components(actor_id)
 }
 
-/// Get all actors in the world
-pub fn get_all_actors() -> Vec<ClientActor> {
-    let actors = CLIENT_ACTORS.lock().unwrap();
-    actors.values().cloned().collect()
+/// Get all actors in the world (forwards to object::get_all_actors)
+pub fn get_all_actors() -> Vec<crate::object::ClientObject> {
+    crate::object::get_all_actors()
 } 

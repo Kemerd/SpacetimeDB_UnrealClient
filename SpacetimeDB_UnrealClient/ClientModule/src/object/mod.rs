@@ -1,7 +1,8 @@
 //! # Client-side Object System
 //!
 //! Handles client-side object management, including object creation, destruction,
-//! and property management.
+//! and property management. This module handles both actor and non-actor objects through
+//! a unified object representation.
 
 use stdb_shared::object::{ObjectId, SpawnParams};
 use stdb_shared::lifecycle::ObjectLifecycleState;
@@ -17,6 +18,7 @@ use log::{debug, error, info, warn};
 pub use stdb_shared::object::ObjectId;
 
 /// Client-side object representation
+/// Handles both regular objects and actors in a unified structure
 #[derive(Debug, Clone)]
 pub struct ClientObject {
     /// Unique object ID
@@ -31,7 +33,7 @@ pub struct ClientObject {
     /// Current lifecycle state
     pub state: ObjectLifecycleState,
     
-    /// Object transform (for actors)
+    /// Object transform (always present for actors, optional for non-actors)
     pub transform: Option<Transform>,
     
     /// Properties
@@ -39,9 +41,62 @@ pub struct ClientObject {
 
     /// Indicates if this object has a temporary ID that needs to be remapped
     pub needs_id_remap: bool,
+    
+    /// Indicates if this object is an actor
+    pub is_actor: bool,
+    
+    /// Whether this object replicates
+    pub replicates: bool,
+    
+    /// Components attached to this object (only used if is_actor is true)
+    pub components: Vec<ObjectId>,
 }
 
-/// Global registry of client objects
+impl ClientObject {
+    /// Returns a reference to this object's transform, creating a default one if none exists
+    pub fn get_transform(&mut self) -> &mut Transform {
+        if self.transform.is_none() {
+            self.transform = Some(Transform::identity());
+        }
+        self.transform.as_mut().unwrap()
+    }
+    
+    /// Check if this object is an actor
+    pub fn is_actor(&self) -> bool {
+        self.is_actor
+    }
+    
+    /// Get all components attached to this object (if it's an actor)
+    pub fn get_components(&self) -> &Vec<ObjectId> {
+        &self.components
+    }
+    
+    /// Add a component to this object (if it's an actor)
+    pub fn add_component(&mut self, component_id: ObjectId) -> Result<(), String> {
+        if !self.is_actor {
+            return Err(format!("Cannot add component to non-actor object {}", self.id));
+        }
+        
+        if !self.components.contains(&component_id) {
+            self.components.push(component_id);
+            Ok(())
+        } else {
+            Err(format!("Component {} already attached to actor {}", component_id, self.id))
+        }
+    }
+    
+    /// Remove a component from this object (if it's an actor)
+    pub fn remove_component(&mut self, component_id: ObjectId) -> Result<(), String> {
+        if !self.is_actor {
+            return Err(format!("Cannot remove component from non-actor object {}", self.id));
+        }
+        
+        self.components.retain(|&id| id != component_id);
+        Ok(())
+    }
+}
+
+/// Global registry of client objects (both actors and non-actors)
 static CLIENT_OBJECTS: Lazy<Mutex<HashMap<ObjectId, ClientObject>>> = 
     Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -60,6 +115,11 @@ pub fn create_object(class_name: &str, params: SpawnParams) -> Result<ObjectId, 
     // Generate a temporary ID (real ID will come from server)
     let temp_object_id = generate_temp_object_id();
     
+    // Check if this class is an actor class
+    let is_actor = crate::class::is_actor_class(
+        crate::class::get_class_id_by_name(class_name).unwrap_or(0)
+    );
+    
     // Create a new client object with temporary ID
     let object = ClientObject {
         id: temp_object_id,
@@ -69,6 +129,9 @@ pub fn create_object(class_name: &str, params: SpawnParams) -> Result<ObjectId, 
         transform: params.transform,
         properties: HashMap::new(),
         needs_id_remap: true,  // Mark that this object needs ID remapping
+        is_actor,
+        replicates: params.replicates,
+        components: Vec::new(),
     };
     
     // Register the object with temporary ID
@@ -248,7 +311,7 @@ pub fn destroy_object(object_id: ObjectId) -> Result<(), String> {
     }
     
     // Request the server to destroy the object
-    request_server_destroy_object(object_id, object.class_name.as_str())?;
+    request_server_destroy_object(object_id, &object.class_name)?;
     
     Ok(())
 }
@@ -432,4 +495,155 @@ fn generate_temp_object_id() -> ObjectId {
     // Ensure the ID is flagged as temporary by setting high-order bit
     // This ensures it won't collide with server IDs
     (timestamp ^ random) | (1u64 << 63)
+}
+
+/// Check if an object is an actor
+pub fn is_actor(object_id: ObjectId) -> bool {
+    let objects = CLIENT_OBJECTS.lock().unwrap();
+    if let Some(obj) = objects.get(&object_id) {
+        obj.is_actor
+    } else {
+        false
+    }
+}
+
+/// Update an object's transform
+pub fn update_transform(
+    object_id: ObjectId,
+    location: Option<Vector3>,
+    rotation: Option<Quat>,
+    scale: Option<Vector3>,
+) -> Result<(), String> {
+    let mut objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(object) = objects.get_mut(&object_id) {
+        // Ensure there's a transform to update
+        let transform = object.get_transform();
+        
+        // Update location if provided
+        if let Some(loc) = location {
+            transform.location = loc;
+            
+            // Also update the location property in the property system
+            let loc_value = PropertyValue::Vector(loc);
+            crate::property::cache_property_value(object_id, "Location", loc_value);
+        }
+        
+        // Update rotation if provided
+        if let Some(rot) = rotation {
+            transform.rotation = rot;
+            
+            // Also update the rotation property in the property system
+            let rot_value = PropertyValue::Quat(rot);
+            crate::property::cache_property_value(object_id, "Rotation", rot_value);
+        }
+        
+        // Update scale if provided
+        if let Some(scl) = scale {
+            transform.scale = scl;
+            
+            // Also update the scale property in the property system
+            let scale_value = PropertyValue::Vector(scl);
+            crate::property::cache_property_value(object_id, "Scale", scale_value);
+        }
+        
+        Ok(())
+    } else {
+        Err(format!("Object {} not found", object_id))
+    }
+}
+
+/// Update an object's lifecycle state
+pub fn update_lifecycle_state(
+    object_id: ObjectId,
+    state: ObjectLifecycleState,
+) -> Result<(), String> {
+    let mut objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(object) = objects.get_mut(&object_id) {
+        object.state = state;
+        
+        // If destroyed, remove from registry
+        if state == ObjectLifecycleState::Destroyed {
+            drop(objects); // Release lock before calling destroy_object
+            destroy_object(object_id)?;
+        }
+        
+        Ok(())
+    } else {
+        Err(format!("Object {} not found", object_id))
+    }
+}
+
+/// Add a component to an actor
+pub fn add_component(
+    actor_id: ObjectId,
+    component_id: ObjectId,
+) -> Result<(), String> {
+    let mut objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(actor) = objects.get_mut(&actor_id) {
+        actor.add_component(component_id)
+    } else {
+        Err(format!("Actor {} not found", actor_id))
+    }
+}
+
+/// Remove a component from an actor
+pub fn remove_component(
+    actor_id: ObjectId,
+    component_id: ObjectId,
+) -> Result<(), String> {
+    let mut objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(actor) = objects.get_mut(&actor_id) {
+        actor.remove_component(component_id)
+    } else {
+        Err(format!("Actor {} not found", actor_id))
+    }
+}
+
+/// Get all components attached to an actor
+pub fn get_components(actor_id: ObjectId) -> Result<Vec<ObjectId>, String> {
+    let objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(actor) = objects.get(&actor_id) {
+        if !actor.is_actor {
+            return Err(format!("Object {} is not an actor", actor_id));
+        }
+        Ok(actor.components.clone())
+    } else {
+        Err(format!("Actor {} not found", actor_id))
+    }
+}
+
+/// Get all objects in the world
+pub fn get_all_objects() -> Vec<ClientObject> {
+    let objects = CLIENT_OBJECTS.lock().unwrap();
+    objects.values().cloned().collect()
+}
+
+/// Get all actors in the world
+pub fn get_all_actors() -> Vec<ClientObject> {
+    let objects = CLIENT_OBJECTS.lock().unwrap();
+    objects.values()
+        .filter(|obj| obj.is_actor)
+        .cloned()
+        .collect()
+}
+
+/// Create an actor on the client (convenience wrapper around create_object)
+pub fn create_actor(
+    class_name: &str,
+    transform: Transform,
+    owner_id: Option<ObjectId>,
+    replicates: bool,
+) -> Result<ObjectId, String> {
+    let mut params = SpawnParams::default();
+    params.class_name = class_name.to_string();
+    params.transform = Some(transform);
+    params.owner_id = owner_id;
+    params.replicates = replicates;
+    
+    create_object(class_name, params)
 } 

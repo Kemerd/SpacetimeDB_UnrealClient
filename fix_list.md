@@ -139,9 +139,9 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
     *   [X] `ConnectionState`, `ConnectionParams`, `ClientConnection` are redefined. 
     *   [X] **FIX:** Use the definitions from `SharedModule/src/connection.rs`.
 
-2.  [ ] **`ClientModule/src/actor/mod.rs` & `object/mod.rs` - Object/Actor Representation:**
-    *   [ ] `ClientActor` struct is very similar to `ClientObject`. There are separate caches (`CLIENT_ACTORS`, `CLIENT_OBJECTS`).
-    *   [ ] **FIX:** Consider consolidating into a single `ClientObject` representation and cache, using flags or component patterns to denote actor-specifics, mirroring the server-side consolidation suggestion.
+2.  [X] **`ClientModule/src/actor/mod.rs` & `object/mod.rs` - Object/Actor Representation:**
+    *   [X] `ClientActor` struct is very similar to `ClientObject`. There are separate caches (`CLIENT_ACTORS`, `CLIENT_OBJECTS`).
+    *   [X] **FIX:** Consolidated into a single `ClientObject` representation and cache, using an `is_actor` flag to denote actor-specific functionality. Merged both data structures, ensuring `ClientObject` can handle both actor and non-actor use cases. Updated the `actor/mod.rs` module to be a thin wrapper around the consolidated object module. Added methods and improved transform handling to accommodate both actor and non-actor objects.
 
 3.  [ ] **Dual Property Storage (Client-Side):**
     *   [ ] Properties appear to be stored in `ClientModule/src/property/PROPERTY_CACHE` and also within `ClientModule/src/object/ClientObject.properties` (and subsequently potentially in `ClientActor` if it mirrors `ClientObject` properties).
