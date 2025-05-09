@@ -10,8 +10,18 @@ pub mod types;
 pub mod property;
 pub mod object;
 pub mod constants;
+pub mod connection;
+pub mod rpc;
+pub mod lifecycle;
+pub mod relevancy;
+pub mod actor;
 
 // Re-export commonly used items for convenience
 pub use types::*;
 pub use property::{PropertyType, PropertyValue};
-pub use object::ObjectId; 
+pub use object::ObjectId;
+pub use actor::ActorId;
+pub use connection::{ConnectionState, ClientConnection};
+pub use rpc::{RpcType, RpcCall, RpcStatus};
+pub use lifecycle::{ObjectLifecycleState, ActorLifecycleState};
+pub use relevancy::{RelevancyLevel, NetworkPriority}; 
