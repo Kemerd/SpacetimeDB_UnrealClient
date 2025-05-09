@@ -5,17 +5,49 @@
 use spacetimedb::{ReducerContext, Identity};
 use crate::actor::ActorId;
 use crate::object::{ObjectInstance, ObjectTransform, ObjectProperty, ObjectLifecycleState};
+use stdb_shared::object::RESERVED_OBJECT_ID_MAX;
 
-/// Counter for generating unique actor IDs
-static mut NEXT_ACTOR_ID: ActorId = 1000; // Start at 1000 to leave room for special IDs
+/// Table for tracking the next available actor ID
+#[spacetimedb::table]
+pub struct IdCounter {
+    #[primarykey]
+    counter_type: String,
+    next_id: ActorId,
+}
 
-/// Generates a unique actor ID
-pub fn generate_actor_id() -> ActorId {
-    unsafe {
-        let id = NEXT_ACTOR_ID;
-        NEXT_ACTOR_ID += 1;
-        id
+/// Initialize the ID counter if it doesn't exist
+#[spacetimedb::reducer]
+pub fn initialize_id_counter(ctx: &ReducerContext) {
+    if ctx.db.id_counter().filter_by_counter_type(&"actor".to_string()).first().is_none() {
+        ctx.db.id_counter().insert(IdCounter {
+            counter_type: "actor".to_string(),
+            next_id: (RESERVED_OBJECT_ID_MAX + 1) as ActorId,
+        });
+        log::info!("Initialized actor ID counter starting at {}", RESERVED_OBJECT_ID_MAX + 1);
     }
+}
+
+/// Generates a unique actor ID using the persistent ID counter
+pub fn generate_actor_id(ctx: &ReducerContext) -> ActorId {
+    // Get the current counter
+    let mut counter = match ctx.db.id_counter().filter_by_counter_type(&"actor".to_string()).first() {
+        Some(counter) => counter,
+        None => {
+            // Initialize if not exists
+            initialize_id_counter(ctx);
+            ctx.db.id_counter().filter_by_counter_type(&"actor".to_string()).first().unwrap()
+        }
+    };
+    
+    // Get the current ID and increment
+    let id = counter.next_id;
+    counter.next_id += 1;
+    
+    // Update the counter in the database
+    ctx.db.id_counter().update(&counter);
+    
+    log::trace!("Generated actor ID: {}", id);
+    id
 }
 
 /// Main reducer for spawning actors - exposed to clients
@@ -36,8 +68,8 @@ pub fn spawn_actor(
         return 0; // Return 0 to indicate failure
     }
     
-    // Generate new actor ID
-    let actor_id = generate_actor_id();
+    // Generate new actor ID using the persistent counter
+    let actor_id = generate_actor_id(ctx);
     log::info!("Spawning actor: class={}, name={}, id={}", class_id, actor_name, actor_id);
     
     // Create actor in the object_instance table with is_actor=true
@@ -104,8 +136,8 @@ pub fn spawn_system_actor(
         return 0;
     }
     
-    // Generate new actor ID
-    let actor_id = generate_actor_id();
+    // Generate new actor ID using the persistent counter
+    let actor_id = generate_actor_id(ctx);
     log::info!("Spawning system actor: class={}, name={}, id={}", class_id, actor_name, actor_id);
     
     // Create actor in the object_instance table with is_actor=true and no owner
@@ -173,8 +205,8 @@ pub fn spawn_player_actor(
         return 0;
     }
     
-    // Generate new actor ID
-    let actor_id = generate_actor_id();
+    // Generate new actor ID using the persistent counter
+    let actor_id = generate_actor_id(ctx);
     log::info!("Spawning player actor: class={}, name={}, id={}, player={:?}", 
                class_id, actor_name, actor_id, player_identity);
     

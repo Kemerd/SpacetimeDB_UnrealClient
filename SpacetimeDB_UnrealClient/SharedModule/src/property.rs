@@ -41,6 +41,9 @@ pub enum PropertyType {
     Name,             // FName
     Text,             // FText
     Custom,           // Custom struct - stored as JSON
+    
+    // None type
+    None,             // Represents a null/unset value
 }
 
 /// Represents the value of a property
@@ -108,7 +111,7 @@ impl PropertyValue {
             Self::Name(_) => PropertyType::Name,
             Self::Text(_) => PropertyType::Text,
             Self::CustomJson(_) => PropertyType::Custom,
-            Self::None => PropertyType::Bool, // Default None to bool type
+            Self::None => PropertyType::None, // Return None type instead of Bool
         }
     }
     

@@ -98,17 +98,21 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
 
 ## IV. Minor Issues & Points to Clarify:
 
-1.  [ ] **`PropertyValue::None` Type (`SharedModule/src/property.rs`):**
-    *   [ ] The `get_type()` method for `PropertyValue::None` defaults to `PropertyType::Bool`. Clarify if `None` should have its own `PropertyType` or if this default is intentional and consistently handled.
+1.  [X] **`PropertyValue::None` Type (`SharedModule/src/property.rs`):**
+    *   [X] The `get_type()` method for `PropertyValue::None` defaults to `PropertyType::Bool`. Clarify if `None` should have its own `PropertyType` or if this default is intentional and consistently handled.
+    *   [X] **FIX:** Added `PropertyType::None` enum variant and updated `get_type()` to return `PropertyType::None` for `PropertyValue::None` for greater type consistency and clarity.
 
-2.  [ ] **`ActorID` in `README.md` Example:**
-    *   [ ] The `README.md` C++ example uses `FObjectID ActorID`. Ensure this aligns with the chosen `ObjectId`/`ActorId` type from Rust once consolidated.
+2.  [X] **`ActorID` in `README.md` Example:**
+    *   [X] The `README.md` C++ example uses `FObjectID ActorID`. Ensure this aligns with the chosen `ObjectId`/`ActorId` type from Rust once consolidated.
+    *   [X] **FIX:** Updated the README.md examples to consistently use `FObjectID ObjectID` naming to align with the Rust codebase's use of `ObjectId` for both actors and non-actor objects.
 
-3.  [ ] **Configuration Constants (`SharedModule/src/constants.rs` vs. `README.md`):**
-    *   [ ] Constants like `MAX_OBJECTS` are compile-time in `constants.rs`. The `README.md` implies runtime configuration (e.g., `SPACETIME_MAX_OBJECTS`). Clarify how these are intended to work (e.g., are constants defaults, overridden by runtime config?).
+3.  [X] **Configuration Constants (`SharedModule/src/constants.rs` vs. `README.md`):**
+    *   [X] Constants like `MAX_OBJECTS` are compile-time in `constants.rs`. The `README.md` implies runtime configuration (e.g., `SPACETIME_MAX_OBJECTS`). Clarify how these are intended to work (e.g., are constants defaults, overridden by runtime config?).
+    *   [X] **FIX:** Enhanced `constants.rs` to support both compile-time defaults and runtime overrides via environment variables. Added getter functions like `get_max_objects()` that check for environment variables like `SPACETIME_MAX_OBJECTS` before falling back to compile-time constants.
 
-4.  [ ] **Static ID Generator (`ServerModule/src/actor/spawn.rs`):**
-    *   [ ] The `unsafe static mut NEXT_ACTOR_ID` is simple. Consider if SpacetimeDB offers more robust unique ID generation mechanisms or if this needs to be persisted across server restarts.
+4.  [X] **Static ID Generator (`ServerModule/src/actor/spawn.rs`):**
+    *   [X] The `unsafe static mut NEXT_ACTOR_ID` is simple. Consider if SpacetimeDB offers more robust unique ID generation mechanisms or if this needs to be persisted across server restarts.
+    *   [X] **FIX:** Replaced the static ID generator with a persistent `IdCounter` table in SpacetimeDB. Added `initialize_id_counter` reducer to set up the counter and improved `generate_actor_id` to use the database-backed counter, ensuring IDs persist across server restarts and remain unique.
 
 ---
 ## V. ClientModule Evaluation (To Be Added)

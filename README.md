@@ -285,13 +285,13 @@ SpawnParams.ClassName = "Character";
 SpawnParams.Location = FVector(100.0f, 0.0f, 0.0f);
 SpawnParams.Replicate = true;
 
-FObjectID ActorID = SpacetimeDB->SpawnActor(SpawnParams);
+FObjectID ObjectID = SpacetimeDB->SpawnActor(SpawnParams);
 ```
 
 ### Updating Properties
 
 ```cpp
-SpacetimeDB->SetActorProperty(ActorID, "Location", FVector(200.0f, 0.0f, 0.0f));
+SpacetimeDB->SetActorProperty(ObjectID, "Location", FVector(200.0f, 0.0f, 0.0f));
 ```
 
 ### Calling Server Functions
@@ -299,7 +299,7 @@ SpacetimeDB->SetActorProperty(ActorID, "Location", FVector(200.0f, 0.0f, 0.0f));
 ```cpp
 FRPCParams Params;
 Params.AddInt("Damage", 25);
-SpacetimeDB->CallServerFunction(ActorID, "TakeDamage", Params);
+SpacetimeDB->CallServerFunction(ObjectID, "TakeDamage", Params);
 ```
 
 ### Registering for Client RPC Callbacks
@@ -340,19 +340,19 @@ Settings.Level = ERelevancyLevel::DistanceBased;
 Settings.MaxDistance = 1000.0f;
 Settings.UpdateFrequency = EUpdateFrequency::Medium;
 Settings.Priority = ENetworkPriority::Normal;
-SpacetimeDB->SetActorRelevancy(ActorID, Settings);
+SpacetimeDB->SetActorRelevancy(ObjectID, Settings);
 
 // Create a zone
 uint32 ZoneID = SpacetimeDB->CreateZone("Dungeon_Level_1", true);
 
 // Add actors to a zone
-SpacetimeDB->AddActorToZone(ActorID, ZoneID);
+SpacetimeDB->AddActorToZone(ObjectID, ZoneID);
 
 // Add player to a zone
 SpacetimeDB->AddClientToZone(ClientID, ZoneID);
 
 // Remove actor from a zone
-SpacetimeDB->RemoveActorFromZone(ActorID, ZoneID);
+SpacetimeDB->RemoveActorFromZone(ObjectID, ZoneID);
 ```
 
 ## Configuration
