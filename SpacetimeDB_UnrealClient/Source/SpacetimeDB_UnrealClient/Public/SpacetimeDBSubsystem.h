@@ -7,6 +7,7 @@
 #include "SpacetimeDBClient.h"
 #include "SpacetimeDB_Types.h"
 #include "SpacetimeDB_PropertyValue.h"
+#include "SpacetimeDBFFI.h"
 #include "SpacetimeDBSubsystem.generated.h"
 
 /**
@@ -86,6 +87,35 @@ struct SPACETIMEDB_UNREALCLIENT_API FStdbRpcArg
     {
         Value.SetString(InValue);
     }
+};
+
+/**
+ * Handles transformation data with prediction sequence information
+ */
+USTRUCT(BlueprintType)
+struct FPredictedTransformData
+{
+	GENERATED_BODY()
+
+	/** The object ID */
+	UPROPERTY(BlueprintReadWrite, Category = "SpacetimeDB|Prediction")
+	FObjectID ObjectID;
+
+	/** The sequence number for prediction */
+	UPROPERTY(BlueprintReadWrite, Category = "SpacetimeDB|Prediction")
+	int32 SequenceNumber = 0;
+
+	/** The transform data */
+	UPROPERTY(BlueprintReadWrite, Category = "SpacetimeDB|Prediction")
+	FTransform Transform;
+
+	/** The velocity data */
+	UPROPERTY(BlueprintReadWrite, Category = "SpacetimeDB|Prediction")
+	FVector Velocity = FVector::ZeroVector;
+
+	/** Whether this update includes velocity */
+	UPROPERTY(BlueprintReadWrite, Category = "SpacetimeDB|Prediction")
+	bool bHasVelocity = false;
 };
 
 /**
@@ -368,6 +398,30 @@ public:
         return RegisterClientFunctionWithFFI(FunctionName);
     }
     
+    /** Register an object for client-side prediction */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Prediction")
+    bool RegisterPredictionObject(const FObjectID& ObjectID);
+
+    /** Unregister an object from client-side prediction */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Prediction")
+    bool UnregisterPredictionObject(const FObjectID& ObjectID);
+
+    /** Get the next sequence number for an object */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Prediction")
+    int32 GetNextPredictionSequence(const FObjectID& ObjectID);
+
+    /** Send a predicted transform update to the server */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Prediction")
+    bool SendPredictedTransform(const FPredictedTransformData& TransformData);
+
+    /** Get the last acknowledged sequence number for an object */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Prediction")
+    int32 GetLastAckedSequence(const FObjectID& ObjectID);
+
+    /** Process a server transform update with sequence number */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Prediction")
+    void ProcessServerTransformUpdate(const FObjectID& ObjectID, const FTransform& Transform, const FVector& Velocity, int32 AckedSequence);
+
 private:
     // RPC delegate types
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnServerRpcReceived, int64, ObjectId, const FString&, FunctionName, const TArray<FStdbRpcArg>&, Arguments);

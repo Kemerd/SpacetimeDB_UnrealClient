@@ -17,6 +17,8 @@ use crate::property;
 use crate::object;
 use crate::net;
 use crate::rpc;
+use crate::prediction::{get_prediction_system, PredictedTransformUpdate, SequenceNumber};
+use crate::object::{TransformData, VelocityData};
 
 // --- Global state for FFI callbacks ---
 
@@ -619,5 +621,102 @@ fn set_component_property(actor_id: u64, component_class: &CxxString, property_n
             eprintln!("Failed to set component property: {}", e);
             false
         }
+    }
+}
+
+/// Register an object for client-side prediction
+#[no_mangle]
+pub extern "C" fn register_prediction_object(object_id: u64) -> bool {
+    if let Some(pred_system) = get_prediction_system() {
+        pred_system.register_object(object_id);
+        true
+    } else {
+        false
+    }
+}
+
+/// Unregister an object from client-side prediction
+#[no_mangle]
+pub extern "C" fn unregister_prediction_object(object_id: u64) -> bool {
+    if let Some(pred_system) = get_prediction_system() {
+        pred_system.unregister_object(object_id);
+        true
+    } else {
+        false
+    }
+}
+
+/// Get the next sequence number for an object
+#[no_mangle]
+pub extern "C" fn get_next_prediction_sequence(object_id: u64) -> u32 {
+    if let Some(pred_system) = get_prediction_system() {
+        pred_system.get_next_sequence(object_id).unwrap_or(0)
+    } else {
+        0
+    }
+}
+
+/// Send a predicted transform update
+#[no_mangle]
+pub extern "C" fn send_predicted_transform(
+    object_id: u64,
+    sequence: u32,
+    location_x: f32,
+    location_y: f32,
+    location_z: f32,
+    rotation_x: f32,
+    rotation_y: f32,
+    rotation_z: f32,
+    rotation_w: f32,
+    scale_x: f32,
+    scale_y: f32,
+    scale_z: f32,
+    velocity_x: f32,
+    velocity_y: f32,
+    velocity_z: f32,
+    has_velocity: bool
+) -> bool {
+    // Create transform data
+    let transform = TransformData {
+        location: [location_x, location_y, location_z],
+        rotation: [rotation_x, rotation_y, rotation_z, rotation_w],
+        scale: [scale_x, scale_y, scale_z],
+    };
+    
+    // Create velocity data if provided
+    let velocity = if has_velocity {
+        Some(VelocityData {
+            linear: [velocity_x, velocity_y, velocity_z],
+            angular: [0.0, 0.0, 0.0], // We currently don't use angular velocity in prediction
+        })
+    } else {
+        None
+    };
+    
+    // Create the predicted update
+    let update = PredictedTransformUpdate {
+        object_id,
+        sequence,
+        transform,
+        velocity,
+    };
+    
+    // TODO: Send this update to the server via network
+    // For now we'll just acknowledge it locally for testing
+    if let Some(pred_system) = get_prediction_system() {
+        pred_system.process_ack(object_id, sequence);
+        true
+    } else {
+        false
+    }
+}
+
+/// Get the last acknowledged sequence number for an object
+#[no_mangle]
+pub extern "C" fn get_last_acked_sequence(object_id: u64) -> u32 {
+    if let Some(pred_system) = get_prediction_system() {
+        pred_system.get_last_acked_sequence(object_id).unwrap_or(0)
+    } else {
+        0
     }
 } 

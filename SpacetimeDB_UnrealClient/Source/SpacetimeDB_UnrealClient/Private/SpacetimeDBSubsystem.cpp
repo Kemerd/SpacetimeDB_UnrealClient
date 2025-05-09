@@ -13,6 +13,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "SpacetimeDBPropertyHelper.h"
 #include "SpacetimeDB_JsonUtils.h"
+#include "SpacetimeDBPredictionComponent.h"
 
 // Static map to store subsystem instances by world context
 static TMap<const UObject*, USpacetimeDBSubsystem*> GSubsystemInstances;
@@ -1242,4 +1243,65 @@ FSpacetimeDBPropertyValue USpacetimeDBSubsystem::GetPropertyValue(int64 ObjectId
     }
     
     return PropertyValue;
+}
+
+bool USpacetimeDBSubsystem::RegisterPredictionObject(const FObjectID& ObjectID)
+{
+	return register_prediction_object(ObjectID.ID);
+}
+
+bool USpacetimeDBSubsystem::UnregisterPredictionObject(const FObjectID& ObjectID)
+{
+	return unregister_prediction_object(ObjectID.ID);
+}
+
+int32 USpacetimeDBSubsystem::GetNextPredictionSequence(const FObjectID& ObjectID)
+{
+	return (int32)get_next_prediction_sequence(ObjectID.ID);
+}
+
+bool USpacetimeDBSubsystem::SendPredictedTransform(const FPredictedTransformData& TransformData)
+{
+	// Extract the transform components
+	FVector Location = TransformData.Transform.GetLocation();
+	FQuat Rotation = TransformData.Transform.GetRotation();
+	FVector Scale = TransformData.Transform.GetScale3D();
+	
+	return send_predicted_transform(
+		TransformData.ObjectID.ID,
+		(SequenceNumber)TransformData.SequenceNumber,
+		Location.X, Location.Y, Location.Z,
+		Rotation.X, Rotation.Y, Rotation.Z, Rotation.W,
+		Scale.X, Scale.Y, Scale.Z,
+		TransformData.Velocity.X, TransformData.Velocity.Y, TransformData.Velocity.Z,
+		TransformData.bHasVelocity
+	);
+}
+
+int32 USpacetimeDBSubsystem::GetLastAckedSequence(const FObjectID& ObjectID)
+{
+	return (int32)get_last_acked_sequence(ObjectID.ID);
+}
+
+void USpacetimeDBSubsystem::ProcessServerTransformUpdate(const FObjectID& ObjectID, const FTransform& Transform, 
+	const FVector& Velocity, int32 AckedSequence)
+{
+	// Look up the object in our object map
+	if (UObject* Object = FindObject(ObjectID.ID))
+	{
+		if (AActor* Actor = Cast<AActor>(Object))
+		{
+			// Look for prediction component
+			if (USpacetimeDBPredictionComponent* PredComp = Actor->FindComponentByClass<USpacetimeDBPredictionComponent>())
+			{
+				// Let the prediction component handle this
+				PredComp->ProcessServerUpdate(Transform, Velocity, AckedSequence);
+			}
+			else 
+			{
+				// No prediction component, just set the transform directly
+				Actor->SetActorTransform(Transform);
+			}
+		}
+	}
 } 

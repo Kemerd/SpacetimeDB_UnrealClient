@@ -9,6 +9,7 @@
 //! - `actor`: Client-side actor management
 //! - `rpc`: Remote procedure call client implementation
 //! - `net`: Network communication with the server
+//! - `prediction`: Client-side prediction handling
 
 use std::collections::HashMap;
 
@@ -18,6 +19,7 @@ pub mod object;      // Client-side object representation
 pub mod actor;       // Actor-specific functionality
 pub mod rpc;         // RPC handling
 pub mod net;         // Network layer
+pub mod prediction;  // Prediction handling
 
 // Internal module for FFI (will be extracted to ffi.rs later)
 mod ffi;
@@ -50,6 +52,9 @@ pub fn init() {
     
     // Initialize RPC system
     rpc::init();
+    
+    // Initialize prediction system
+    prediction::init();
     
     println!("UnrealReplication client module initialized!");
 }

@@ -122,12 +122,12 @@ This subsystem will be the main interface for Unreal C++ and Blueprints to inter
     *   [X] Alternatively, if the server becomes the source of truth for this, the client needs to fetch this schema information after connecting.
     *   [X] We may need to create a .bat or .sh that calls for instance Unreal CMD or some script inside of Unreal to generate some codegen'd file (it could even be a func that codegens rust code, from inside C++)
 
-2.  [ ] **Client-Side Prediction & Reconciliation:**
-    *   [ ] The `README.md` mentions client-side prediction. This is a complex topic not explicitly detailed in the Rust code. If required, C++ would need to:
-        *   [ ] Store pre-update state.
-        *   [ ] Apply input locally and predict changes.
-        *   [ ] When authoritative server state arrives (property updates), reconcile any differences.
-        *   [ ] Can possible use 1 euro algorithm as it is very popular
+2.  [X] **Client-Side Prediction & Reconciliation:**
+    *   [X] The `README.md` mentions client-side prediction. This is a complex topic not explicitly detailed in the Rust code. If required, C++ would need to:
+        *   [X] Store pre-update state.
+        *   [X] Apply input locally and predict changes.
+        *   [X] When authoritative server state arrives (property updates), reconcile any differences.
+        *   [X] Can possible use 1 euro algorithm as it is very popular
 
 3.  [ ] **Ownership & Authority:**
     *   [ ] Implement logic to respect object/actor ownership as defined by the server (`owner_id`, `owner_identity`).

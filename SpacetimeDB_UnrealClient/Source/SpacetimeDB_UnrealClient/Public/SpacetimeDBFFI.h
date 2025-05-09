@@ -31,4 +31,36 @@ inline cxx::String ToCxxString(const FString& InString)
 inline FString FromCxxString(const cxx::String& InString)
 {
     return FString(UTF8_TO_TCHAR(InString.c_str()));
+}
+
+// Forward declarations for FFI types
+typedef uint64_t ObjectId;
+typedef uint32_t SequenceNumber;
+
+extern "C" {
+    // Existing functions...
+
+    // Prediction-related functions
+    bool register_prediction_object(ObjectId object_id);
+    bool unregister_prediction_object(ObjectId object_id);
+    SequenceNumber get_next_prediction_sequence(ObjectId object_id);
+    bool send_predicted_transform(
+        ObjectId object_id,
+        SequenceNumber sequence,
+        float location_x,
+        float location_y,
+        float location_z,
+        float rotation_x,
+        float rotation_y,
+        float rotation_z,
+        float rotation_w,
+        float scale_x,
+        float scale_y,
+        float scale_z,
+        float velocity_x,
+        float velocity_y,
+        float velocity_z,
+        bool has_velocity
+    );
+    SequenceNumber get_last_acked_sequence(ObjectId object_id);
 } 
