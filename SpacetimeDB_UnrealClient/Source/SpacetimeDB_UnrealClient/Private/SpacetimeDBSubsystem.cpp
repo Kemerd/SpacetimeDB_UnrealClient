@@ -781,32 +781,37 @@ void USpacetimeDBSubsystem::HandleObjectIdRemapped(uint64 TempId, uint64 ServerI
 
 bool USpacetimeDBSubsystem::SetPropertyValueFromJson(int64 ObjectId, const FString& PropertyName, const FString& ValueJson, bool bReplicateToServer)
 {
-    // Find the object by ID
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: SetPropertyValueFromJson - Not connected to SpacetimeDB"));
+        return false;
+    }
+    
+    // SECURITY: Check if client has authority to modify this object
+    if (bReplicateToServer && !HasAuthority(ObjectId))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: SetPropertyValueFromJson - Client does not have authority to modify object %lld"), ObjectId);
+        return false;
+    }
+    
+    // Find the object in our registry
     UObject* Object = FindObjectById(ObjectId);
     if (!Object)
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Cannot set property value for unknown object ID %lld, property %s"), 
-            ObjectId, *PropertyName);
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: SetPropertyValueFromJson - Object with ID %lld not found"), ObjectId);
         return false;
     }
-
-    // Apply the JSON value to the property
+    
+    // Try to apply the property to the object
     bool bSuccess = FSpacetimeDBPropertyHelper::ApplyJsonToProperty(Object, PropertyName, ValueJson);
     
-    if (!bSuccess)
+    // If successful and we need to replicate to server, send the update
+    if (bSuccess && bReplicateToServer)
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to apply property %s from JSON to object %s (ID: %lld)"), 
-            *PropertyName, *Object->GetName(), ObjectId);
-        return false;
+        SendPropertyUpdateToServer(ObjectId, PropertyName, ValueJson);
     }
-
-    // If we should replicate to the server, send the update
-    if (bReplicateToServer)
-    {
-        return SendPropertyUpdateToServer(ObjectId, PropertyName, ValueJson);
-    }
-
-    return true;
+    
+    return bSuccess;
 }
 
 bool USpacetimeDBSubsystem::SetPropertyValue(int64 ObjectId, const FString& PropertyName, UObject* Object, bool bReplicateToServer)
@@ -850,41 +855,49 @@ bool USpacetimeDBSubsystem::SetPropertyValue(int64 ObjectId, const FString& Prop
 
 bool USpacetimeDBSubsystem::SendPropertyUpdateToServer(int64 ObjectId, const FString& PropertyName, const FString& ValueJson)
 {
-    // Create JSON for the property update
-    TSharedPtr<FJsonObject> UpdateParamsJson = MakeShared<FJsonObject>();
-    UpdateParamsJson->SetNumberField("object_id", static_cast<double>(ObjectId));
-    UpdateParamsJson->SetStringField("property_name", PropertyName);
-    UpdateParamsJson->SetStringField("value_json", ValueJson);
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: SendPropertyUpdateToServer - Not connected to SpacetimeDB"));
+        return false;
+    }
     
-    // Serialize to JSON string
-    FString ParamsJsonStr;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ParamsJsonStr);
-    FJsonSerializer::Serialize(UpdateParamsJson.ToSharedRef(), Writer);
+    // SECURITY: Check if client has authority to modify this object
+    if (!HasAuthority(ObjectId))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: SendPropertyUpdateToServer - Client does not have authority to modify object %lld"), ObjectId);
+        return false;
+    }
     
-    // Call the reducer
-    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Sending property update to server - Object ID: %lld, Property: %s"), 
-        ObjectId, *PropertyName);
-    return Client.CallReducer("set_property", ParamsJsonStr);
+    // Call the FFI function
+    stdb::ffi::set_property(ObjectId, PropertyName.GetData(), ValueJson.GetData(), true);
+    return true;
 }
 
 // RPC System Implementation
 
 bool USpacetimeDBSubsystem::CallServerFunctionOnObject(UObject* TargetObject, const FString& FunctionName, const TArray<FStdbRpcArg>& Args)
 {
-    if (!TargetObject)
+    if (!IsConnected())
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Target object is null"));
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Not connected to SpacetimeDB"));
         return false;
     }
     
+    if (!TargetObject)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Target object is null"));
+        return false;
+    }
+    
+    // Get the object ID
     int64 ObjectId = GetObjectId(TargetObject);
     if (ObjectId == 0)
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Object %s is not registered with SpacetimeDB"), 
-               *TargetObject->GetName());
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Cannot find SpacetimeDB ID for object %s"), *TargetObject->GetName());
         return false;
     }
     
+    // Call through with the object ID
     return CallServerFunction(ObjectId, FunctionName, Args);
 }
 
@@ -892,38 +905,37 @@ bool USpacetimeDBSubsystem::CallServerFunction(int64 ObjectId, const FString& Fu
 {
     if (!IsConnected())
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunction - Not connected to SpacetimeDB"));
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunction - Not connected to SpacetimeDB"));
         return false;
     }
     
-    if (ObjectId == 0)
+    // Check if this is a special RPC that doesn't require authority checks
+    // For example, common RPCs that need to work on server-owned objects
+    bool bIsSpecialRPC = 
+        FunctionName.Equals(TEXT("set_owner")) ||
+        FunctionName.Equals(TEXT("request_spawn")) ||
+        FunctionName.Equals(TEXT("request_destroy")) ||
+        FunctionName.StartsWith(TEXT("game_")) ||  // Game management RPCs can start with "game_"
+        FunctionName.StartsWith(TEXT("server_"));  // Server management RPCs can start with "server_"
+    
+    // SECURITY: Check if client has authority to call RPCs on this object
+    // Except for special RPCs that need to work regardless of authority
+    if (!bIsSpecialRPC && !HasAuthority(ObjectId))
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunction - Invalid object ID (0)"));
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunction - Client does not have authority to call RPC %s on object %lld"), 
+            *FunctionName, ObjectId);
         return false;
     }
     
-    if (FunctionName.IsEmpty())
-    {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunction - Function name is empty"));
-        return false;
-    }
-    
-    // Serialize RPC arguments to JSON
+    // Serialize arguments to JSON
     FString ArgsJson = SerializeRpcArguments(Args);
     
     UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Calling server function %s on object %lld with args: %s"), 
-           *FunctionName, ObjectId, *ArgsJson);
+        *FunctionName, ObjectId, *ArgsJson);
     
     // Call the FFI function
-    bool bSuccess = stdb::ffi::call_server_function(ObjectId, FunctionName.GetData(), ArgsJson.GetData());
-    
-    if (!bSuccess)
-    {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to call server function %s on object %lld"), 
-               *FunctionName, ObjectId);
-    }
-    
-    return bSuccess;
+    stdb::ffi::call_server_function(ObjectId, FunctionName.GetData(), ArgsJson.GetData());
+    return true;
 }
 
 bool USpacetimeDBSubsystem::RegisterClientFunctionWithFFI(const FString& FunctionName)
@@ -1225,10 +1237,8 @@ FString USpacetimeDBSubsystem::GetPropertyJsonValue(int64 ObjectId, const FStrin
         return FString();
     }
     
-    // Call the FFI function
-    FString ValueJson = stdb::ffi::get_property(ObjectId, PropertyName.GetData());
-    
-    return ValueJson;
+    // Call the FFI function to get the property value
+    return stdb::ffi::get_property(ObjectId, PropertyName.GetData());
 }
 
 FSpacetimeDBPropertyValue USpacetimeDBSubsystem::GetPropertyValue(int64 ObjectId, const FString& PropertyName) const
@@ -1304,4 +1314,54 @@ void USpacetimeDBSubsystem::ProcessServerTransformUpdate(const FObjectID& Object
 			}
 		}
 	}
+}
+
+bool USpacetimeDBSubsystem::HasAuthority(int64 ObjectId) const
+{
+    if (!IsConnected())
+    {
+        return false;
+    }
+    
+    // Get the owner ID of the object
+    int64 OwnerClientId = GetOwnerClientId(ObjectId);
+    
+    // Only the explicit owner has authority to modify an object
+    return OwnerClientId == GetClientId();
+}
+
+int64 USpacetimeDBSubsystem::GetOwnerClientId(int64 ObjectId) const
+{
+    if (!IsConnected())
+    {
+        return 0;
+    }
+    
+    // Get the object's owner_id property
+    FString OwnerIdJson = GetPropertyJsonValue(ObjectId, TEXT("owner_id"));
+    if (OwnerIdJson.IsEmpty() || OwnerIdJson == TEXT("null"))
+    {
+        return 0; // No owner (server-owned)
+    }
+    
+    // Parse the JSON string to get the owner ID
+    int64 OwnerClientId = FCString::Atoi64(*OwnerIdJson);
+    return OwnerClientId;
+}
+
+bool USpacetimeDBSubsystem::HasOwnership(int64 ObjectId) const
+{
+    return GetOwnerClientId(ObjectId) == GetClientId();
+}
+
+bool USpacetimeDBSubsystem::RequestSetOwner(int64 ObjectId, int64 NewOwnerClientId)
+{
+    if (!IsConnected())
+    {
+        return false;
+    }
+    
+    // This must go through a server RPC since changing ownership is a privileged operation
+    return CallServerFunction(ObjectId, TEXT("set_owner"), 
+        TArray<FStdbRpcArg>{FStdbRpcArg(TEXT("new_owner_id"), NewOwnerClientId)});
 } 

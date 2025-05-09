@@ -129,9 +129,9 @@ This subsystem will be the main interface for Unreal C++ and Blueprints to inter
         *   [X] When authoritative server state arrives (property updates), reconcile any differences.
         *   [X] Can possible use 1 euro algorithm as it is very popular
 
-3.  [ ] **Ownership & Authority:**
-    *   [ ] Implement logic to respect object/actor ownership as defined by the server (`owner_id`, `owner_identity`).
-    *   [ ] Only allow sending property updates or certain RPCs if the client has authority (e.g., for its PlayerController or owned Pawns).
+3.  [X] **Ownership & Authority:**
+    *   [X] Implement logic to respect object/actor ownership as defined by the server (`owner_id`, `owner_identity`).
+    *   [X] Only allow sending property updates or certain RPCs if the client has authority (e.g., for its PlayerController or owned Pawns).
 
 4.  [ ] **Component Replication:**
     *   [ ] The current Rust `ClientActor.components` only stores `ObjectId`s. A full C++ implementation would need to:
