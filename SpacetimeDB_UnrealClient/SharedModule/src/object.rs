@@ -4,6 +4,7 @@
 
 use serde::{Serialize, Deserialize};
 use crate::types::*;
+use crate::lifecycle::ObjectLifecycleState;
 use std::collections::HashMap;
 
 /// Unique identifier for UObjects in the SpacetimeDB system
@@ -11,22 +12,6 @@ pub type ObjectId = u64;
 
 /// Unique identifier for class definitions
 pub type ClassId = u32;
-
-/// State of an object in its lifecycle
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ObjectLifecycleState {
-    /// Object is being created but not yet fully initialized
-    Initializing,
-    
-    /// Object is active and valid
-    Active,
-    
-    /// Object is being cleaned up for destruction
-    PendingKill,
-    
-    /// Object has been destroyed but is kept in the database for delayed cleanup
-    Destroyed,
-}
 
 /// Object spawn parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]

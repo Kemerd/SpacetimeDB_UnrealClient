@@ -7,9 +7,7 @@
 use serde::{Serialize, Deserialize};
 use crate::lifecycle::ActorLifecycleState;
 use crate::types::{Vector3, Quat, Transform};
-
-/// Unique identifier for actors
-pub type ActorId = u64;
+use crate::object::ObjectId;
 
 /// Basic actor class information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +29,7 @@ pub struct ActorClassInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActorInfo {
     /// Unique identifier for this actor instance
-    pub actor_id: ActorId,
+    pub actor_id: ObjectId,
     
     /// The class this actor belongs to
     pub class_id: u32,
@@ -53,7 +51,7 @@ pub struct ActorInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActorTransform {
     /// Actor identifier
-    pub actor_id: ActorId,
+    pub actor_id: ObjectId,
     
     /// Position
     pub position: Vector3,

@@ -3,7 +3,8 @@
 //! Handles client-side object management, including object creation, destruction,
 //! and property management.
 
-use stdb_shared::object::{ObjectId, ObjectLifecycleState, SpawnParams};
+use stdb_shared::object::{ObjectId, SpawnParams};
+use stdb_shared::lifecycle::ObjectLifecycleState;
 use stdb_shared::property::PropertyValue;
 use stdb_shared::types::*;
 

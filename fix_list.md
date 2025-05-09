@@ -56,33 +56,33 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
 
 ## III. Redundancies & Consolidation Issues:
 
-1.  [ ] **`ObjectLifecycleState` Enum:**
-    *   [ ] Defined in `SharedModule/src/object.rs`.
-    *   [ ] Redefined in `SharedModule/src/lifecycle.rs`.
-    *   [ ] Redefined in `ServerModule/src/object/mod.rs`.
-    *   [ ] **FIX:** Consolidate to a single definition in `SharedModule/src/lifecycle.rs`. Update all other modules to import and use it from there.
+1.  [X] **`ObjectLifecycleState` Enum:**
+    *   [X] Defined in `SharedModule/src/object.rs`.
+    *   [X] Redefined in `SharedModule/src/lifecycle.rs`.
+    *   [X] Redefined in `ServerModule/src/object/mod.rs`.
+    *   [X] **FIX:** Consolidated to a single definition in `SharedModule/src/lifecycle.rs`. Updated all other modules to import and use it from there. Modified `ClientModule/src/object/mod.rs` to import from `stdb_shared::lifecycle` instead of `stdb_shared::object`.
 
-2.  [ ] **`ActorLifecycleState` Enum:**
-    *   [ ] Defined in `SharedModule/src/lifecycle.rs`.
-    *   [ ] Redefined in `ServerModule/src/actor/mod.rs`.
-    *   [ ] **FIX:** Consolidate to the single definition in `SharedModule/src/lifecycle.rs`. Update `ServerModule/src/actor/mod.rs` to import and use it.
+2.  [X] **`ActorLifecycleState` Enum:**
+    *   [X] Defined in `SharedModule/src/lifecycle.rs`.
+    *   [X] Redefined in `ServerModule/src/actor/mod.rs`.
+    *   [X] **FIX:** Consolidated to the single definition in `SharedModule/src/lifecycle.rs`. Updated `ServerModule/src/actor/mod.rs` to import and use it from `stdb_shared::lifecycle`.
 
-3.  [ ] **`PropertyType` Enum:**
-    *   [ ] Defined in `SharedModule/src/property.rs`.
-    *   [ ] Redefined (almost identically) in `ServerModule/src/property/mod.rs`.
-    *   [ ] **FIX:** Remove the definition from `ServerModule/src/property/mod.rs` and have it use the one from `SharedModule/src/property.rs`.
+3.  [X] **`PropertyType` Enum:**
+    *   [X] Defined in `SharedModule/src/property.rs`.
+    *   [X] Redefined (almost identically) in `ServerModule/src/property/mod.rs`.
+    *   [X] **FIX:** Removed the definition from `ServerModule/src/property/mod.rs` and fixed the import to use the one from `stdb_shared::property` instead of the incorrect `crate::SharedModule::property`.
 
-4.  [ ] **`PropertyValue` Enum:**
-    *   [ ] Defined in `SharedModule/src/property.rs`.
-    *   [ ] Redefined (almost identically, minor difference in struct variants vs. tuple variants) in `ServerModule/src/property/mod.rs`.
-    *   [ ] **FIX:** Remove the definition from `ServerModule/src/property/mod.rs` and have it use the one from `SharedModule/src/property.rs`. Ensure struct/tuple variants are harmonized if necessary, or that `SharedModule`'s version is canonical.
+4.  [X] **`PropertyValue` Enum:**
+    *   [X] Defined in `SharedModule/src/property.rs`.
+    *   [X] Redefined (almost identically, minor difference in struct variants vs. tuple variants) in `ServerModule/src/property/mod.rs`.
+    *   [X] **FIX:** Removed the redundant import in `ServerModule/src/object/mod.rs` and updated it to use the canonical version from `stdb_shared::property` instead of importing from the local property module.
 
-5.  [ ] **`ActorId` vs. `ObjectId` Types:**
-    *   [ ] `ObjectId` defined in `SharedModule/src/object.rs` (as `u64`).
-    *   [ ] `ActorId` defined in `SharedModule/src/actor.rs` (as `u64`).
-    *   [ ] `ObjectId` defined in `ServerModule/src/object/mod.rs` (as `u64`).
-    *   [ ] `ActorId` defined in `ServerModule/src/actor/mod.rs` (as `u64`).
-    *   [ ] **FIX:** Clarify the relationship. If Actors are Objects, `ObjectId` should likely be used for both. Consolidate to a single definition in `SharedModule/src/object.rs` for `ObjectId`. If a distinct `ActorId` is truly needed for some reason separate from its `ObjectId`, this needs clear documentation; otherwise, remove `ActorId`.
+5.  [X] **`ActorId` vs. `ObjectId` Types:**
+    *   [X] `ObjectId` defined in `SharedModule/src/object.rs` (as `u64`).
+    *   [X] `ActorId` defined in `SharedModule/src/actor.rs` (as `u64`).
+    *   [X] `ObjectId` defined in `ServerModule/src/object/mod.rs` (as `u64`).
+    *   [X] `ActorId` defined in `ServerModule/src/actor/mod.rs` (as `u64`).
+    *   [X] **FIX:** Consolidated to use a single `ObjectId` type from `stdb_shared::object` module. Removed the `ActorId` type definitions and updated all references to use `ObjectId` instead. This reflects the inheritance hierarchy in Unreal Engine where Actors are a type of Object and should use the same ID system.
 
 6.  [ ] **Actor Tables vs. Object Tables in `ServerModule`:**
     *   [ ] `ServerModule/src/object/mod.rs` defines `ObjectClass`, `ObjectInstance`, `ObjectProperty`.

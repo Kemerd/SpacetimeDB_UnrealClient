@@ -5,15 +5,14 @@
 
 use spacetimedb::{ReducerContext, Table, Identity};
 use crate::property::{PropertyType, PropertyValue};
+use stdb_shared::lifecycle::ActorLifecycleState;
+use stdb_shared::object::ObjectId;
 
 // Submodules
 pub mod init;       // Actor world initialization
 pub mod spawn;      // Actor spawning and creation
 pub mod lifecycle;  // Actor lifecycle management
 pub mod transform;  // Actor transform handling (position, rotation, scale)
-
-/// Unique identifier for actors in the SpacetimeDB system
-pub type ActorId = u64;
 
 /// Represents a class of Unreal actors (equivalent to UClass)
 #[spacetimedb::table(name = actor_class, public)]
@@ -43,7 +42,7 @@ pub struct ActorClass {
 pub struct ActorInfo {
     /// Unique identifier for this actor instance
     #[primarykey]
-    pub actor_id: ActorId,
+    pub actor_id: ObjectId,
     
     /// The class this actor belongs to
     pub class_id: u32,
@@ -69,7 +68,7 @@ pub struct ActorInfo {
 pub struct ActorTransform {
     /// Actor this transform belongs to
     #[primarykey]
-    pub actor_id: ActorId,
+    pub actor_id: ObjectId,
     
     // Position
     pub pos_x: f32,
@@ -88,28 +87,12 @@ pub struct ActorTransform {
     pub scale_z: f32,
 }
 
-/// The current state of an actor in its lifecycle
-#[derive(spacetimedb::Serialize, spacetimedb::Deserialize, Clone, Debug, PartialEq, Eq)]
-pub enum ActorLifecycleState {
-    /// Actor is being created but not yet fully initialized
-    Spawning,
-    
-    /// Actor is active in the world
-    Active,
-    
-    /// Actor is being destroyed
-    PendingDestroy,
-    
-    /// Actor has been destroyed but is kept in the database for delayed cleanup
-    Destroyed,
-}
-
 /// Actor property values (for dynamic properties not in schema)
 #[spacetimedb::table(name = actor_property, public)]
 pub struct ActorProperty {
     /// Actor this property belongs to
     #[primarykey]
-    pub actor_id: ActorId,
+    pub actor_id: ObjectId,
     
     /// Property name
     #[primarykey]
@@ -130,7 +113,7 @@ pub struct ActorComponent {
     pub component_id: u64,
     
     /// Actor that owns this component
-    pub owner_actor_id: ActorId,
+    pub owner_actor_id: ObjectId,
     
     /// Component class type
     pub component_class_id: u32,

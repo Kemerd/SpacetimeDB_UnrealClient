@@ -4,7 +4,8 @@
 //! in Unreal Engine. This handles the fundamental object model for our replication system.
 
 use spacetimedb::{ReducerContext, Table, Identity};
-use crate::property::{PropertyType, PropertyValue};
+use stdb_shared::property::{PropertyType, PropertyValue};
+use stdb_shared::lifecycle::ObjectLifecycleState;
 
 // Submodules
 pub mod class;     // UClass definitions and registration
@@ -64,22 +65,6 @@ pub struct ObjectInstance {
     
     /// Current object lifecycle state
     pub state: ObjectLifecycleState,
-}
-
-/// The current state of an object in its lifecycle
-#[derive(spacetimedb::Serialize, spacetimedb::Deserialize, Clone, Debug, PartialEq, Eq)]
-pub enum ObjectLifecycleState {
-    /// Object is being created but not yet fully initialized
-    Initializing,
-    
-    /// Object is active and valid
-    Active,
-    
-    /// Object is being cleaned up for destruction
-    PendingKill,
-    
-    /// Object has been destroyed but is kept in the database for delayed cleanup
-    Destroyed,
 }
 
 /// Object property values (for dynamic properties)

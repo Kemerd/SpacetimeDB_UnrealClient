@@ -18,7 +18,7 @@ use std::sync::RwLock;
 
 use crate::object::{ObjectId, ObjectInstance, ObjectProperty};
 use crate::connection::ClientInfo;
-use crate::SharedModule::property::{PropertyType, PropertyValue, PropertyDefinition, ReplicationCondition};
+use stdb_shared::property::{PropertyType, PropertyValue, PropertyDefinition, ReplicationCondition};
 use crate::relevancy::determine_relevance;
 
 // Re-export submodules
@@ -43,85 +43,6 @@ pub struct QueuedPropertyReplication {
     pub timestamp: u64,
     /// Whether this is high priority
     pub is_high_priority: bool,
-}
-
-/// Represents the different types of properties that can be stored in a UObject
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PropertyType {
-    // Primitive types
-    Bool,
-    Byte,
-    Int32,
-    Int64,
-    UInt32,
-    UInt64,
-    Float,
-    Double,
-    String,
-    
-    // Structured types
-    Vector,       // FVector (x, y, z)
-    Rotator,      // FRotator (pitch, yaw, roll)
-    Quat,         // FQuat (x, y, z, w)
-    Transform,    // FTransform (position, rotation, scale)
-    Color,        // FColor (r, g, b, a)
-    
-    // Reference types
-    ObjectReference,  // Reference to another UObject
-    ClassReference,   // Reference to a class
-    
-    // Container types
-    Array,            // TArray<T> - stored as JSON
-    Map,              // TMap<K,V> - stored as JSON
-    Set,              // TSet<T> - stored as JSON
-    
-    // Special types
-    Name,             // FName
-    Text,             // FText
-    Custom,           // Custom struct - stored as JSON
-}
-
-/// Represents the value of a property
-#[derive(Debug, Clone)]
-pub enum PropertyValue {
-    // Primitive values
-    Bool(bool),
-    Byte(u8),
-    Int32(i32),
-    Int64(i64),
-    UInt32(u32),
-    UInt64(u64),
-    Float(f32),
-    Double(f64),
-    String(String),
-    
-    // Structured values
-    Vector { x: f32, y: f32, z: f32 },
-    Rotator { pitch: f32, yaw: f32, roll: f32 },
-    Quat { x: f32, y: f32, z: f32, w: f32 },
-    Transform {
-        pos_x: f32, pos_y: f32, pos_z: f32,
-        rot_x: f32, rot_y: f32, rot_z: f32, rot_w: f32,
-        scale_x: f32, scale_y: f32, scale_z: f32,
-    },
-    Color { r: u8, g: u8, b: u8, a: u8 },
-    
-    // Reference values
-    ObjectReference(ObjectId),
-    ClassReference(String),  // Class name
-    
-    // Container values (stored as JSON strings for simplicity)
-    ArrayJson(String),
-    MapJson(String),
-    SetJson(String),
-    
-    // Special values
-    Name(String),
-    Text(String),
-    CustomJson(String),
-    
-    // Null value
-    None,
 }
 
 /// Table to store property definitions
