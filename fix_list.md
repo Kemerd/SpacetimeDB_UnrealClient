@@ -135,9 +135,9 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
 
 ## VI. Client-Side Redundancies & Design Points:
 
-1.  [ ] **`ClientModule/src/net/mod.rs` - Redundant Connection Types:**
-    *   [ ] `ConnectionState`, `ConnectionParams`, `ClientConnection` are redefined. 
-    *   [ ] **FIX:** Use the definitions from `SharedModule/src/connection.rs`.
+1.  [X] **`ClientModule/src/net/mod.rs` - Redundant Connection Types:**
+    *   [X] `ConnectionState`, `ConnectionParams`, `ClientConnection` are redefined. 
+    *   [X] **FIX:** Use the definitions from `SharedModule/src/connection.rs`.
 
 2.  [ ] **`ClientModule/src/actor/mod.rs` & `object/mod.rs` - Object/Actor Representation:**
     *   [ ] `ClientActor` struct is very similar to `ClientObject`. There are separate caches (`CLIENT_ACTORS`, `CLIENT_OBJECTS`).

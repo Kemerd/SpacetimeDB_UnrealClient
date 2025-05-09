@@ -4,6 +4,7 @@
 //! and message passing.
 
 use stdb_shared::object::ObjectId;
+use stdb_shared::connection::{ConnectionState, ConnectionParams, ClientConnection, DisconnectReason as SharedDisconnectReason};
 use spacetimedb_sdk::{
     Address, Client, Identity, ReducerCallError, subscribe::SubscriptionHandle, 
     reducer::{Status as ReducerStatus, StdReducerCallResult},
@@ -18,48 +19,6 @@ use std::future::Future;
 use once_cell::sync::Lazy;
 use log::{info, debug, error, warn};
 use serde_json::Value;
-
-/// State of the connection to the server
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConnectionState {
-    /// Not connected to the server
-    Disconnected,
-    
-    /// Attempting to connect to the server
-    Connecting,
-    
-    /// Connected to the server
-    Connected,
-    
-    /// Connection failed
-    Failed,
-}
-
-/// Connection parameters for the SpacetimeDB server
-#[derive(Debug, Clone)]
-pub struct ConnectionParams {
-    /// Host address (e.g., "https://example.com")
-    pub host: String,
-    
-    /// Database name
-    pub database_name: String,
-    
-    /// Optional authentication token
-    pub auth_token: Option<String>,
-}
-
-/// Connection information
-#[derive(Debug, Clone)]
-pub struct ClientConnection {
-    /// Current connection state
-    pub state: ConnectionState,
-    
-    /// Client ID assigned by the server
-    pub client_id: u64,
-    
-    /// Connection parameters
-    pub params: ConnectionParams,
-}
 
 // Global client state
 static CLIENT: Lazy<Mutex<Option<Client>>> = Lazy::new(|| Mutex::new(None));
@@ -443,6 +402,19 @@ pub fn send_rpc_request(request_json: &str) -> Result<(), String> {
     }
 }
 
+/// Convert from SDK DisconnectReason to shared module's DisconnectReason
+fn convert_disconnect_reason(reason: DisconnectReason) -> SharedDisconnectReason {
+    match reason {
+        DisconnectReason::ClientRequested => SharedDisconnectReason::ClientRequest,
+        DisconnectReason::ServerShutdown => SharedDisconnectReason::ServerShutdown,
+        DisconnectReason::ConnectionTimeout => SharedDisconnectReason::Timeout,
+        DisconnectReason::AuthenticationFailure => SharedDisconnectReason::AuthFailure,
+        DisconnectReason::NetworkError(err) => SharedDisconnectReason::NetworkError(err),
+        DisconnectReason::ServerError(err) => SharedDisconnectReason::NetworkError(format!("Server error: {}", err)),
+        _ => SharedDisconnectReason::Unknown,
+    }
+}
+
 // ---- SpacetimeDB event handlers ----
 
 /// Handle client state changes
@@ -563,10 +535,16 @@ fn handle_disconnect(reason: DisconnectReason) {
     
     // Call the on_disconnected handler
     if let Some(handler) = &*ON_DISCONNECTED.lock().unwrap() {
-        let reason_str = match reason {
-            DisconnectReason::Normal => "Normal disconnect",
-            DisconnectReason::Error(e) => e,
-            DisconnectReason::Reconnecting => "Reconnecting",
+        // Convert SDK DisconnectReason to a string using our shared type
+        let shared_reason = convert_disconnect_reason(reason);
+        let reason_str = match shared_reason {
+            SharedDisconnectReason::ClientRequest => "Client requested disconnect",
+            SharedDisconnectReason::ServerShutdown => "Server shutdown",
+            SharedDisconnectReason::Timeout => "Connection timeout",
+            SharedDisconnectReason::AuthFailure => "Authentication failure",
+            SharedDisconnectReason::NetworkError(err) => &err,
+            SharedDisconnectReason::Kicked(msg) => &msg,
+            SharedDisconnectReason::Unknown => "Unknown reason",
         };
         
         handler(reason_str);
