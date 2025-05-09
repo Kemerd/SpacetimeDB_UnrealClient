@@ -22,6 +22,11 @@ pub mod connection;  // Connection management
 pub mod rpc;         // Remote procedure calls
 pub mod relevancy;   // Network relevancy
 
+// Import custom game functions
+// This allows us to use the game-specific functionality
+extern crate custom_server_module;
+pub use custom_server_module as game;
+
 // Re-export commonly used items
 pub use object::{ObjectInstance, ObjectClass, ObjectId, ObjectTransform, ObjectComponent, ObjectProperty};
 pub use stdb_shared::lifecycle::ObjectLifecycleState;

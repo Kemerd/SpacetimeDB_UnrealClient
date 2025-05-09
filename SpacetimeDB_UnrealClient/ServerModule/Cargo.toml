@@ -10,4 +10,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 spacetimedb = "1.1.0"
-log = "0.4" 
+log = "0.4"
+custom_server_module = { path = "../CustomServerModule" }
+stdb_shared = { path = "../SharedModule" } 
