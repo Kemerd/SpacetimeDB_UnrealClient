@@ -12,8 +12,7 @@ use stdb_shared::object::ObjectId;
 use stdb_shared::property::{PropertyType, PropertyValue, PropertyDefinition};
 use log::{debug, trace, warn};
 use serde_json::{Value, json};
-use spacetimedb_sdk::table_update::TableUpdate;
-use spacetimedb_sdk::table_update::TableOp;
+use spacetimedb_sdk::table::{TableUpdate, TableOp};
 
 // Import submodules
 pub mod serialization;
@@ -200,7 +199,7 @@ pub fn init() {
     debug!("Property system initialized");
 }
 
-/// Handle updates to the PropertyDefinition table
+/// Handle property definition updates from the server
 fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String> {
     // Process all rows in the update
     for row in &update.rows {
@@ -209,100 +208,111 @@ fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String>
                 // Get the property definition from the row data
                 let property_name = row.data.get("property_name")
                     .and_then(|v| v.as_str())
-                    .ok_or("Failed to get property name column")?;
-                    
-                let property_class = row.data.get("property_class")
+                    .ok_or_else(|| "Missing property_name in property definition".to_string())?;
+                
+                let property_class = row.data.get("class_name")
                     .and_then(|v| v.as_str())
-                    .ok_or("Failed to get property class column")?;
-                    
+                    .ok_or_else(|| "Missing class_name in property definition".to_string())?;
+                
                 let property_type_str = row.data.get("property_type")
                     .and_then(|v| v.as_str())
-                    .ok_or("Failed to get property type column")?;
-                    
+                    .ok_or_else(|| "Missing property_type in property definition".to_string())?;
+                
+                let property_type = parse_property_type(property_type_str)?;
+                
                 let replicated = row.data.get("replicated")
                     .and_then(|v| v.as_bool())
-                    .ok_or("Failed to get replicated column")?;
-                    
-                let readonly = row.data.get("readonly")
-                    .and_then(|v| v.as_bool())
-                    .ok_or("Failed to get readonly column")?;
-                    
-                let flags = row.data.get("flags")
-                    .and_then(|v| v.as_u64())
-                    .map(|v| v as u32)
-                    .ok_or("Failed to get flags column")?;
-                    
+                    .unwrap_or(false);
+                
                 let replication_condition_str = row.data.get("replication_condition")
                     .and_then(|v| v.as_str())
-                    .ok_or("Failed to get replication condition column")?;
-                    
-                // Parse property type
-                let property_type = parse_property_type(&property_type_str)?;
+                    .unwrap_or("OnChange");
                 
-                // Parse replication condition
-                let replication_condition = parse_replication_condition(&replication_condition_str)?;
+                let replication_condition = parse_replication_condition(replication_condition_str)?;
+                
+                let readonly = row.data.get("readonly")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                
+                let flags = row.data.get("flags")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0) as u32;
                 
                 // Create property definition
-                let property_def = PropertyDefinition {
+                let definition = PropertyDefinition {
                     name: property_name.to_string(),
                     property_type,
                     replicated,
+                    replication_condition,
                     readonly,
                     flags,
-                    replication_condition,
                 };
                 
                 // Register the property definition
-                register_property_definition(property_class, property_name, property_type, replicated);
+                let mut definitions = PROPERTY_DEFINITIONS.lock().unwrap();
+                
+                // Get or create the class property map
+                let class_props = definitions
+                    .entry(property_class.to_string())
+                    .or_insert_with(HashMap::new);
+                
+                // Add to map
+                class_props.insert(property_name.to_string(), definition);
+                
+                debug!("Registered property definition from server: {}.{}", property_class, property_name);
                 
                 Ok(())
             },
             TableOp::Delete => {
-                // Get the property name and class from the row key
+                // Get the property information to remove it
                 let property_name = row.data.get("property_name")
                     .and_then(|v| v.as_str())
-                    .ok_or("Failed to get property name column")?;
-                    
-                let property_class = row.data.get("property_class")
+                    .ok_or_else(|| "Missing property_name in property definition".to_string())?;
+                
+                let property_class = row.data.get("class_name")
                     .and_then(|v| v.as_str())
-                    .ok_or("Failed to get property class column")?;
-                    
+                    .ok_or_else(|| "Missing class_name in property definition".to_string())?;
+                
                 // Remove the property definition
-                unregister_property_definition(property_class, property_name);
+                let mut definitions = PROPERTY_DEFINITIONS.lock().unwrap();
+                if let Some(class_props) = definitions.get_mut(property_class) {
+                    class_props.remove(property_name);
+                    debug!("Removed property definition: {}.{}", property_class, property_name);
+                }
                 
                 Ok(())
             },
             _ => Ok(()),
-        }
+        };
     }
+    
+    Ok(())
 }
 
-// Helper function to parse property types from strings
+/// Parse property type from string
 fn parse_property_type(type_str: &str) -> Result<PropertyType, String> {
     match type_str {
         "Bool" => Ok(PropertyType::Bool),
-        "Int" => Ok(PropertyType::Int),
         "Float" => Ok(PropertyType::Float),
+        "Int32" => Ok(PropertyType::Int32),
         "String" => Ok(PropertyType::String),
         "Vector" => Ok(PropertyType::Vector),
-        "Rotator" => Ok(PropertyType::Rotator),
+        "Quat" => Ok(PropertyType::Quat),
         "Transform" => Ok(PropertyType::Transform),
-        "ObjectRef" => Ok(PropertyType::ObjectRef),
-        "Array" => Ok(PropertyType::Array),
-        "Map" => Ok(PropertyType::Map),
+        "Color" => Ok(PropertyType::Color),
+        "ObjectRef" => Ok(PropertyType::ObjectReference),
         "Enum" => Ok(PropertyType::Enum),
-        "None" => Ok(PropertyType::None),
         _ => Err(format!("Unknown property type: {}", type_str)),
     }
 }
 
-// Helper function to parse replication conditions from strings
+/// Parse replication condition from string
 fn parse_replication_condition(condition_str: &str) -> Result<stdb_shared::property::ReplicationCondition, String> {
     match condition_str {
+        "Never" => Ok(stdb_shared::property::ReplicationCondition::Never),
         "OnChange" => Ok(stdb_shared::property::ReplicationCondition::OnChange),
-        "OnTimed" => Ok(stdb_shared::property::ReplicationCondition::OnTimed),
-        "ReliableRpc" => Ok(stdb_shared::property::ReplicationCondition::ReliableRpc),
-        "UnreliableRpc" => Ok(stdb_shared::property::ReplicationCondition::UnreliableRpc),
+        "Initial" => Ok(stdb_shared::property::ReplicationCondition::Initial),
+        "Always" => Ok(stdb_shared::property::ReplicationCondition::Always),
         _ => Err(format!("Unknown replication condition: {}", condition_str)),
     }
 }
@@ -529,4 +539,19 @@ pub fn add_property(
     
     debug!("Added property {} to class {}", property_name, class_name);
     true
+}
+
+/// Unregister a property definition
+pub fn unregister_property_definition(class_name: &str, property_name: &str) -> bool {
+    let mut definitions = PROPERTY_DEFINITIONS.lock().unwrap();
+    
+    if let Some(class_props) = definitions.get_mut(class_name) {
+        let removed = class_props.remove(property_name).is_some();
+        if removed {
+            debug!("Unregistered property definition: {}.{}", class_name, property_name);
+        }
+        return removed;
+    }
+    
+    false
 } 

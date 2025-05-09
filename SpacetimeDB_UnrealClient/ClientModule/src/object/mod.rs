@@ -296,7 +296,7 @@ pub fn create_object(class_name: &str, params: SpawnParams) -> Result<ObjectId, 
     };
     
     // Register the object with temporary ID
-    register_object(object);
+    register_object_internal(object);
     
     // Request the server to create the object
     request_server_create_object(temp_object_id, class_name, &params)?;
@@ -634,7 +634,7 @@ pub fn update_object_property(
 }
 
 /// Register an object in the client registry
-fn register_object(object: ClientObject) {
+fn register_object_internal(object: ClientObject) {
     let mut objects = CLIENT_OBJECTS.lock().unwrap();
     objects.insert(object.id, object);
 }
@@ -1090,7 +1090,7 @@ pub fn register_object(class_name: &str, params: &serde_json::Value) -> Result<O
     };
     
     // Register the object
-    register_object(object);
+    register_object_internal(object);
     
     // Create a simplified SpawnParams for server request
     let spawn_params = SpawnParams {
@@ -1151,5 +1151,26 @@ pub fn dispatch_unreliable_rpc(
     crate::net::send_rpc_request(&request_json)?;
     
     debug!("Dispatched unreliable RPC {} for object {}", function_name, object_id);
+    Ok(())
+}
+
+/// Set a property on an object with control over replication
+pub fn set_object_property_with_replication(
+    object_id: ObjectId,
+    property_name: &str,
+    value: &serde_json::Value,
+    replicate: bool,
+) -> Result<(), String> {
+    // Deserialize the value to a PropertyValue
+    let property_value = property::serialization::deserialize_property_value(&value.to_string())?;
+    
+    // Update locally
+    update_object_property(object_id, property_name, property_value.clone())?;
+    
+    // Replicate to server if needed
+    if replicate {
+        net::send_property_update(object_id, property_name, &value.to_string())?;
+    }
+    
     Ok(())
 } 

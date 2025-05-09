@@ -28,12 +28,13 @@ mod ffi;
 
 // Re-export commonly used items
 pub use property::{
-    PropertyType, PropertyValue, 
     get_property_definition, get_property_definition_count, 
     has_property_definitions_for_class, get_property_names_for_class,
     get_registered_class_names, import_property_definitions_from_json, 
     export_property_definitions_as_json
 };
+// Re-export types directly from stdb_shared to avoid private re-exports
+pub use stdb_shared::property::{PropertyType, PropertyValue, ReplicationCondition};
 pub use object::ClientObject;
 pub use stdb_shared::object::ObjectId;
 pub use stdb_shared::connection::{ConnectionState, ClientConnection};

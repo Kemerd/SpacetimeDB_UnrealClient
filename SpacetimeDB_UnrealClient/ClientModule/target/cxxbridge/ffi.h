@@ -1,4 +1,5 @@
 #pragma once
+#include "UnrealReplication.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -91,17 +92,32 @@ private:
 #define CXX_DEFAULT_VALUE(value)
 #endif
 
-namespace stdb {
-  namespace ffi {
-    struct ConnectionConfig;
-    struct EventCallbackPointers;
-  }
-}
+enum class ConnectionState : ::std::uint8_t;
+enum class ReplicationCondition : ::std::uint8_t;
+struct ConnectionConfig;
+struct EventCallbackPointers;
 
-namespace stdb {
-namespace ffi {
-#ifndef CXXBRIDGE1_STRUCT_stdb$ffi$ConnectionConfig
-#define CXXBRIDGE1_STRUCT_stdb$ffi$ConnectionConfig
+#ifndef CXXBRIDGE1_ENUM_ConnectionState
+#define CXXBRIDGE1_ENUM_ConnectionState
+enum class ConnectionState : ::std::uint8_t {
+  Disconnected = 0,
+  Connecting = 1,
+  Connected = 2,
+};
+#endif // CXXBRIDGE1_ENUM_ConnectionState
+
+#ifndef CXXBRIDGE1_ENUM_ReplicationCondition
+#define CXXBRIDGE1_ENUM_ReplicationCondition
+enum class ReplicationCondition : ::std::uint8_t {
+  Never = 0,
+  OnChange = 1,
+  Initial = 2,
+  Always = 3,
+};
+#endif // CXXBRIDGE1_ENUM_ReplicationCondition
+
+#ifndef CXXBRIDGE1_STRUCT_ConnectionConfig
+#define CXXBRIDGE1_STRUCT_ConnectionConfig
 struct ConnectionConfig final {
   ::rust::String host;
   ::rust::String db_name;
@@ -109,10 +125,10 @@ struct ConnectionConfig final {
 
   using IsRelocatable = ::std::true_type;
 };
-#endif // CXXBRIDGE1_STRUCT_stdb$ffi$ConnectionConfig
+#endif // CXXBRIDGE1_STRUCT_ConnectionConfig
 
-#ifndef CXXBRIDGE1_STRUCT_stdb$ffi$EventCallbackPointers
-#define CXXBRIDGE1_STRUCT_stdb$ffi$EventCallbackPointers
+#ifndef CXXBRIDGE1_STRUCT_EventCallbackPointers
+#define CXXBRIDGE1_STRUCT_EventCallbackPointers
 struct EventCallbackPointers final {
   ::std::size_t on_connected CXX_DEFAULT_VALUE(0);
   ::std::size_t on_disconnected CXX_DEFAULT_VALUE(0);
@@ -124,60 +140,34 @@ struct EventCallbackPointers final {
 
   using IsRelocatable = ::std::true_type;
 };
-#endif // CXXBRIDGE1_STRUCT_stdb$ffi$EventCallbackPointers
+#endif // CXXBRIDGE1_STRUCT_EventCallbackPointers
 
-bool connect_to_server(::stdb::ffi::ConnectionConfig config, ::stdb::ffi::EventCallbackPointers callbacks) noexcept;
+bool create_class(::std::string const &class_name, ::std::string const &parent_class_name) noexcept;
 
-bool disconnect_from_server() noexcept;
+bool add_property(::std::string const &class_name, ::std::string const &property_name, ::std::string const &type_name, bool replicated, ::ReplicationCondition replication_condition, bool readonly, ::std::uint32_t flags) noexcept;
 
-bool is_connected() noexcept;
-
-bool set_property(::std::uint64_t object_id, ::std::string const &property_name, ::std::string const &value_json, bool replicate) noexcept;
-
-::std::unique_ptr<::std::string> get_property(::std::uint64_t object_id, ::std::string const &property_name) noexcept;
-
-::std::uint64_t create_object(::std::string const &class_name, ::std::string const &params_json) noexcept;
-
-bool destroy_object(::std::uint64_t object_id) noexcept;
-
-bool add_component(::std::uint64_t actor_id, ::std::uint64_t component_id) noexcept;
-
-bool remove_component(::std::uint64_t actor_id, ::std::uint64_t component_id) noexcept;
-
-::std::unique_ptr<::std::string> get_components(::std::uint64_t actor_id) noexcept;
-
-::std::uint64_t get_component_by_class(::std::uint64_t actor_id, ::std::string const &class_name) noexcept;
-
-bool is_component(::std::uint64_t object_id) noexcept;
-
-::std::uint64_t get_component_owner(::std::uint64_t component_id) noexcept;
-
-::std::uint64_t create_and_attach_component(::std::uint64_t actor_id, ::std::string const &component_class) noexcept;
-
-::std::unique_ptr<::std::string> get_component_property(::std::uint64_t actor_id, ::std::string const &component_class, ::std::string const &property_name) noexcept;
-
-bool set_component_property(::std::uint64_t actor_id, ::std::string const &component_class, ::std::string const &property_name, ::std::string const &value_json) noexcept;
-
-bool call_server_function(::std::uint64_t object_id, ::std::string const &function_name, ::std::string const &args_json) noexcept;
-
-bool register_client_function(::std::string const &function_name, ::std::size_t handler_ptr) noexcept;
-
-::std::uint64_t get_client_id() noexcept;
-
-::std::unique_ptr<::std::string> get_object_class(::std::uint64_t object_id) noexcept;
-
-::std::size_t get_property_definition_count() noexcept;
-
-bool has_property_definitions_for_class(::std::string const &class_name) noexcept;
+::std::unique_ptr<::std::string> get_property_definition(::std::string const &class_name, ::std::string const &property_name) noexcept;
 
 ::std::unique_ptr<::std::string> get_property_names_for_class(::std::string const &class_name) noexcept;
 
 ::std::unique_ptr<::std::string> get_registered_class_names() noexcept;
 
-bool import_property_definitions_from_json(::std::string const &json_str) noexcept;
-
 ::std::unique_ptr<::std::string> export_property_definitions_as_json() noexcept;
 
-::std::unique_ptr<::std::string> get_property_definition(::std::string const &class_name, ::std::string const &property_name) noexcept;
-} // namespace ffi
-} // namespace stdb
+bool import_property_definitions_from_json(::std::string const &json) noexcept;
+
+::std::uint64_t register_object(::std::string const &class_name, ::std::string const &params) noexcept;
+
+::std::unique_ptr<::std::string> get_object_class(::std::uint64_t object_id) noexcept;
+
+bool set_property(::std::uint64_t object_id, ::std::string const &property_name, ::std::string const &value_json, bool replicate) noexcept;
+
+::std::unique_ptr<::std::string> get_property(::std::uint64_t object_id, ::std::string const &property_name) noexcept;
+
+bool dispatch_unreliable_rpc(::std::uint64_t object_id, ::std::string const &function_name, ::std::string const &params) noexcept;
+
+bool connect_to_server(::ConnectionConfig config, ::EventCallbackPointers callbacks) noexcept;
+
+bool disconnect_from_server() noexcept;
+
+bool is_connected() noexcept;

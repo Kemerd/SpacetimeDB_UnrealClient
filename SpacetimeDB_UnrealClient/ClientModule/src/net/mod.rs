@@ -7,11 +7,10 @@ use stdb_shared::object::ObjectId;
 use stdb_shared::connection::{ConnectionState, ConnectionParams, ClientConnection, DisconnectReason as SharedDisconnectReason};
 use spacetimedb_sdk::{
     Address, identity::Identity, 
-    reducer::{Status as ReducerStatus, call_reducer::ReducerCallError},
-    subscribe::SubscriptionHandle,
+    reducer::Status as ReducerStatus,
     client::Client, client::ClientState,
     disconnect::DisconnectReason,
-    spacetimedb_client_api_messages::{TableUpdate, TableOp, TableType},
+    table::{TableUpdate, TableOp, TableType},
     value::Value as StdbValue,
 };
 
@@ -110,18 +109,22 @@ pub fn connect(params: ConnectionParams) -> Result<(), String> {
     init_default_table_handlers();
     
     // Build connection URL
-    let address = format!("{}/{}", params.host, params.database_name)
-        .parse::<Address>()
-        .map_err(|e| format!("Invalid address: {}", e))?;
+    let address_str = format!("{}/{}", params.host, params.database_name);
+    let address = match Address::from_str(&address_str) {
+        Ok(addr) => addr,
+        Err(e) => {
+            return Err(format!("Invalid address: {}", e));
+        }
+    };
     
     // Build auth token if provided
     let identity = match &params.auth_token {
         Some(token) => {
-            match Identity::from_token(token) {
+            match Identity::from_bytes(token.as_bytes().to_vec()) {
                 Ok(id) => Some(id),
                 Err(e) => {
                     let mut state = CONNECTION_STATE.lock().unwrap();
-                    *state = ConnectionState::Failed;
+                    *state = ConnectionState::Disconnected;
                     return Err(format!("Invalid auth token: {}", e));
                 }
             }
@@ -591,49 +594,49 @@ fn handle_subscription_failed(error: String) {
     }
 }
 
-/// Handle a table update from SpacetimeDB
+/// Process table updates from the server
 fn handle_table_update(update: TableUpdate) {
-    debug!("Received table update: table={}", update.table_name());
-    
-    // Process the update using our registered handlers
+    // Forward to the appropriate handler based on table name
     if let Err(err) = process_table_update(&update) {
-        error!("Failed to process table update: {}", err);
+        error!("Error processing table update: {}", err);
+        if let Some(handler) = &*ON_ERROR.lock().unwrap() {
+            handler(&format!("Error processing table update: {}", err));
+        }
     }
 }
 
-/// Handle an RPC call from the server (reducer call)
+/// Handle a reducer call (RPC) from the server
 fn handle_reducer_call(func_name: String, arg_bytes: Vec<u8>, _caller_identity: Option<Identity>) {
-    debug!("Received reducer call from server: {}", func_name);
+    // Check if there are the right number of bytes
+    if arg_bytes.len() < 8 {
+        error!("Invalid reducer call - insufficient bytes in argument");
+        return;
+    }
     
-    // Basic approach: extract object ID from first arg if present
-    let object_id = match arg_bytes.len() {
-        0 => 0, // Default to 0 for no object
-        _ => {
-            // Try to extract ObjectId from first 8 bytes if present
-            if arg_bytes.len() >= 8 {
-                let mut bytes = [0u8; 8];
-                bytes.copy_from_slice(&arg_bytes[0..8]);
-                u64::from_le_bytes(bytes)
-            } else {
-                0
+    // First 8 bytes should be the object ID
+    let object_id_bytes = &arg_bytes[0..8];
+    let object_id = u64::from_le_bytes([
+        object_id_bytes[0], object_id_bytes[1], object_id_bytes[2], object_id_bytes[3],
+        object_id_bytes[4], object_id_bytes[5], object_id_bytes[6], object_id_bytes[7],
+    ]);
+    
+    // The rest should be a JSON string for the arguments
+    match String::from_utf8(arg_bytes[8..].to_vec()) {
+        Ok(args_json) => {
+            // Call the appropriate RPC handler
+            if let Err(err) = crate::rpc::handle_server_call(object_id, &func_name, &args_json) {
+                error!("Error handling RPC call {}: {}", func_name, err);
+                if let Some(handler) = &*ON_ERROR.lock().unwrap() {
+                    handler(&format!("Error handling RPC call {}: {}", func_name, err));
+                }
+            }
+        },
+        Err(err) => {
+            error!("Invalid UTF-8 in RPC arguments: {}", err);
+            if let Some(handler) = &*ON_ERROR.lock().unwrap() {
+                handler(&format!("Invalid UTF-8 in RPC arguments: {}", err));
             }
         }
-    };
-    
-    // Try to convert remaining bytes to a JSON string
-    let args_json = if arg_bytes.len() > 8 {
-        match serde_json::from_slice(&arg_bytes[8..]) {
-            Ok(value) => serde_json::to_string(&value).unwrap_or_else(|_| "{}".to_string()),
-            Err(_) => "{}".to_string(),
-        }
-    } else {
-        "{}".to_string()
-    };
-    
-    // Call the RPC handler
-    match crate::rpc::handle_server_call(object_id, &func_name, &args_json) {
-        Ok(_) => debug!("Successfully handled server RPC: {}", func_name),
-        Err(err) => error!("Failed to handle server RPC {}: {}", func_name, err),
     }
 }
 
@@ -756,47 +759,56 @@ fn handle_object_property_update(update: &TableUpdate) -> Result<(), String> {
     Ok(())
 }
 
-/// Handle updates to the ObjectTransform table
+/// Process updates to object transforms in a transform table update
 fn handle_object_transform_update(update: &TableUpdate) -> Result<(), String> {
-    if update.op() != TableOp::Delete {
-        // Extract transform data
-        let mut row_iter = update.iter();
-        if let Some(row) = row_iter.next() {
-            // Extract object ID
-            let object_id = match row.get("object_id") {
-                Some(StdbValue::U64(id)) => *id,
-                _ => return Err("Missing or invalid object ID".to_string()),
-            };
-            
-            // Process location if present
-            if let Some(location) = row.get("location") {
-                let location_json = serde_json::to_string(location)
-                    .unwrap_or_else(|_| "null".to_string());
+    for row in &update.rows {
+        // Extract object ID and transform data
+        let object_id = row.data.get("object_id")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| "Failed to get object_id from transform update".to_string())?;
+        
+        match row.op {
+            TableOp::Insert | TableOp::Update => {
+                // Extract transform components
+                let location_x = row.data.get("location_x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                let location_y = row.data.get("location_y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                let location_z = row.data.get("location_z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
                 
-                if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
-                    handler(object_id, "Location", &location_json);
-                }
-            }
-            
-            // Process rotation if present
-            if let Some(rotation) = row.get("rotation") {
-                let rotation_json = serde_json::to_string(rotation)
-                    .unwrap_or_else(|_| "null".to_string());
+                let rotation_x = row.data.get("rotation_x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                let rotation_y = row.data.get("rotation_y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                let rotation_z = row.data.get("rotation_z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                let rotation_w = row.data.get("rotation_w").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
                 
-                if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
-                    handler(object_id, "Rotation", &rotation_json);
-                }
-            }
-            
-            // Process scale if present
-            if let Some(scale) = row.get("scale") {
-                let scale_json = serde_json::to_string(scale)
-                    .unwrap_or_else(|_| "null".to_string());
+                let scale_x = row.data.get("scale_x").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
+                let scale_y = row.data.get("scale_y").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
+                let scale_z = row.data.get("scale_z").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
                 
-                if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
-                    handler(object_id, "Scale", &scale_json);
+                // Update the object's transform
+                let location = stdb_shared::types::Vector3 {
+                    x: location_x,
+                    y: location_y,
+                    z: location_z,
+                };
+                
+                let rotation = stdb_shared::types::Quat {
+                    x: rotation_x,
+                    y: rotation_y,
+                    z: rotation_z,
+                    w: rotation_w,
+                };
+                
+                let scale = stdb_shared::types::Vector3 {
+                    x: scale_x,
+                    y: scale_y,
+                    z: scale_z,
+                };
+                
+                // Update the object's transform
+                if let Err(err) = crate::object::update_transform(object_id, Some(location), Some(rotation), Some(scale)) {
+                    warn!("Failed to update transform for object {}: {}", object_id, err);
                 }
-            }
+            },
+            _ => {}
         }
     }
     
