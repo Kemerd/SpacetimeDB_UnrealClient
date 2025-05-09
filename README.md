@@ -3,144 +3,189 @@
 This plugin provides integration between Unreal Engine and SpacetimeDB, allowing games to connect to SpacetimeDB databases for multiplayer functionality and cloud-based game state.
 
 ## Features
-- **Custom NetDriver**: Seamless integration of SpacetimeDB with Unreal's replication system
-- **GameInstanceSubsystem**: Manages database connections, subscriptions, and data synchronization
+- **Actor Replication**: Seamless integration with Unreal's actor and UObject system
+- **Property System**: Robust property management with automatic serialization and synchronization
+- **Object Lifecycle Management**: Complete lifecycle tracking for spawned objects
+- **RPC System**: Bidirectional remote procedure calls between client and server
 - **Cross-platform Support**: Works on Windows, macOS, and Linux
-- **Automated Build Process**: Automatically builds the Rust code during plugin compilation
-- Connect to SpacetimeDB instances
-- Call SpacetimeDB reducers
-- Subscribe to SpacetimeDB tables
-- Handle events and state updates
+- **Seamless Integration**: Connect to SpacetimeDB instances with minimal code
+- **High Performance**: Optimized Rust core with minimal overhead
 
 ## Architecture
 
-The plugin uses a layered architecture:
+The plugin uses a modular, layered architecture:
 
-1. **Rust Core**: The low-level client implemented in Rust using the SpacetimeDB SDK
-2. **C++ FFI Layer**: Generated C++ bindings that bridge between Rust and C++
-3. **Unreal-specific C++ Layer**: UE-friendly wrappers and classes
-4. **Blueprint Integration**: Blueprint nodes for designers to use without C++ coding
+1. **Rust Core Modules**:
+   - **SharedModule**: Common types, interfaces, and utilities used by both client and server
+   - **ServerModule**: Server-side implementation that manages game state in SpacetimeDB
+   - **ClientModule**: Client-side implementation that communicates with the server
+
+2. **Module Structure**:
+   - **Object System**: Manages UObject lifecycle, creation, and destruction
+   - **Property System**: Handles property types, serialization, and synchronization
+   - **Network Layer**: Manages connections, subscriptions, and data transfer
+   - **RPC System**: Facilitates remote procedure calls between client and server
+
+3. **Integration Layers**:
+   - **FFI Layer**: C++ bindings generated via CXX that bridge Rust and C++
+   - **Unreal-specific C++ Layer**: UE-friendly wrappers and subsystems
+   - **Blueprint Integration**: Exposes functionality to Blueprint
+
+## Core Modules
+
+### Object System
+The object system replicates Unreal Engine's actor model within SpacetimeDB, handling:
+- Actor spawning and initialization
+- Object lifecycle states (Initializing, Active, PendingKill, Destroyed)
+- Class hierarchies and inheritance
+- Owner/component relationships
+
+### Property System
+The property system provides a robust way to manage and replicate object properties:
+- Support for primitive types (bool, int, float, string, etc.)
+- Structured types (Vector, Rotator, Transform, etc.)
+- Reference types (object references, class references)
+- Container types (arrays, maps, sets)
+- Automatic serialization/deserialization
+- Change detection and efficient replication
+
+### Network Layer
+The network module handles all communication with the SpacetimeDB server:
+- Connection establishment and management
+- Client identification and authentication
+- Data subscription and synchronization
+- Event handling and callbacks
+
+### RPC System
+The RPC module enables bidirectional function calls between client and server:
+- Client-to-server function calls
+- Server-to-client callbacks
+- Argument serialization and transport
+- Error handling and retry logic
 
 ## Prerequisites
-- Unreal Engine 5.5
+- Unreal Engine 5.3+
 - Rust (1.70+) - Install from [https://rustup.rs/](https://rustup.rs/)
 - cxxbridge (`cargo install cxxbridge-cmd`)
 - A C++ compiler compatible with your platform
   - Windows: Visual Studio 2022
   - macOS: Xcode
   - Linux: GCC or Clang
-- SpacetimeDB CLI - Optional but recommended
+- SpacetimeDB CLI - For module development and testing
 
 ## Project Structure
 ```
 /SpacetimeDB_UnrealClient/
-├── /Source/
+├── /SharedModule/             # Shared types and interfaces
+│   ├── Cargo.toml            # Shared module dependencies
+│   └── /src/                 # Shared module source code
+│       ├── lib.rs            # Module entry point
+│       ├── types.rs          # Common data types
+│       ├── property.rs       # Property system definitions
+│       ├── object.rs         # Object system definitions
+│       └── constants.rs      # Shared constants
+│
+├── /ServerModule/             # Server-side implementation
+│   ├── Cargo.toml            # Server dependencies
+│   └── /src/                 # Server module source code
+│       ├── lib.rs            # Module entry point
+│       ├── actor/            # Actor management
+│       ├── object/           # Object management
+│       ├── property/         # Property handling
+│       └── reducer/          # SpacetimeDB reducers
+│
+├── /ClientModule/             # Client-side implementation
+│   ├── Cargo.toml            # Client dependencies
+│   └── /src/                 # Client module source code
+│       ├── lib.rs            # Module entry point
+│       ├── object/           # Client object management
+│       ├── property/         # Client property handling
+│       ├── net/              # Network communication
+│       ├── rpc/              # RPC functionality
+│       └── ffi.rs            # FFI definitions for C++
+│
+├── /Source/                   # Unreal Engine C++ code
 │   └── /SpacetimeDB_UnrealClient/
-│       ├── SpacetimeDB_UnrealClient.Build.cs  # UE build script
-│       ├── SpacetimeDB_UnrealClient.h         # Module header
-│       └── SpacetimeDB_UnrealClient.cpp       # Module implementation
-├── /rust/
-│   ├── Cargo.toml        # Rust package definition
-│   ├── src/lib.rs        # Rust library with FFI definitions
-│   ├── build.rs          # Rust build script for C++ binding generation
-│   ├── build-rust-win.bat # Windows build script
-│   └── build-rust.sh     # Unix build script
+│       ├── SpacetimeDB_UnrealClient.Build.cs
+│       ├── SpacetimeDB_UnrealClient.h
+│       └── SpacetimeDB_UnrealClient.cpp
+│
 └── SpacetimeDB_UnrealClient.uplugin  # Plugin definition
 ```
 
-## Build Process
+## How It Works
 
-The plugin uses a custom build process to compile the Rust code and integrate it with Unreal Engine:
+### Client-Server Communication
+1. The client connects to a SpacetimeDB database using connection parameters (host, database name, auth token)
+2. Upon connection, the client receives a unique client ID and subscribes to relevant tables
+3. The server maintains the authoritative game state in SpacetimeDB tables
+4. Changes to the database trigger events that are propagated to connected clients
+5. Clients can request changes via reducers, which the server validates before applying
 
-1. The `SpacetimeDB_UnrealClient.Build.cs` file detects the platform and runs the appropriate build script.
-2. `build-rust-win.bat` (Windows) or `build-rust.sh` (Linux/Mac) builds the Rust library and generates C++ bindings.
-3. The Rust `build.rs` script uses `cxx-build` to generate the necessary interop code.
-4. Unreal Engine compiles the C++ code and links it with the Rust library.
+### Object Lifecycle
+1. Objects are spawned via the server using the `spawn_object` reducer
+2. The server assigns a unique ID and initializes the object with provided parameters
+3. Object creation events are propagated to clients, which create local representations
+4. Property updates flow between client and server based on replication rules
+5. When an object is destroyed, clients receive a notification and clean up their local instances
 
-### Cross-Compilation Details
+### Property Replication
+1. Properties are defined with types, replication conditions, and access rules
+2. When a property changes on the server, it's serialized and sent to relevant clients
+3. Clients deserialize property values and update their local object instances
+4. Client-initiated property changes are sent to the server for validation and distribution
+5. Special handling exists for transform properties (location, rotation, scale) to optimize network usage
 
-The plugin uses [CXX](https://github.com/dtolnay/cxx) for seamless Rust-C++ interoperability:
-
-1. The Rust `lib.rs` file defines a `cxx::bridge` module that specifies the FFI interface.
-2. During build, CXX generates matching C++ headers and implementation.
-3. The generated C++ code safely marshals data between Rust and C++.
-
-### CI/CD Integration
-
-The build system supports CI/CD scenarios with the following environment variables:
-
-- `SPACETIMEDB_SKIP_RUST_BUILD`: Set to "1" to skip the Rust build step (useful if libraries are pre-built)
-- `SPACETIMEDB_RUST_LIB_PATH`: Path to pre-built Rust libraries for CI/CD environments
-
-## Installation
-
-### Windows
-1. Clone this repository:
-```
-git clone <repo-url>
-cd SpacetimeDB_UnrealClient
-```
-
-2. Ensure Rust is installed:
-```
-rustup update stable
-```
-
-3. Link the plugin to your Unreal Engine project using the provided script:
-```
-setup-link.bat C:\Path\To\Your\UE_Project
-```
-
-4. Regenerate your project files and build your project in Visual Studio
-
-### macOS/Linux
-1. Clone this repository:
-```
-git clone <repo-url>
-cd SpacetimeDB_UnrealClient
-```
-
-2. Ensure Rust is installed:
-```
-rustup update stable
-```
-
-3. Create a symbolic link to your Unreal Engine project:
-```
-ln -s "$(pwd)/SpacetimeDB_UnrealClient" "/path/to/your/UE_Project/Plugins/SpacetimeDB_UnrealClient"
-```
-
-4. Regenerate your project files and build your project
+### RPC System
+1. Functions are registered on both client and server with serialization rules
+2. When a client calls a server function, arguments are serialized and sent via a reducer
+3. The server executes the function and returns results to the client
+4. Server-to-client RPCs use a similar mechanism but in reverse
+5. Error handling ensures failed calls are reported appropriately
 
 ## Usage
 
-1. Add the plugin to your Unreal Engine project
-2. Use the `USpacetimeDBSubsystem` to connect to a SpacetimeDB instance:
+### Connecting to SpacetimeDB
 
 ```cpp
-USpacetimeDBSubsystem* SpacetimeDBSubsystem = GetGameInstance()->GetSubsystem<USpacetimeDBSubsystem>();
-SpacetimeDBSubsystem->Connect("localhost:3000", "my_database");
+USpacetimeDBSubsystem* SpacetimeDB = GetGameInstance()->GetSubsystem<USpacetimeDBSubsystem>();
+SpacetimeDB->Connect("localhost:3000", "my_game_db");
 ```
 
-3. Subscribe to tables:
+### Spawning an Actor
 
 ```cpp
-TArray<FString> Tables;
-Tables.Add("players");
-Tables.Add("game_state");
-SpacetimeDBSubsystem->SubscribeToTables(Tables);
+FSpawnParams SpawnParams;
+SpawnParams.ClassName = "Character";
+SpawnParams.Location = FVector(100.0f, 0.0f, 0.0f);
+SpawnParams.Replicate = true;
+
+FObjectID ActorID = SpacetimeDB->SpawnActor(SpawnParams);
 ```
 
-4. Call reducers:
+### Updating Properties
 
 ```cpp
-SpacetimeDBSubsystem->CallReducer("move_player", "{\"position\": {\"x\": 100, \"y\": 200}}");
+SpacetimeDB->SetActorProperty(ActorID, "Location", FVector(200.0f, 0.0f, 0.0f));
 ```
 
-5. Handle events using delegates:
+### Calling Server Functions
 
 ```cpp
-SpacetimeDBSubsystem->OnEventReceived.AddDynamic(this, &AMyGameMode::HandleTableEvent);
+FRPCParams Params;
+Params.AddInt("Damage", 25);
+SpacetimeDB->CallServerFunction(ActorID, "TakeDamage", Params);
+```
+
+### Handling Events
+
+```cpp
+// Bind to property change events
+SpacetimeDB->OnPropertyChanged.AddDynamic(this, &AMyGameMode::HandlePropertyChanged);
+
+// Bind to object events
+SpacetimeDB->OnActorSpawned.AddDynamic(this, &AMyGameMode::HandleActorSpawned);
+SpacetimeDB->OnActorDestroyed.AddDynamic(this, &AMyGameMode::HandleActorDestroyed);
 ```
 
 ## Configuration
@@ -148,15 +193,17 @@ The following settings can be configured in your project's settings:
 - `SPACETIME_HOST`: The SpacetimeDB server address
 - `SPACETIME_DBNAME`: The database name
 - `SPACETIME_AUTH_TOKEN`: Authentication token (if required)
+- `SPACETIME_MAX_OBJECTS`: Maximum number of tracked objects (default: 100,000)
+- `SPACETIME_REPLICATION_INTERVAL`: Property replication interval in seconds (default: 0.1)
 
 ## Troubleshooting
 
-If you encounter build issues:
+If you encounter issues:
 
-1. Make sure Rust and cxxbridge are installed
-2. Check the Rust build logs in the `rust/target` directory
-3. Verify the generated C++ bindings at `rust/stdb.hpp`
-4. Check that the library is being built in the correct configuration (debug/release)
+1. Check the connection status using `SpacetimeDB->IsConnected()`
+2. Enable debug logging with `SpacetimeDB->SetLogLevel(ESpacetimeLogLevel::Debug)`
+3. Verify network connectivity to your SpacetimeDB instance
+4. Check for error callbacks via `SpacetimeDB->OnError`
 
 ## License
 MIT License
