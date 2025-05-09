@@ -15,10 +15,10 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
     *   [X] Missing actual authentication/authorization logic (e.g., `connection::auth::can_spawn_actor()`, `connection::auth::is_admin()` used in `ServerModule/src/actor/spawn.rs` and `ServerModule/src/actor/lifecycle.rs`).
     *   [X] No handling of `ConnectionParams` from `SharedModule`.
 
-2.  [ ] **`ServerModule/src/rpc/` is empty:**
-    *   [ ] Missing server-side RPC function registration mechanism.
-    *   [ ] Missing logic to dispatch incoming RPC calls from clients to registered Rust functions.
-    *   [ ] Missing implementation for sending RPCs from server to client(s) (Multicast, OwnerOnly).
+2.  [X] **`ServerModule/src/rpc/` is empty:**
+    *   [X] Missing server-side RPC function registration mechanism.
+    *   [X] Missing logic to dispatch incoming RPC calls from clients to registered Rust functions.
+    *   [X] Missing implementation for sending RPCs from server to client(s) (Multicast, OwnerOnly).
 
 3.  [ ] **`ServerModule/src/relevancy/` is empty:**
     *   [ ] Missing all logic for network relevancy determination (distance-based, zone-based, owner-based, etc.).
