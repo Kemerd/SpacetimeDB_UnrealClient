@@ -117,10 +117,10 @@ This subsystem will be the main interface for Unreal C++ and Blueprints to inter
 
 ## IV. Advanced Features & Considerations:
 
-1.  [ ] **Dynamic Class/Property Registration Info:**
-    *   [ ] Since the Rust server side relies on hardcoded class/property info (a major FIX item for Rust), the C++ client would need a way to provide this information to the Rust client module if dynamic registration is implemented in Rust. This might involve FFI calls during startup to register all known replicated UClasses and their UProperties with their type information and replication settings.
-    *   [ ] Alternatively, if the server becomes the source of truth for this, the client needs to fetch this schema information after connecting.
-    *   [ ] We may need to create a .bat or .sh that calls for instance Unreal CMD or some script inside of Unreal to generate some codegen'd file (it could even be a func that codegens rust code, from inside C++)
+1.  [X] **Dynamic Class/Property Registration Info:**
+    *   [X] Since the Rust server side relies on hardcoded class/property info (a major FIX item for Rust), the C++ client would need a way to provide this information to the Rust client module if dynamic registration is implemented in Rust. This might involve FFI calls during startup to register all known replicated UClasses and their UProperties with their type information and replication settings.
+    *   [X] Alternatively, if the server becomes the source of truth for this, the client needs to fetch this schema information after connecting.
+    *   [X] We may need to create a .bat or .sh that calls for instance Unreal CMD or some script inside of Unreal to generate some codegen'd file (it could even be a func that codegens rust code, from inside C++)
 
 2.  [ ] **Client-Side Prediction & Reconciliation:**
     *   [ ] The `README.md` mentions client-side prediction. This is a complex topic not explicitly detailed in the Rust code. If required, C++ would need to:
