@@ -39,6 +39,9 @@ pub fn init() {
     // Initialize object system
     object::init();
     
+    // Initialize actor system
+    actor::init();
+    
     // Initialize RPC system
     rpc::init();
     
