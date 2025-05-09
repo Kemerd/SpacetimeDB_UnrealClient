@@ -143,9 +143,9 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
     *   [X] `ClientActor` struct is very similar to `ClientObject`. There are separate caches (`CLIENT_ACTORS`, `CLIENT_OBJECTS`).
     *   [X] **FIX:** Consolidated into a single `ClientObject` representation and cache, using an `is_actor` flag to denote actor-specific functionality. Merged both data structures, ensuring `ClientObject` can handle both actor and non-actor use cases. Updated the `actor/mod.rs` module to be a thin wrapper around the consolidated object module. Added methods and improved transform handling to accommodate both actor and non-actor objects.
 
-3.  [ ] **Dual Property Storage (Client-Side):**
-    *   [ ] Properties appear to be stored in `ClientModule/src/property/PROPERTY_CACHE` and also within `ClientModule/src/object/ClientObject.properties` (and subsequently potentially in `ClientActor` if it mirrors `ClientObject` properties).
-    *   [ ] **FIX:** Clarify the need for dual storage. If `ClientObject` (or its consolidated form) is the primary representation, it should likely hold the authoritative client-side state for its properties, with the `property` module providing access/serialization utilities. The `PROPERTY_CACHE` might be redundant or its role needs to be clearly defined (e.g., only for raw incoming values before association with an object).
+3.  [X] **Dual Property Storage (Client-Side):**
+    *   [X] Properties appear to be stored in `ClientModule/src/property/PROPERTY_CACHE` and also within `ClientModule/src/object/ClientObject.properties` (and subsequently potentially in `ClientActor` if it mirrors `ClientObject` properties).
+    *   [X] **FIX:** Clarified the roles by making `ClientObject.properties` the authoritative source for object properties, and repurposing `PROPERTY_CACHE` as a staging area for properties that haven't been associated with objects yet. Updated documentation and code to reflect this design, ensuring property updates are properly synchronized between object properties and the staging cache when needed. Added property transfer mechanism when objects are created or remapped.
 
 4.  [ ] **Property Definitions Population (`ClientModule/src/property/mod.rs`):**
     *   [ ] `PROPERTY_DEFINITIONS` cache: It's unclear how this cache is populated with all necessary property definitions for dynamic Unreal types. 

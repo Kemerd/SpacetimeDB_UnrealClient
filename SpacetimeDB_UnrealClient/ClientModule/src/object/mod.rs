@@ -120,6 +120,16 @@ pub fn create_object(class_name: &str, params: SpawnParams) -> Result<ObjectId, 
         crate::class::get_class_id_by_name(class_name).unwrap_or(0)
     );
     
+    // Pre-cache any initial properties in the staging cache
+    for (name, value_json) in &params.initial_properties {
+        if let Ok(value) = crate::property::serialization::deserialize_property_value(value_json) {
+            crate::property::cache_property_value(temp_object_id, name, value);
+        }
+    }
+    
+    // Transfer properties from staging cache to the object
+    let properties = crate::property::transfer_cached_properties_to_object(temp_object_id);
+    
     // Create a new client object with temporary ID
     let object = ClientObject {
         id: temp_object_id,
@@ -127,7 +137,7 @@ pub fn create_object(class_name: &str, params: SpawnParams) -> Result<ObjectId, 
         owner_id: params.owner_id,
         state: ObjectLifecycleState::Initializing,
         transform: params.transform,
-        properties: HashMap::new(),
+        properties,
         needs_id_remap: true,  // Mark that this object needs ID remapping
         is_actor,
         replicates: params.replicates,
@@ -136,13 +146,6 @@ pub fn create_object(class_name: &str, params: SpawnParams) -> Result<ObjectId, 
     
     // Register the object with temporary ID
     register_object(object);
-    
-    // Set initial properties in the local cache
-    for (name, value_json) in &params.initial_properties {
-        if let Ok(value) = crate::property::serialization::deserialize_property_value(value_json) {
-            crate::property::cache_property_value(temp_object_id, name, value);
-        }
-    }
     
     // Request the server to create the object
     request_server_create_object(temp_object_id, class_name, &params)?;
@@ -248,37 +251,30 @@ fn handle_object_creation_response(temp_id: ObjectId, response_json: &str) -> Re
     Ok(())
 }
 
-/// Remap a temporary client-generated ID to a server-authorized ID
+/// Remap an object's ID from a temporary client-assigned ID to a server-authoritative ID
 pub fn remap_object_id(temp_id: ObjectId, server_id: ObjectId) -> Result<(), String> {
-    if temp_id == server_id {
-        // No remapping needed
-        return Ok(());
-    }
-    
     let mut objects = CLIENT_OBJECTS.lock().unwrap();
     
-    // Get the object with the temporary ID
     if let Some(mut object) = objects.remove(&temp_id) {
-        // Update the ID and needs_id_remap flag
+        // Update the object ID
         object.id = server_id;
         object.needs_id_remap = false;
-        object.state = ObjectLifecycleState::Active;
         
-        // Insert the object with the new ID
-        objects.insert(server_id, object.clone());
+        // Transfer any cached properties for this object
+        let cached_properties = crate::property::transfer_cached_properties_to_object(server_id);
         
-        // Update property cache to use the new ID
-        crate::property::remap_property_cache(temp_id, server_id);
+        // Merge them with existing properties (server properties take precedence)
+        for (key, value) in cached_properties {
+            object.properties.insert(key, value);
+        }
         
-        info!("Remapped object {} to server ID {}", temp_id, server_id);
+        // Re-insert with new ID
+        objects.insert(server_id, object);
         
-        // Notify callbacks about ID remapping
-        drop(objects); // Release lock before callback
-        crate::ffi::invoke_on_object_id_remapped(temp_id, server_id);
-        
+        debug!("Remapped object from temporary ID {} to server ID {}", temp_id, server_id);
         Ok(())
     } else {
-        Err(format!("Temporary object with ID {} not found for remapping", temp_id))
+        Err(format!("Failed to remap object: temp ID {} not found", temp_id))
     }
 }
 
@@ -344,24 +340,16 @@ fn request_server_destroy_object(object_id: ObjectId, class_name: &str) -> Resul
 
 /// Handle server notification about an object being destroyed
 pub fn handle_server_destroy_notification(object_id: ObjectId) {
-    info!("Received server notification to destroy object {}", object_id);
-    
-    // Update local state
-    let mut objects = CLIENT_OBJECTS.lock().unwrap();
-    
-    if let Some(mut object) = objects.get_mut(&object_id) {
-        // Mark as destroyed
-        object.state = ObjectLifecycleState::Destroyed;
+    // Clean up the object
+    {
+        let mut objects = CLIENT_OBJECTS.lock().unwrap();
+        objects.remove(&object_id);
     }
     
-    // Remove from map
-    objects.remove(&object_id);
+    // Clean up any cached properties
+    crate::property::clear_property_cache(object_id);
     
-    // Clean up property cache
-    crate::property::clear_object_properties(object_id);
-    
-    // Notify FFI callbacks
-    drop(objects); // Release lock before callback
+    // Notify any listeners about the destroyed object
     crate::ffi::invoke_on_object_destroyed(object_id);
 }
 
@@ -383,9 +371,6 @@ pub fn update_object_property(
     property_name: &str,
     value: PropertyValue,
 ) -> Result<(), String> {
-    // Cache the property value
-    crate::property::cache_property_value(object_id, property_name, value.clone());
-    
     // Update the object if it exists
     let mut objects = CLIENT_OBJECTS.lock().unwrap();
     
@@ -464,13 +449,23 @@ pub fn update_object_property(
                 }
             },
             _ => {
-                // Regular property
-                object.properties.insert(property_name.to_string(), value);
+                // Regular property - update in the object's property map
+                object.properties.insert(property_name.to_string(), value.clone());
             }
         }
+        
+        // Since this is an authoritative update, make sure the staging cache is also updated
+        // for any code that might still be using it
+        crate::property::cache_property_value(object_id, property_name, value);
+        
+        Ok(())
+    } else {
+        // If the object doesn't exist yet, store the property in the staging cache
+        // This happens when properties arrive from the server before the object itself
+        crate::property::cache_property_value(object_id, property_name, value);
+        warn!("Object {} not found for property update '{}', storing in staging cache", object_id, property_name);
+        Ok(())
     }
-    
-    Ok(())
 }
 
 /// Register an object in the client registry
@@ -524,8 +519,11 @@ pub fn update_transform(
         if let Some(loc) = location {
             transform.location = loc;
             
-            // Also update the location property in the property system
+            // Update the location property
             let loc_value = PropertyValue::Vector(loc);
+            object.properties.insert("Location".to_string(), loc_value.clone());
+            
+            // Also update the staging cache for consistency
             crate::property::cache_property_value(object_id, "Location", loc_value);
         }
         
@@ -533,8 +531,11 @@ pub fn update_transform(
         if let Some(rot) = rotation {
             transform.rotation = rot;
             
-            // Also update the rotation property in the property system
+            // Update the rotation property
             let rot_value = PropertyValue::Quat(rot);
+            object.properties.insert("Rotation".to_string(), rot_value.clone());
+            
+            // Also update the staging cache for consistency
             crate::property::cache_property_value(object_id, "Rotation", rot_value);
         }
         
@@ -542,8 +543,11 @@ pub fn update_transform(
         if let Some(scl) = scale {
             transform.scale = scl;
             
-            // Also update the scale property in the property system
+            // Update the scale property
             let scale_value = PropertyValue::Vector(scl);
+            object.properties.insert("Scale".to_string(), scale_value.clone());
+            
+            // Also update the staging cache for consistency
             crate::property::cache_property_value(object_id, "Scale", scale_value);
         }
         
@@ -646,4 +650,35 @@ pub fn create_actor(
     params.replicates = replicates;
     
     create_object(class_name, params)
+}
+
+/// Get a property value from an object
+pub fn get_object_property(
+    object_id: ObjectId,
+    property_name: &str,
+) -> Option<PropertyValue> {
+    let objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(object) = objects.get(&object_id) {
+        // Special handling for transform properties
+        match property_name {
+            "Location" => {
+                object.transform.as_ref().map(|t| PropertyValue::Vector(t.location))
+            },
+            "Rotation" => {
+                object.transform.as_ref().map(|t| PropertyValue::Quat(t.rotation))
+            },
+            "Scale" => {
+                object.transform.as_ref().map(|t| PropertyValue::Vector(t.scale))
+            },
+            _ => {
+                // Regular property - check the object's property map
+                object.properties.get(property_name).cloned()
+            }
+        }
+    } else {
+        // If the object doesn't exist in the registry, check the staging cache
+        // This happens during object creation or when properties arrive before objects
+        crate::property::get_cached_property_value(object_id, property_name)
+    }
 } 

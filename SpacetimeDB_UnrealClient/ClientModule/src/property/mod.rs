@@ -2,14 +2,15 @@
 //!
 //! Handles client-side property definitions and values for UObjects.
 //! This module provides the client-side interface for working with 
-//! property values and maintains a cache of object properties.
+//! property values and maintains a staging cache for object properties
+//! that haven't yet been associated with specific objects.
 
 use std::sync::Mutex;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use stdb_shared::object::ObjectId;
 use stdb_shared::property::{PropertyType, PropertyValue, PropertyDefinition};
-use log::{debug, trace};
+use log::{debug, trace, warn};
 
 // Import submodules
 pub mod serialization;
@@ -17,8 +18,12 @@ pub mod serialization;
 // Re-export serialization functions for convenience
 pub use serialization::{serialize_property_value, deserialize_property_value};
 
-// Global property cache
-// Maps ObjectId -> PropertyName -> PropertyValue
+// Property staging cache
+// This cache serves as a temporary storage for property values that:
+// 1. Arrive from the server before their owning object is created
+// 2. Are in transit during object creation
+// 3. Need to be preserved during ID remapping
+// Once associated with an object, properties should be moved to the object's own properties map.
 static PROPERTY_CACHE: Lazy<Mutex<HashMap<ObjectId, HashMap<String, PropertyValue>>>> = 
     Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -75,7 +80,15 @@ pub fn get_property_definition(
         .cloned()
 }
 
-/// Cache a property value
+/// Temporarily cache a property value before it's associated with an object
+/// 
+/// This function is primarily used in three scenarios:
+/// 1. When properties arrive from the server before the object itself is created
+/// 2. During object creation when properties need to be set before the object is fully initialized
+/// 3. During ID remapping to preserve property values
+///
+/// IMPORTANT: For normal property updates on existing objects, use object::update_object_property() instead,
+/// which will handle updating both the client object and this cache if needed.
 pub fn cache_property_value(
     object_id: ObjectId,
     property_name: &str,
@@ -92,7 +105,11 @@ pub fn cache_property_value(
     obj_props.insert(property_name.to_string(), value);
 }
 
-/// Get a cached property value
+/// Get a cached property value from the staging cache
+/// 
+/// This should mainly be used for properties that haven't been associated with 
+/// an object yet. For properties of existing objects, prefer to access the object's
+/// properties directly through the object module.
 pub fn get_cached_property_value(
     object_id: ObjectId,
     property_name: &str,
@@ -103,6 +120,17 @@ pub fn get_cached_property_value(
     cache.get(&object_id)
         .and_then(|props| props.get(property_name))
         .cloned()
+}
+
+/// Move all cached properties for an object to the object's own property map
+/// 
+/// This should be called when an object is fully created to transfer any properties
+/// that were cached before the object existed.
+pub fn transfer_cached_properties_to_object(object_id: ObjectId) -> HashMap<String, PropertyValue> {
+    let mut cache = PROPERTY_CACHE.lock().unwrap();
+    
+    // Remove and return the properties for this object
+    cache.remove(&object_id).unwrap_or_default()
 }
 
 /// Clear property cache for an object
