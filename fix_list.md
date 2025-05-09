@@ -47,8 +47,12 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
         *   [X] Fixed timestamp logic to use proper `destroyed_at` timestamp instead of `created_at`.
         *   [X] Implemented comprehensive cleanup logic for destroying actors, including components, properties, transform data, relevancy data, and RPC handlers.
 
-4.  [ ] **Dynamic Class/Property Discovery (General Server Issue):**
-    *   [ ] Both `ServerModule/src/object/class.rs` and `ServerModule/src/actor/init.rs` rely on hardcoding lists of Unreal classes and some of their properties. A "complete replacement" system would require dynamic discovery and registration of all relevant UClasses and UProperties from the active Unreal project, likely via FFI calls from Unreal to Rust during an initialization phase or a build-time code generation step.
+4.  [X] **Dynamic Class/Property Discovery (General Server Issue):**
+    *   [X] Implemented a proper code generation system where:
+        *   [X] The SpacetimeDBCodeGenerator is the single source of truth for all class definitions (both core engine and game-specific)
+        *   [X] Removed hardcoded class definitions from the Rust codebase
+        *   [X] Updated the code generator to explicitly generate code for both core engine classes and game-specific classes
+        *   [X] Created a clean separation between core engine classes (IDs 1-99) and game-specific classes (IDs 100+)
 
 ## III. Redundancies & Consolidation Issues:
 

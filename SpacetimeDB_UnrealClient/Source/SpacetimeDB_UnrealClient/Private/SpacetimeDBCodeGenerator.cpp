@@ -30,7 +30,9 @@ void USpacetimeDBCodeGenerator::Initialize(FSubsystemCollectionBase& Collection)
     Super::Initialize(Collection);
     
     // Initialize with core class mappings
-    // These match the IDs used in ServerModule/src/object/class.rs
+    // IMPORTANT: This generator is the SINGLE SOURCE OF TRUTH for class IDs!
+    // Both core engine classes (IDs 1-99) and game-specific classes (IDs 100+) 
+    // are defined here and exported to the server module.
     ClassIdMap.Add(TEXT("/Script/CoreUObject.Object"), 1);
     ClassIdMap.Add(TEXT("/Script/Engine.ActorComponent"), 2);
     ClassIdMap.Add(TEXT("/Script/Engine.SceneComponent"), 3);
@@ -89,17 +91,49 @@ bool USpacetimeDBCodeGenerator::GenerateRustClassRegistry(const FString& OutputP
     Lines.Add(TEXT("    log::info!(\"Registering UE classes from code-generated registry\");"));
     Lines.Add(TEXT(""));
 
-    // Register all classes
+    // First register core engine classes (these will have stable IDs 1-99)
+    Lines.Add(TEXT("    // Register core engine classes"));
+    Lines.Add(TEXT("    log::debug!(\"Registering core engine classes\");"));
+    
+    for (const auto& ClassPair : ClassIdMap)
+    {
+        UClass* Class = FindObject<UClass>(ANY_PACKAGE, *FPackageName::GetShortClassName(ClassPair.Key));
+        if (Class)
+        {
+            FString Registration = GenerateClassRegistration(Class, ClassPair.Value);
+            Lines.Add(FString::Printf(TEXT("    // Register %s"), *Class->GetName()));
+            Lines.Add(Registration);
+            Lines.Add(TEXT(""));
+        }
+    }
+    
+    Lines.Add(TEXT("    log::debug!(\"Registered {} core engine classes\", %d);"), ClassIdMap.Num());
+    Lines.Add(TEXT(""));
+
+    // Then register project-specific classes (these will have IDs 100+)
+    Lines.Add(TEXT("    // Register project-specific classes"));
+    Lines.Add(TEXT("    log::debug!(\"Registering project-specific classes\");"));
+    
+    int32 ProjectClassCount = 0;
     for (UClass* Class : RelevantClasses)
     {
+        // Skip classes that are already in the core class map
+        FString ClassPath = Class->GetPathName();
+        if (ClassIdMap.Contains(ClassPath))
+        {
+            continue;
+        }
+
         int32 ClassId = GenerateClassId(Class);
         FString Registration = GenerateClassRegistration(Class, ClassId);
         Lines.Add(FString::Printf(TEXT("    // Register %s"), *Class->GetName()));
         Lines.Add(Registration);
         Lines.Add(TEXT(""));
+        ProjectClassCount++;
     }
 
-    Lines.Add(TEXT("    log::info!(\"Registered {} generated classes\", %d);"), RelevantClasses.Num());
+    Lines.Add(TEXT("    log::debug!(\"Registered {} project-specific classes\", %d);"), ProjectClassCount);
+    Lines.Add(TEXT("    log::info!(\"Registered {} total classes\", %d);"), ClassIdMap.Num() + ProjectClassCount);
     Lines.Add(TEXT("}"));
     Lines.Add(TEXT(""));
 
@@ -109,9 +143,40 @@ bool USpacetimeDBCodeGenerator::GenerateRustClassRegistry(const FString& OutputP
     Lines.Add(TEXT("    log::info!(\"Registering UE class properties from code-generated registry\");"));
     Lines.Add(TEXT(""));
 
-    // Register properties for all classes
+    // First register properties for core engine classes
+    Lines.Add(TEXT("    // Register properties for core engine classes"));
+    Lines.Add(TEXT("    log::debug!(\"Registering core engine class properties\");"));
+    
+    for (const auto& ClassPair : ClassIdMap)
+    {
+        UClass* Class = FindObject<UClass>(ANY_PACKAGE, *FPackageName::GetShortClassName(ClassPair.Key));
+        if (Class)
+        {
+            FString PropertyRegistrations = GeneratePropertyRegistrations(Class, ClassPair.Value);
+            if (!PropertyRegistrations.IsEmpty())
+            {
+                Lines.Add(FString::Printf(TEXT("    // Register properties for %s"), *Class->GetName()));
+                Lines.Add(PropertyRegistrations);
+                Lines.Add(TEXT(""));
+            }
+        }
+    }
+    
+    Lines.Add(TEXT(""));
+    
+    // Then register properties for project-specific classes
+    Lines.Add(TEXT("    // Register properties for project-specific classes"));
+    Lines.Add(TEXT("    log::debug!(\"Registering project-specific class properties\");"));
+    
     for (UClass* Class : RelevantClasses)
     {
+        // Skip classes that are already in the core class map
+        FString ClassPath = Class->GetPathName();
+        if (ClassIdMap.Contains(ClassPath))
+        {
+            continue;
+        }
+
         int32 ClassId = GenerateClassId(Class);
         FString PropertyRegistrations = GeneratePropertyRegistrations(Class, ClassId);
         if (!PropertyRegistrations.IsEmpty())
