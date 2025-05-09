@@ -53,6 +53,14 @@ public:
     bool IsConnected() const;
     
     /**
+     * Gets the SpacetimeDB client ID.
+     * 
+     * @return The client ID as a 64-bit integer, or 0 if not connected
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB")
+    int64 GetSpacetimeDBClientID() const;
+    
+    /**
      * Calls a reducer function on the SpacetimeDB instance with JSON arguments.
      * 
      * @param ReducerName The name of the reducer to call

@@ -96,6 +96,17 @@ FString FSpacetimeDBClient::GetClientIdentity() const
     return UTF8_TO_TCHAR(identityStr.c_str());
 }
 
+uint64 FSpacetimeDBClient::GetClientID() const
+{
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBClient: GetClientID() called while not connected"));
+        return 0;
+    }
+    
+    return stdb::ffi::get_client_id();
+}
+
 // ---- Static callback implementations ----
 
 void FSpacetimeDBClient::OnConnectedCallback()

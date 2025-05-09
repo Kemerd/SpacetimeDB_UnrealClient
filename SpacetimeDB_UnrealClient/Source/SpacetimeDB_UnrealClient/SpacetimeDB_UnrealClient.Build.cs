@@ -13,7 +13,8 @@ public class SpacetimeDB_UnrealClient : ModuleRules
         
         PublicIncludePaths.AddRange(
             new string[] {
-                // ... add public include paths required here ...
+                // Add path to CXX-generated headers
+                Path.Combine(ModuleDirectory, "../../ClientModule/target/cxxbridge")
             }
         );
         
@@ -152,6 +153,21 @@ public class SpacetimeDB_UnrealClient : ModuleRules
                 // Still add the path even if the file doesn't exist yet, as it will be created during build
                 PublicAdditionalLibraries.Add(fullLibPath);
                 Console.WriteLine($"SpacetimeDB: Expected Rust library will be built at: {fullLibPath}");
+            }
+        }
+        
+        // Ensure the CXX header directory exists - create it if needed
+        string cxxHeaderPath = Path.Combine(rustTargetPath, "cxxbridge");
+        if (!Directory.Exists(cxxHeaderPath))
+        {
+            try
+            {
+                Directory.CreateDirectory(cxxHeaderPath);
+                Console.WriteLine($"SpacetimeDB: Created directory for CXX headers: {cxxHeaderPath}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Warning: Failed to create CXX header directory: {e.Message}");
             }
         }
         

@@ -18,6 +18,17 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+REM Verify cxxbridge is installed
+where cxxbridge >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    echo cxxbridge command not found. Installing cxxbridge-cmd...
+    cargo install cxxbridge-cmd
+    if %ERRORLEVEL% neq 0 (
+        echo Failed to install cxxbridge-cmd.
+        exit /b %ERRORLEVEL%
+    )
+)
+
 REM Set build configuration based on UE_BUILD_CONFIGURATION env var if present
 if "%UE_BUILD_CONFIGURATION%"=="Debug" (
     set CARGO_PROFILE=debug
@@ -33,6 +44,19 @@ echo Building with profile: %CARGO_PROFILE%
 
 REM Change to ClientModule directory
 cd "%SCRIPT_DIR%\ClientModule"
+
+REM Create directory for CXX bridge headers if it doesn't exist
+if not exist "target\cxxbridge" (
+    mkdir "target\cxxbridge"
+)
+
+REM Generate CXX bridge headers
+echo Generating CXX bridge headers...
+cxxbridge src\ffi.rs --header > target\cxxbridge\ffi.h
+if %ERRORLEVEL% neq 0 (
+    echo Failed to generate CXX bridge headers.
+    exit /b %ERRORLEVEL%
+)
 
 REM Build the rust library
 echo Running cargo build with profile %CARGO_PROFILE%...

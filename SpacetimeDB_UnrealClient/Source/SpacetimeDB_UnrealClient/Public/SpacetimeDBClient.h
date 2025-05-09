@@ -95,6 +95,13 @@ public:
      */
     FString GetClientIdentity() const;
     
+    /**
+     * Gets the client's numerical ID.
+     * 
+     * @return The client ID as a 64-bit integer, or 0 if not connected
+     */
+    uint64 GetClientID() const;
+    
     /** Delegate that is broadcast when the connection is established */
     FOnConnected OnConnected;
     

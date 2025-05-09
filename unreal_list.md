@@ -10,9 +10,9 @@ This document outlines the tasks required on the Unreal Engine C++ side to fully
 
 ## I. Core FFI Integration & Setup:
 
-1.  [ ] **Build System Integration:**
-    *   [ ] Ensure `SpacetimeDB_UnrealClient.Build.cs` correctly links against the compiled Rust `ClientModule` library (`stdb_client.lib` or `libstdb_client.a`).
-    *   [ ] Manage include paths for the CXX-generated C++ header for the FFI bridge (`ffi.rs` output).
+1.  [X] **Build System Integration:**
+    *   [X] Ensure `SpacetimeDB_UnrealClient.Build.cs` correctly links against the compiled Rust `ClientModule` library (`stdb_client.lib` or `libstdb_client.a`).
+    *   [X] Manage include paths for the CXX-generated C++ header for the FFI bridge (`ffi.rs` output).
 
 2.  [ ] **FFI Initialization & Shutdown:**
     *   [ ] In a central Unreal subsystem (e.g., `USpacetimeDBSubsystem`):
@@ -50,10 +50,10 @@ This document outlines the tasks required on the Unreal Engine C++ side to fully
 
 This subsystem will be the main interface for Unreal C++ and Blueprints to interact with SpacetimeDB.
 
-1.  [ ] **Connection Management:**
-    *   [ ] Expose BlueprintCallable functions: `Connect(FString Host, FString DbName, FString AuthToken)`, `Disconnect()`, `IsConnected() -> bool`, `GetSpacetimeDBClientID() -> int64`.
-    *   [ ] Internally, these will call the FFI functions: `stdb::ffi::connect_to_server`, `stdb::ffi::disconnect_from_server`, `stdb::ffi::is_connected`, `stdb::ffi::get_client_id`.
-    *   [ ] Manage and broadcast Unreal delegates for connection events (e.g., `OnConnectedToSpacetimeDB`, `OnDisconnectedFromSpacetimeDB`, `OnSpacetimeDBError`).
+1.  [X] **Connection Management:**
+    *   [X] Expose BlueprintCallable functions: `Connect(FString Host, FString DbName, FString AuthToken)`, `Disconnect()`, `IsConnected() -> bool`, `GetSpacetimeDBClientID() -> int64`.
+    *   [X] Internally, these will call the FFI functions: `stdb::ffi::connect_to_server`, `stdb::ffi::disconnect_from_server`, `stdb::ffi::is_connected`, `stdb::ffi::get_client_id`.
+    *   [X] Manage and broadcast Unreal delegates for connection events (e.g., `OnConnectedToSpacetimeDB`, `OnDisconnectedFromSpacetimeDB`, `OnSpacetimeDBError`).
 
 2.  [ ] **Object & Actor Lifecycle Management (Client-Side Mirroring):**
     *   [ ] Maintain a TMap of `uint64 (ObjectId)` to `UObject*` (or a custom C++ wrapper class) for all replicated objects/actors known to the client.

@@ -79,6 +79,20 @@ bool USpacetimeDBSubsystem::IsConnected() const
     return Client.IsConnected();
 }
 
+int64 USpacetimeDBSubsystem::GetSpacetimeDBClientID() const
+{
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: GetSpacetimeDBClientID() called while not connected"));
+        return 0;
+    }
+
+    // Get client ID from the client wrapper
+    uint64 ClientID = Client.GetClientID();
+    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: GetSpacetimeDBClientID() returning %llu"), ClientID);
+    return static_cast<int64>(ClientID);
+}
+
 bool USpacetimeDBSubsystem::CallReducer(const FString& ReducerName, const FString& ArgsJson)
 {
     UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: CallReducer(%s, %s)"), *ReducerName, *ArgsJson);
