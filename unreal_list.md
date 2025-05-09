@@ -138,15 +138,15 @@ This subsystem will be the main interface for Unreal C++ and Blueprints to inter
         *   [X] Spawn/destroy actual `UActorComponent` instances on the client when the server signals component changes for an actor.
         *   [X] Handle replicated properties on these components.
 
-5.  [ ] **Error Handling & Logging:**
-    *   [ ] Properly handle errors returned from FFI calls.
-    *   [ ] Log SpacetimeDB events and errors using Unreal's logging system (`UE_LOG`).
-    *   [ ] Expose errors from `on_error_occurred` callback to game code/UI.
+5.  [X] **Error Handling & Logging:**
+    *   [X] Properly handle errors returned from FFI calls.
+    *   [X] Log SpacetimeDB events and errors using Unreal's logging system (`UE_LOG`).
+    *   [X] Expose errors from `on_error_occurred` callback to game code/UI.
 
 6.  [ ] **Threading Model:**
     *   [ ] Ensure all interactions with Unreal Engine objects (UObjects, Actors, UI) from FFI callbacks or network threads are done on the Game Thread.
 
-7.  [ ] **Configuration:**
-    *   [ ] Provide UProject settings (e.g., in Project Settings -> Plugins -> SpacetimeDB) for `SPACETIME_HOST`, `SPACETIME_DBNAME`, `SPACETIME_AUTH_TOKEN`, etc., and read these to configure the connection.
+7.  [X] **Configuration:**
+    *   [X] Provide UProject settings (e.g., in Project Settings -> Plugins -> SpacetimeDB) for `SPACETIME_HOST`, `SPACETIME_DBNAME`, `SPACETIME_AUTH_TOKEN`, etc., and read these to configure the connection.
 
 This list is comprehensive and assumes the goal is to match the full feature set implied by the `README.md` and a typical Unreal replication system. The actual C++ work will scale with how completely the Rust modules are implemented. 
