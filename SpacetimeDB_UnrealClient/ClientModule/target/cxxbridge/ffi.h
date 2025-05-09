@@ -1,0 +1,183 @@
+#pragma once
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <type_traits>
+
+namespace rust {
+inline namespace cxxbridge1 {
+// #include "rust/cxx.h"
+
+struct unsafe_bitcopy_t;
+
+#ifndef CXXBRIDGE1_RUST_STRING
+#define CXXBRIDGE1_RUST_STRING
+class String final {
+public:
+  String() noexcept;
+  String(const String &) noexcept;
+  String(String &&) noexcept;
+  ~String() noexcept;
+
+  String(const std::string &);
+  String(const char *);
+  String(const char *, std::size_t);
+  String(const char16_t *);
+  String(const char16_t *, std::size_t);
+#ifdef __cpp_char8_t
+  String(const char8_t *s);
+  String(const char8_t *s, std::size_t len);
+#endif
+
+  static String lossy(const std::string &) noexcept;
+  static String lossy(const char *) noexcept;
+  static String lossy(const char *, std::size_t) noexcept;
+  static String lossy(const char16_t *) noexcept;
+  static String lossy(const char16_t *, std::size_t) noexcept;
+
+  String &operator=(const String &) & noexcept;
+  String &operator=(String &&) & noexcept;
+
+  explicit operator std::string() const;
+
+  const char *data() const noexcept;
+  std::size_t size() const noexcept;
+  std::size_t length() const noexcept;
+  bool empty() const noexcept;
+
+  const char *c_str() noexcept;
+
+  std::size_t capacity() const noexcept;
+  void reserve(size_t new_cap) noexcept;
+
+  using iterator = char *;
+  iterator begin() noexcept;
+  iterator end() noexcept;
+
+  using const_iterator = const char *;
+  const_iterator begin() const noexcept;
+  const_iterator end() const noexcept;
+  const_iterator cbegin() const noexcept;
+  const_iterator cend() const noexcept;
+
+  bool operator==(const String &) const noexcept;
+  bool operator!=(const String &) const noexcept;
+  bool operator<(const String &) const noexcept;
+  bool operator<=(const String &) const noexcept;
+  bool operator>(const String &) const noexcept;
+  bool operator>=(const String &) const noexcept;
+
+  void swap(String &) noexcept;
+
+  String(unsafe_bitcopy_t, const String &) noexcept;
+
+private:
+  struct lossy_t;
+  String(lossy_t, const char *, std::size_t) noexcept;
+  String(lossy_t, const char16_t *, std::size_t) noexcept;
+  friend void swap(String &lhs, String &rhs) noexcept { lhs.swap(rhs); }
+
+  std::array<std::uintptr_t, 3> repr;
+};
+#endif // CXXBRIDGE1_RUST_STRING
+} // namespace cxxbridge1
+} // namespace rust
+
+#if __cplusplus >= 201402L
+#define CXX_DEFAULT_VALUE(value) = value
+#else
+#define CXX_DEFAULT_VALUE(value)
+#endif
+
+namespace stdb {
+  namespace ffi {
+    struct ConnectionConfig;
+    struct EventCallbackPointers;
+  }
+}
+
+namespace stdb {
+namespace ffi {
+#ifndef CXXBRIDGE1_STRUCT_stdb$ffi$ConnectionConfig
+#define CXXBRIDGE1_STRUCT_stdb$ffi$ConnectionConfig
+struct ConnectionConfig final {
+  ::rust::String host;
+  ::rust::String db_name;
+  ::rust::String auth_token;
+
+  using IsRelocatable = ::std::true_type;
+};
+#endif // CXXBRIDGE1_STRUCT_stdb$ffi$ConnectionConfig
+
+#ifndef CXXBRIDGE1_STRUCT_stdb$ffi$EventCallbackPointers
+#define CXXBRIDGE1_STRUCT_stdb$ffi$EventCallbackPointers
+struct EventCallbackPointers final {
+  ::std::size_t on_connected CXX_DEFAULT_VALUE(0);
+  ::std::size_t on_disconnected CXX_DEFAULT_VALUE(0);
+  ::std::size_t on_property_updated CXX_DEFAULT_VALUE(0);
+  ::std::size_t on_object_created CXX_DEFAULT_VALUE(0);
+  ::std::size_t on_object_destroyed CXX_DEFAULT_VALUE(0);
+  ::std::size_t on_error_occurred CXX_DEFAULT_VALUE(0);
+  ::std::size_t on_object_id_remapped CXX_DEFAULT_VALUE(0);
+
+  using IsRelocatable = ::std::true_type;
+};
+#endif // CXXBRIDGE1_STRUCT_stdb$ffi$EventCallbackPointers
+
+bool connect_to_server(::stdb::ffi::ConnectionConfig config, ::stdb::ffi::EventCallbackPointers callbacks) noexcept;
+
+bool disconnect_from_server() noexcept;
+
+bool is_connected() noexcept;
+
+bool set_property(::std::uint64_t object_id, ::std::string const &property_name, ::std::string const &value_json, bool replicate) noexcept;
+
+::std::unique_ptr<::std::string> get_property(::std::uint64_t object_id, ::std::string const &property_name) noexcept;
+
+::std::uint64_t create_object(::std::string const &class_name, ::std::string const &params_json) noexcept;
+
+bool destroy_object(::std::uint64_t object_id) noexcept;
+
+bool add_component(::std::uint64_t actor_id, ::std::uint64_t component_id) noexcept;
+
+bool remove_component(::std::uint64_t actor_id, ::std::uint64_t component_id) noexcept;
+
+::std::unique_ptr<::std::string> get_components(::std::uint64_t actor_id) noexcept;
+
+::std::uint64_t get_component_by_class(::std::uint64_t actor_id, ::std::string const &class_name) noexcept;
+
+bool is_component(::std::uint64_t object_id) noexcept;
+
+::std::uint64_t get_component_owner(::std::uint64_t component_id) noexcept;
+
+::std::uint64_t create_and_attach_component(::std::uint64_t actor_id, ::std::string const &component_class) noexcept;
+
+::std::unique_ptr<::std::string> get_component_property(::std::uint64_t actor_id, ::std::string const &component_class, ::std::string const &property_name) noexcept;
+
+bool set_component_property(::std::uint64_t actor_id, ::std::string const &component_class, ::std::string const &property_name, ::std::string const &value_json) noexcept;
+
+bool call_server_function(::std::uint64_t object_id, ::std::string const &function_name, ::std::string const &args_json) noexcept;
+
+bool register_client_function(::std::string const &function_name, ::std::size_t handler_ptr) noexcept;
+
+::std::uint64_t get_client_id() noexcept;
+
+::std::unique_ptr<::std::string> get_object_class(::std::uint64_t object_id) noexcept;
+
+::std::size_t get_property_definition_count() noexcept;
+
+bool has_property_definitions_for_class(::std::string const &class_name) noexcept;
+
+::std::unique_ptr<::std::string> get_property_names_for_class(::std::string const &class_name) noexcept;
+
+::std::unique_ptr<::std::string> get_registered_class_names() noexcept;
+
+bool import_property_definitions_from_json(::std::string const &json_str) noexcept;
+
+::std::unique_ptr<::std::string> export_property_definitions_as_json() noexcept;
+
+::std::unique_ptr<::std::string> get_property_definition(::std::string const &class_name, ::std::string const &property_name) noexcept;
+} // namespace ffi
+} // namespace stdb

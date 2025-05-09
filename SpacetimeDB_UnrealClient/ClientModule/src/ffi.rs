@@ -3,7 +3,7 @@
 //! Foreign Function Interface layer that bridges between Rust and C++ code.
 //! This provides the integration between our Rust client module and Unreal Engine.
 
-use cxx::{CxxString, CxxVector};
+use cxx::{CxxString, CxxVector, UniquePtr};
 use std::sync::{Arc, Mutex};
 use std::str::FromStr;
 use std::collections::HashMap;
@@ -145,7 +145,7 @@ mod bridge {
         
         // Property management
         fn set_property(object_id: u64, property_name: &CxxString, value_json: &CxxString, replicate: bool) -> bool;
-        fn get_property(object_id: u64, property_name: &CxxString) -> CxxString;
+        fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxString>;
         
         // Object management
         fn create_object(class_name: &CxxString, params_json: &CxxString) -> u64;
@@ -154,12 +154,12 @@ mod bridge {
         // Component management
         fn add_component(actor_id: u64, component_id: u64) -> bool;
         fn remove_component(actor_id: u64, component_id: u64) -> bool;
-        fn get_components(actor_id: u64) -> CxxString;
+        fn get_components(actor_id: u64) -> UniquePtr<CxxString>;
         fn get_component_by_class(actor_id: u64, class_name: &CxxString) -> u64;
         fn is_component(object_id: u64) -> bool;
         fn get_component_owner(component_id: u64) -> u64;
         fn create_and_attach_component(actor_id: u64, component_class: &CxxString) -> u64;
-        fn get_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString) -> CxxString;
+        fn get_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString>;
         fn set_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString, value_json: &CxxString) -> bool;
         
         // RPC (Remote Procedure Calls)
@@ -168,16 +168,16 @@ mod bridge {
         
         // Utility functions
         fn get_client_id() -> u64;
-        fn get_object_class(object_id: u64) -> CxxString;
+        fn get_object_class(object_id: u64) -> UniquePtr<CxxString>;
         
         // Property definition functions
         fn get_property_definition_count() -> usize;
         fn has_property_definitions_for_class(class_name: &CxxString) -> bool;
-        fn get_property_names_for_class(class_name: &CxxString) -> CxxString;
-        fn get_registered_class_names() -> CxxString;
+        fn get_property_names_for_class(class_name: &CxxString) -> UniquePtr<CxxString>;
+        fn get_registered_class_names() -> UniquePtr<CxxString>;
         fn import_property_definitions_from_json(json_str: &CxxString) -> bool;
-        fn export_property_definitions_as_json() -> CxxString;
-        fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> CxxString;
+        fn export_property_definitions_as_json() -> UniquePtr<CxxString>;
+        fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString>;
     }
 }
 
@@ -314,18 +314,18 @@ fn set_property(object_id: u64, property_name: &CxxString, value_json: &CxxStrin
 }
 
 /// Get a property from an object
-fn get_property(object_id: u64, property_name: &CxxString) -> CxxString {
+fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxString> {
     let prop_name = property_name.to_string();
     
     // Look up the property
     if let Some(value) = property::get_cached_property_value(object_id, &prop_name) {
         // Serialize to JSON
         match property::serialization::serialize_property_value(&value) {
-            Ok(json) => CxxString::new(&json),
-            Err(_) => CxxString::new(""),
+            Ok(json) => CxxString::make_unique(&json),
+            Err(_) => CxxString::make_unique(""),
         }
     } else {
-        CxxString::new("")
+        CxxString::make_unique("")
     }
 }
 
@@ -427,10 +427,10 @@ fn get_client_id() -> u64 {
 }
 
 /// Get an object's class name
-fn get_object_class(object_id: u64) -> CxxString {
+fn get_object_class(object_id: u64) -> UniquePtr<CxxString> {
     match object::get_object_class(object_id) {
-        Some(class_name) => CxxString::new(&class_name),
-        None => CxxString::new(""),
+        Some(class_name) => CxxString::make_unique(&class_name),
+        None => CxxString::make_unique(""),
     }
 }
 
@@ -446,25 +446,25 @@ fn has_property_definitions_for_class(class_name: &CxxString) -> bool {
 }
 
 /// Get property names for a specific class as a JSON array
-fn get_property_names_for_class(class_name: &CxxString) -> CxxString {
+fn get_property_names_for_class(class_name: &CxxString) -> UniquePtr<CxxString> {
     let class_name_str = class_name.to_string();
     let prop_names = crate::get_property_names_for_class(&class_name_str);
     
     // Convert to JSON array
     match serde_json::to_string(&prop_names) {
-        Ok(json) => CxxString::new(&json),
-        Err(_) => CxxString::new("[]"),
+        Ok(json) => CxxString::make_unique(&json),
+        Err(_) => CxxString::make_unique("[]"),
     }
 }
 
 /// Get all registered class names as a JSON array
-fn get_registered_class_names() -> CxxString {
+fn get_registered_class_names() -> UniquePtr<CxxString> {
     let class_names = crate::get_registered_class_names();
     
     // Convert to JSON array
     match serde_json::to_string(&class_names) {
-        Ok(json) => CxxString::new(&json),
-        Err(_) => CxxString::new("[]"),
+        Ok(json) => CxxString::make_unique(&json),
+        Err(_) => CxxString::make_unique("[]"),
     }
 }
 
@@ -484,15 +484,15 @@ fn import_property_definitions_from_json(json_str: &CxxString) -> bool {
 }
 
 /// Export all property definitions as a JSON string
-fn export_property_definitions_as_json() -> CxxString {
+fn export_property_definitions_as_json() -> UniquePtr<CxxString> {
     match crate::export_property_definitions_as_json() {
-        Ok(json) => CxxString::new(&json),
-        Err(_) => CxxString::new("{}"),
+        Ok(json) => CxxString::make_unique(&json),
+        Err(_) => CxxString::make_unique("{}"),
     }
 }
 
 /// Get a property definition as a JSON object
-fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> CxxString {
+fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString> {
     let class_name_str = class_name.to_string();
     let property_name_str = property_name.to_string();
     
@@ -509,11 +509,11 @@ fn get_property_definition(class_name: &CxxString, property_name: &CxxString) ->
             });
             
             match serde_json::to_string(&json) {
-                Ok(json_str) => CxxString::new(&json_str),
-                Err(_) => CxxString::new("{}"),
+                Ok(json_str) => CxxString::make_unique(&json_str),
+                Err(_) => CxxString::make_unique("{}"),
             }
         },
-        None => CxxString::new("{}"),
+        None => CxxString::make_unique("{}"),
     }
 }
 
@@ -540,15 +540,15 @@ fn remove_component(actor_id: u64, component_id: u64) -> bool {
 }
 
 /// Get all components attached to an actor as a JSON array of object IDs
-fn get_components(actor_id: u64) -> CxxString {
+fn get_components(actor_id: u64) -> UniquePtr<CxxString> {
     match object::get_components(actor_id) {
         Ok(components) => {
             match serde_json::to_string(&components) {
-                Ok(json) => json.into(),
-                Err(_) => "[]".into(), 
+                Ok(json) => CxxString::make_unique(&json),
+                Err(_) => CxxString::make_unique("[]"), 
             }
         },
-        Err(_) => "[]".into(),
+        Err(_) => CxxString::make_unique("[]"),
     }
 }
 
@@ -587,21 +587,21 @@ fn create_and_attach_component(actor_id: u64, component_class: &CxxString) -> u6
 }
 
 /// Get a property from a component
-fn get_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString) -> CxxString {
+fn get_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString> {
     match object::get_component_property(actor_id, component_class, property_name) {
         Ok(value_opt) => {
             match value_opt {
                 Some(value) => {
                     // Serialize the property value to JSON
                     match property::serialization::serialize_property_value(&value) {
-                        Ok(json) => json.into(),
-                        Err(_) => "null".into(),
+                        Ok(json) => CxxString::make_unique(&json),
+                        Err(_) => CxxString::make_unique("null"),
                     }
                 },
-                None => "null".into(),
+                None => CxxString::make_unique("null"),
             }
         },
-        Err(_) => "null".into(),
+        Err(_) => CxxString::make_unique("null"),
     }
 }
 
