@@ -20,7 +20,6 @@ public class SpacetimeDB_UnrealClient : ModuleRules
         PrivateIncludePaths.AddRange(
             new string[] {
                 // ... add private include paths required here ...
-                Path.Combine(ModuleDirectory, "../../rust")
             }
         );
         
@@ -84,7 +83,7 @@ public class SpacetimeDB_UnrealClient : ModuleRules
             }
             
             // Full path to the build script
-            string rustBuildScriptPath = Path.Combine(ModuleDirectory, "../../rust", rustBuildScript);
+            string rustBuildScriptPath = Path.Combine(ModuleDirectory, "../../", rustBuildScript);
             
             // Make sure the script is executable on Unix platforms
             if (Target.Platform != UnrealTargetPlatform.Win64)
@@ -116,7 +115,7 @@ public class SpacetimeDB_UnrealClient : ModuleRules
         }
         
         // Add Rust library path and header include path
-        string rustTargetPath = Path.Combine(ModuleDirectory, "../../rust/target");
+        string rustTargetPath = Path.Combine(ModuleDirectory, "../../ClientModule/target");
         string configFolder = (Target.Configuration == UnrealTargetConfiguration.Debug ||
                               Target.Configuration == UnrealTargetConfiguration.DebugGame) ? "debug" : "release";
         string rustLibPath = Path.Combine(rustTargetPath, configFolder);
@@ -125,11 +124,11 @@ public class SpacetimeDB_UnrealClient : ModuleRules
         string libName = "";
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
-            libName = "spacetimedb_client.lib";
+            libName = "stdb_client.lib";
         }
         else if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.Linux)
         {
-            libName = "libspacetimedb_client.a";
+            libName = "libstdb_client.a";
         }
         
         // Add the Rust library to link against
