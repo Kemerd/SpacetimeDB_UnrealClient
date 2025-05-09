@@ -12,12 +12,19 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "SpacetimeDBPropertyHelper.h"
+#include "SpacetimeDB_JsonUtils.h"
+
+// Static map to store subsystem instances by world context
+static TMap<const UObject*, USpacetimeDBSubsystem*> GSubsystemInstances;
 
 void USpacetimeDBSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     
     UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Initializing"));
+    
+    // Store reference to this instance by GetWorld()
+    GSubsystemInstances.Add(GetGameInstance(), this);
     
     // Register for client events
     OnConnectedHandle = Client.OnConnected.AddUObject(this, &USpacetimeDBSubsystem::HandleConnected);
@@ -36,6 +43,9 @@ void USpacetimeDBSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void USpacetimeDBSubsystem::Deinitialize()
 {
     UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Deinitializing"));
+    
+    // Remove this instance from the global map
+    GSubsystemInstances.Remove(GetGameInstance());
     
     // Disconnect if still connected
     if (IsConnected())
@@ -854,4 +864,382 @@ bool USpacetimeDBSubsystem::SendPropertyUpdateToServer(int64 ObjectId, const FSt
     UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Sending property update to server - Object ID: %lld, Property: %s"), 
         ObjectId, *PropertyName);
     return Client.CallReducer("set_property", ParamsJsonStr);
+}
+
+// RPC System Implementation
+
+bool USpacetimeDBSubsystem::CallServerFunctionOnObject(UObject* TargetObject, const FString& FunctionName, const TArray<FStdbRpcArg>& Args)
+{
+    if (!TargetObject)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Target object is null"));
+        return false;
+    }
+    
+    int64 ObjectId = GetObjectId(TargetObject);
+    if (ObjectId == 0)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Object %s is not registered with SpacetimeDB"), 
+               *TargetObject->GetName());
+        return false;
+    }
+    
+    return CallServerFunction(ObjectId, FunctionName, Args);
+}
+
+bool USpacetimeDBSubsystem::CallServerFunction(int64 ObjectId, const FString& FunctionName, const TArray<FStdbRpcArg>& Args)
+{
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunction - Not connected to SpacetimeDB"));
+        return false;
+    }
+    
+    if (ObjectId == 0)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunction - Invalid object ID (0)"));
+        return false;
+    }
+    
+    if (FunctionName.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: CallServerFunction - Function name is empty"));
+        return false;
+    }
+    
+    // Serialize RPC arguments to JSON
+    FString ArgsJson = SerializeRpcArguments(Args);
+    
+    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Calling server function %s on object %lld with args: %s"), 
+           *FunctionName, ObjectId, *ArgsJson);
+    
+    // Call the FFI function
+    bool bSuccess = stdb::ffi::call_server_function(ObjectId, FunctionName.GetData(), ArgsJson.GetData());
+    
+    if (!bSuccess)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to call server function %s on object %lld"), 
+               *FunctionName, ObjectId);
+    }
+    
+    return bSuccess;
+}
+
+bool USpacetimeDBSubsystem::RegisterClientFunctionWithFFI(const FString& FunctionName)
+{
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RegisterClientFunctionWithFFI - Not connected to SpacetimeDB"));
+        return false;
+    }
+    
+    if (FunctionName.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: RegisterClientFunctionWithFFI - Function name is empty"));
+        return false;
+    }
+    
+    // Register the static callback function with the FFI
+    bool bSuccess = stdb::ffi::register_client_function(
+        FunctionName.GetData(), 
+        reinterpret_cast<uintptr_t>(&USpacetimeDBSubsystem::HandleClientRpcFromFFI)
+    );
+    
+    if (!bSuccess)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to register client function %s with FFI"), 
+               *FunctionName);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Successfully registered client function %s with FFI"), 
+               *FunctionName);
+    }
+    
+    return bSuccess;
+}
+
+bool USpacetimeDBSubsystem::HandleClientRpcFromFFI(uint64 ObjectId, const char* ArgsJson)
+{
+    // This is a static function called from FFI, so we need to find the appropriate subsystem instance
+    UGameInstance* GameInstance = nullptr;
+    
+    // Find all game instances
+    for (TObjectIterator<UGameInstance> It; It; ++It)
+    {
+        GameInstance = *It;
+        if (GameInstance && !GameInstance->IsPendingKill() && GameInstance->GetWorld() && GameInstance->GetWorld()->IsGameWorld())
+        {
+            break;
+        }
+    }
+    
+    if (!GameInstance)
+    {
+        UE_LOG(LogTemp, Error, TEXT("HandleClientRpcFromFFI: Failed to find valid game instance"));
+        return false;
+    }
+    
+    USpacetimeDBSubsystem* Subsystem = GSubsystemInstances.FindRef(GameInstance);
+    if (!Subsystem)
+    {
+        UE_LOG(LogTemp, Error, TEXT("HandleClientRpcFromFFI: Failed to find SpacetimeDBSubsystem for game instance"));
+        return false;
+    }
+    
+    // Parse the args JSON to extract the function name
+    FString ArgsJsonStr = UTF8_TO_TCHAR(ArgsJson);
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ArgsJsonStr);
+    
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("HandleClientRpcFromFFI: Failed to parse args JSON: %s"), *ArgsJsonStr);
+        return false;
+    }
+    
+    FString FunctionName;
+    if (!JsonObject->TryGetStringField("function", FunctionName) || FunctionName.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("HandleClientRpcFromFFI: Args JSON missing 'function' field: %s"), *ArgsJsonStr);
+        return false;
+    }
+    
+    // Extract the arguments if present
+    TSharedPtr<FJsonObject> ArgsObj;
+    if (!JsonObject->TryGetObjectField("args", ArgsObj))
+    {
+        ArgsObj = MakeShared<FJsonObject>();
+    }
+    
+    // Hand off to the appropriate subsystem instance on the game thread
+    AsyncTask(ENamedThreads::GameThread, [Subsystem, ObjectId, FunctionName, ArgsObj]() {
+        Subsystem->HandleClientRpc(ObjectId, FunctionName, ArgsObj);
+    });
+    
+    return true;
+}
+
+void USpacetimeDBSubsystem::HandleClientRpc(uint64 ObjectId, const FString& FunctionName, TSharedPtr<FJsonObject> ArgsObj)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Received client RPC %s for object %llu"), *FunctionName, ObjectId);
+    
+    // Serialize the arguments to a JSON string for ParseRpcArguments
+    FString ArgsJson;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ArgsJson);
+    FJsonSerializer::Serialize(ArgsObj.ToSharedRef(), Writer);
+    
+    // Parse the arguments into a more usable format
+    TArray<FStdbRpcArg> Args = ParseRpcArguments(ArgsJson);
+    
+    // Find the registered handler for this function
+    if (ClientRpcHandlers.Contains(FunctionName))
+    {
+        // Call the handler
+        ClientRpcHandlers[FunctionName](ObjectId, Args);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: No handler registered for RPC function %s"), *FunctionName);
+    }
+    
+    // Also broadcast the event for Blueprint listeners
+    OnServerRpcReceived.Broadcast(ObjectId, FunctionName, Args);
+}
+
+TArray<FStdbRpcArg> USpacetimeDBSubsystem::ParseRpcArguments(const FString& ArgsJson)
+{
+    TArray<FStdbRpcArg> Args;
+    
+    // Parse the JSON string
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ArgsJson);
+    
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("ParseRpcArguments: Failed to parse JSON: %s"), *ArgsJson);
+        return Args;
+    }
+    
+    // Extract each field as an argument
+    for (auto& Pair : JsonObject->Values)
+    {
+        FStdbRpcArg Arg;
+        Arg.Name = Pair.Key;
+        
+        // Determine the type and value based on the JSON value
+        if (Pair.Value->Type == EJson::Null)
+        {
+            Arg.Type = ESpacetimeDBValueType::Null;
+        }
+        else if (Pair.Value->Type == EJson::Boolean)
+        {
+            Arg.Type = ESpacetimeDBValueType::Bool;
+            Arg.Value.SetBool(Pair.Value->AsBool());
+        }
+        else if (Pair.Value->Type == EJson::Number)
+        {
+            // Check if it's an integer or float
+            double NumValue = Pair.Value->AsNumber();
+            if (FMath::Frac(NumValue) == 0.0 && NumValue <= INT32_MAX && NumValue >= INT32_MIN)
+            {
+                Arg.Type = ESpacetimeDBValueType::Int;
+                Arg.Value.SetInt(static_cast<int32>(NumValue));
+            }
+            else
+            {
+                Arg.Type = ESpacetimeDBValueType::Float;
+                Arg.Value.SetFloat(static_cast<float>(NumValue));
+            }
+        }
+        else if (Pair.Value->Type == EJson::String)
+        {
+            Arg.Type = ESpacetimeDBValueType::String;
+            Arg.Value.SetString(Pair.Value->AsString());
+        }
+        else if (Pair.Value->Type == EJson::Object)
+        {
+            // JSON object - store as string representation
+            Arg.Type = ESpacetimeDBValueType::CustomJson;
+            FString JsonStr;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonStr);
+            FJsonSerializer::Serialize(Pair.Value->AsObject().ToSharedRef(), Writer);
+            Arg.Value.SetCustomJson(JsonStr);
+        }
+        else if (Pair.Value->Type == EJson::Array)
+        {
+            // JSON array - store as string representation
+            Arg.Type = ESpacetimeDBValueType::ArrayJson;
+            FString JsonStr;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonStr);
+            FJsonSerializer::Serialize(Pair.Value->AsArray(), Writer);
+            Arg.Value.SetArrayJson(JsonStr);
+        }
+        
+        Args.Add(Arg);
+    }
+    
+    return Args;
+}
+
+FString USpacetimeDBSubsystem::SerializeRpcArguments(const TArray<FStdbRpcArg>& Args)
+{
+    TSharedPtr<FJsonObject> JsonObject = MakeShared<FJsonObject>();
+    
+    // Add each argument to the JSON object
+    for (const FStdbRpcArg& Arg : Args)
+    {
+        switch (Arg.Type)
+        {
+            case ESpacetimeDBValueType::Null:
+                JsonObject->SetField(Arg.Name, MakeShared<FJsonValueNull>());
+                break;
+                
+            case ESpacetimeDBValueType::Bool:
+                JsonObject->SetBoolField(Arg.Name, Arg.Value.GetBool());
+                break;
+                
+            case ESpacetimeDBValueType::Int:
+                JsonObject->SetNumberField(Arg.Name, Arg.Value.GetInt());
+                break;
+                
+            case ESpacetimeDBValueType::Float:
+                JsonObject->SetNumberField(Arg.Name, Arg.Value.GetFloat());
+                break;
+                
+            case ESpacetimeDBValueType::String:
+                JsonObject->SetStringField(Arg.Name, Arg.Value.GetString());
+                break;
+                
+            case ESpacetimeDBValueType::CustomJson:
+            {
+                // Parse the custom JSON string and add it as an object
+                TSharedPtr<FJsonObject> CustomObj;
+                TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Arg.Value.GetCustomJson());
+                if (FJsonSerializer::Deserialize(Reader, CustomObj) && CustomObj.IsValid())
+                {
+                    JsonObject->SetObjectField(Arg.Name, CustomObj);
+                }
+                else
+                {
+                    // Fallback to string if parsing fails
+                    JsonObject->SetStringField(Arg.Name, Arg.Value.GetCustomJson());
+                }
+                break;
+            }
+                
+            case ESpacetimeDBValueType::ArrayJson:
+            {
+                // Parse the array JSON string and add it as an array
+                TArray<TSharedPtr<FJsonValue>> ArrayValues;
+                TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Arg.Value.GetArrayJson());
+                if (FJsonSerializer::Deserialize(Reader, ArrayValues))
+                {
+                    JsonObject->SetArrayField(Arg.Name, ArrayValues);
+                }
+                else
+                {
+                    // Fallback to string if parsing fails
+                    JsonObject->SetStringField(Arg.Name, Arg.Value.GetArrayJson());
+                }
+                break;
+            }
+                
+            default:
+                // For unsupported types, add as null
+                JsonObject->SetField(Arg.Name, MakeShared<FJsonValueNull>());
+                break;
+        }
+    }
+    
+    // Serialize the JSON object to a string
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer);
+    
+    return OutputString;
+}
+
+int64 USpacetimeDBSubsystem::GetObjectId(UObject* Object) const
+{
+    if (!Object)
+    {
+        return 0;
+    }
+    
+    const int64* ObjectId = ObjectToIdMap.Find(Object);
+    if (ObjectId)
+    {
+        return *ObjectId;
+    }
+    
+    return 0;
+}
+
+FString USpacetimeDBSubsystem::GetPropertyJsonValue(int64 ObjectId, const FString& PropertyName) const
+{
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: GetPropertyJsonValue - Not connected to SpacetimeDB"));
+        return FString();
+    }
+    
+    // Call the FFI function
+    FString ValueJson = stdb::ffi::get_property(ObjectId, PropertyName.GetData());
+    
+    return ValueJson;
+}
+
+FSpacetimeDBPropertyValue USpacetimeDBSubsystem::GetPropertyValue(int64 ObjectId, const FString& PropertyName) const
+{
+    FString ValueJson = GetPropertyJsonValue(ObjectId, PropertyName);
+    
+    FSpacetimeDBPropertyValue PropertyValue;
+    if (!ValueJson.IsEmpty())
+    {
+        // Parse the JSON value to determine the appropriate property type
+        USpacetimeDBPropertyHelper::JsonToPropertyValue(ValueJson, PropertyValue);
+    }
+    
+    return PropertyValue;
 } 

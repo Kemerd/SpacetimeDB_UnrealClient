@@ -97,23 +97,23 @@ This subsystem will be the main interface for Unreal C++ and Blueprints to inter
             *   [X] Call `stdb::ffi::set_property(objectId, propertyName, valueJson, bReplicateToServer)`.
         *   [X] This requires a system to hook into Unreal's property system or for game code to explicitly call this.
 
-4.  [ ] **RPC Handling:**
-    *   [ ] **Calling Server RPCs:**
-        *   [ ] Provide C++/Blueprint functions like `CallServerFunction(UObject* TargetObject, FName FunctionName, const TArray<FStdbRpcArg>& Args)`.
-        *   [ ] This function will:
-            *   [ ] Get `ObjectId` for `TargetObject`.
-            *   [ ] Serialize `Args` into a JSON string.
-            *   [ ] Call `stdb::ffi::call_server_function(objectId, functionNameStr, argsJson)`.
-    *   [ ] **Receiving Server-to-Client RPCs:**
-        *   [ ] The `ClientModule/src/net/mod.rs` needs to be fixed to parse incoming RPC messages and trigger `ClientModule/src/rpc/mod.rs::handle_server_call`.
-        *   [ ] `ClientModule/src/rpc/mod.rs::handle_server_call` then invokes a registered Rust handler.
-        *   [ ] To get this to C++, the `ClientModule/src/ffi.rs::register_client_function` allows C++ to pass a function pointer.
-        *   [ ] C++ needs to register static wrapper functions (similar to event callbacks) for each client-callable RPC.
-        *   [ ] These C++ RPC handler wrappers will:
-            *   [ ] Receive `ObjectId`, `FunctionName`, `ArgsJson`.
-            *   [ ] Find the target `UObject*`.
-            *   [ ] Deserialize `ArgsJson` into appropriate C++ types.
-            *   [ ] Call the actual UFunction on the `UObject` (e.g., via `ProcessEvent` or direct C++ call if possible).
+4.  [X] **RPC Handling:**
+    *   [X] **Calling Server RPCs:**
+        *   [X] Provide C++/Blueprint functions like `CallServerFunction(UObject* TargetObject, FName FunctionName, const TArray<FStdbRpcArg>& Args)`.
+        *   [X] This function will:
+            *   [X] Get `ObjectId` for `TargetObject`.
+            *   [X] Serialize `Args` into a JSON string.
+            *   [X] Call `stdb::ffi::call_server_function(objectId, functionNameStr, argsJson)`.
+    *   [X] **Receiving Server-to-Client RPCs:**
+        *   [X] The `ClientModule/src/net/mod.rs` needs to be fixed to parse incoming RPC messages and trigger `ClientModule/src/rpc/mod.rs::handle_server_call`.
+        *   [X] `ClientModule/src/rpc/mod.rs::handle_server_call` then invokes a registered Rust handler.
+        *   [X] To get this to C++, the `ClientModule/src/ffi.rs::register_client_function` allows C++ to pass a function pointer.
+        *   [X] C++ needs to register static wrapper functions (similar to event callbacks) for each client-callable RPC.
+        *   [X] These C++ RPC handler wrappers will:
+            *   [X] Receive `ObjectId`, `FunctionName`, `ArgsJson`.
+            *   [X] Find the target `UObject*`.
+            *   [X] Deserialize `ArgsJson` into appropriate C++ types.
+            *   [X] Call the actual UFunction on the `UObject` (e.g., via `ProcessEvent` or direct C++ call if possible).
 
 ## IV. Advanced Features & Considerations:
 

@@ -36,6 +36,59 @@ struct SPACETIMEDB_UNREALCLIENT_API FSpacetimeDBSpawnParams
 };
 
 /**
+ * @struct FStdbRpcArg
+ * @brief Structure representing a single RPC argument
+ */
+USTRUCT(BlueprintType)
+struct SPACETIMEDB_UNREALCLIENT_API FStdbRpcArg
+{
+    GENERATED_BODY()
+
+    /** The name of the argument */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|RPC")
+    FString Name;
+    
+    /** The type of the argument */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|RPC")
+    ESpacetimeDBValueType Type = ESpacetimeDBValueType::Null;
+    
+    /** The value of the argument as a variant */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|RPC")
+    FSpacetimeDBPropertyValue Value;
+
+    /** Default constructor */
+    FStdbRpcArg() {}
+    
+    /** Constructor with name and boolean value */
+    FStdbRpcArg(const FString& InName, bool InValue)
+        : Name(InName), Type(ESpacetimeDBValueType::Bool)
+    {
+        Value.SetBool(InValue);
+    }
+    
+    /** Constructor with name and integer value */
+    FStdbRpcArg(const FString& InName, int32 InValue)
+        : Name(InName), Type(ESpacetimeDBValueType::Int)
+    {
+        Value.SetInt(InValue);
+    }
+    
+    /** Constructor with name and float value */
+    FStdbRpcArg(const FString& InName, float InValue)
+        : Name(InName), Type(ESpacetimeDBValueType::Float)
+    {
+        Value.SetFloat(InValue);
+    }
+    
+    /** Constructor with name and string value */
+    FStdbRpcArg(const FString& InName, const FString& InValue)
+        : Name(InName), Type(ESpacetimeDBValueType::String)
+    {
+        Value.SetString(InValue);
+    }
+};
+
+/**
  * @class USpacetimeDBSubsystem
  * @brief Game Instance Subsystem for managing SpacetimeDB connections.
  * 
@@ -166,6 +219,10 @@ public:
     /** Delegate that fires when a property is updated */
     UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB")
     FOnSpacetimeDBPropertyUpdated OnPropertyUpdated;
+    
+    /** Delegate that fires when a server RPC is received */
+    UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|RPC")
+    FOnServerRpcReceived OnServerRpcReceived;
 
     //============================
     // Object Lifecycle Management
@@ -201,63 +258,121 @@ public:
     UObject* FindObjectById(int64 ObjectId) const;
     
     /**
-     * Finds the SpacetimeDB object ID for a UObject.
+     * Gets the SpacetimeDB object ID for a UObject.
      * 
      * @param Object The UObject to find the ID for
-     * @return The SpacetimeDB object ID, or 0 if not found
+     * @return The object ID, or 0 if not found
      */
     UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Objects")
-    int64 FindObjectId(UObject* Object) const;
+    int64 GetObjectId(UObject* Object) const;
+    
+    //============================
+    // Property Management
+    //============================
     
     /**
-     * Gets all SpacetimeDB objects tracked by this subsystem.
+     * Gets a property value as a JSON string.
      * 
-     * @return An array of all objects
+     * @param ObjectId The SpacetimeDB object ID
+     * @param PropertyName The name of the property to get
+     * @return The property value as a JSON string, or empty string if not found
      */
-    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Objects")
-    TArray<UObject*> GetAllObjects() const;
-
-    //////////////////////////
-    // Property Replication //
-    //////////////////////////
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
+    FString GetPropertyJsonValue(int64 ObjectId, const FString& PropertyName) const;
     
     /**
-     * Set a property value directly from JSON and optionally replicate it to the server
-     * @param ObjectId The ID of the object to update
-     * @param PropertyName The name of the property to update
-     * @param ValueJson The JSON representation of the new property value
-     * @param bReplicateToServer Whether to send the update to the server
-     * @return True if the property was successfully updated
+     * Gets a property value.
+     * 
+     * @param ObjectId The SpacetimeDB object ID
+     * @param PropertyName The name of the property to get
+     * @return The property value, or null value if not found
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
+    FSpacetimeDBPropertyValue GetPropertyValue(int64 ObjectId, const FString& PropertyName) const;
+    
+    /**
+     * Sets a property value from a JSON string.
+     * 
+     * @param ObjectId The SpacetimeDB object ID
+     * @param PropertyName The name of the property to set
+     * @param ValueJson The new property value as a JSON string
+     * @param bReplicateToServer Whether to replicate the change to the server
+     * @return True if the property was set successfully
      */
     UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
     bool SetPropertyValueFromJson(int64 ObjectId, const FString& PropertyName, const FString& ValueJson, bool bReplicateToServer = true);
     
     /**
-     * Set a property value using an object as the source and optionally replicate it to the server
-     * @param ObjectId The ID of the object to update
-     * @param PropertyName The name of the property to update
-     * @param Object The object containing the property to use as the source value
-     * @param bReplicateToServer Whether to send the update to the server
-     * @return True if the property was successfully updated
+     * Sets a property value from a UObject.
+     * 
+     * @param ObjectId The SpacetimeDB object ID
+     * @param PropertyName The name of the property to set
+     * @param Object The UObject containing the property to set
+     * @param bReplicateToServer Whether to replicate the change to the server
+     * @return True if the property was set successfully
      */
     UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
     bool SetPropertyValue(int64 ObjectId, const FString& PropertyName, UObject* Object, bool bReplicateToServer = true);
-
+    
+    //============================
+    // RPC Management
+    //============================
+    
+    /**
+     * Calls a server function on a specific object.
+     * 
+     * @param TargetObject The object on which to call the function
+     * @param FunctionName The name of the function to call
+     * @param Args The arguments to pass to the function
+     * @return True if the call was initiated successfully
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|RPC")
+    bool CallServerFunctionOnObject(UObject* TargetObject, const FString& FunctionName, const TArray<FStdbRpcArg>& Args);
+    
+    /**
+     * Calls a server function on an object identified by its ID.
+     * 
+     * @param ObjectId The ID of the object on which to call the function
+     * @param FunctionName The name of the function to call
+     * @param Args The arguments to pass to the function
+     * @return True if the call was initiated successfully
+     */
+    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|RPC")
+    bool CallServerFunction(int64 ObjectId, const FString& FunctionName, const TArray<FStdbRpcArg>& Args);
+    
+    /**
+     * Registers a client function that can be called by the server.
+     * 
+     * @param FunctionName The name of the function to register
+     * @param Object The object that will handle the function
+     * @param FunctionPtr The function pointer to call when the server calls this function
+     * @return True if registration was successful
+     */
+    template<class UserClass>
+    bool RegisterRPCHandler(const FString& FunctionName, UserClass* Object, void(UserClass::*FunctionPtr)(int64, const TArray<FStdbRpcArg>&))
+    {
+        if (!Object || FunctionName.IsEmpty())
+        {
+            return false;
+        }
+        
+        // Create a lambda that calls the member function
+        auto Handler = [Object, FunctionPtr](int64 ObjectId, const TArray<FStdbRpcArg>& Args) {
+            (Object->*FunctionPtr)(ObjectId, Args);
+        };
+        
+        // Register with internal map
+        ClientRpcHandlers.Add(FunctionName, Handler);
+        
+        // Register with Rust FFI
+        return RegisterClientFunctionWithFFI(FunctionName);
+    }
+    
 private:
-    // The client instance
-    FSpacetimeDBClient Client;
+    // RPC delegate types
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnServerRpcReceived, int64, ObjectId, const FString&, FunctionName, const TArray<FStdbRpcArg>&, Arguments);
     
-    // Delegate handles for event forwarding
-    FDelegateHandle OnConnectedHandle;
-    FDelegateHandle OnDisconnectedHandle;
-    FDelegateHandle OnIdentityReceivedHandle;
-    FDelegateHandle OnEventReceivedHandle;
-    FDelegateHandle OnErrorOccurredHandle;
-    FDelegateHandle OnObjectCreatedHandle;
-    FDelegateHandle OnObjectDestroyedHandle;
-    FDelegateHandle OnObjectIdRemappedHandle;
-    
-    // Dynamic multicast delegate declarations for Blueprint exposed events
+    // Dynamic multicast delegates
     DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnConnectedDynamic);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDisconnectedDynamic, const FString&, Reason);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnIdentityReceivedDynamic, const FString&, Identity);
@@ -267,7 +382,7 @@ private:
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnObjectDestroyedDynamic, int64, ObjectId);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnObjectIdRemappedDynamic, int64, TempId, int64, ServerId);
     
-    // Event handlers to forward client events to Blueprint events
+    // Callback handlers for FFI events
     void HandleConnected();
     void HandleDisconnected(const FString& Reason);
     void HandleIdentityReceived(const FString& Identity);
@@ -277,13 +392,10 @@ private:
     void HandleObjectDestroyed(uint64 ObjectId);
     void HandleObjectIdRemapped(uint64 TempId, uint64 ServerId);
     
-    // Event handler for actor destruction
-    UFUNCTION()
-    void OnActorDestroyed(AActor* DestroyedActor);
-
-    /**
-     * Information about a property update
-     */
+    // Client instance
+    FSpacetimeDBClient Client;
+    
+    // Property update info structure
     USTRUCT(BlueprintType)
     struct FSpacetimeDBPropertyUpdateInfo
     {
@@ -338,4 +450,25 @@ private:
      * @return True if the property update was successfully sent
      */
     bool SendPropertyUpdateToServer(int64 ObjectId, const FString& PropertyName, const FString& ValueJson);
+    
+    // Type definition for client RPC handlers
+    typedef TFunction<void(int64, const TArray<FStdbRpcArg>&)> FClientRpcHandler;
+    
+    // Map of registered client RPC handlers
+    TMap<FString, FClientRpcHandler> ClientRpcHandlers;
+    
+    // Register a client function with FFI
+    bool RegisterClientFunctionWithFFI(const FString& FunctionName);
+    
+    // Static callback function for client RPCs (called from FFI)
+    static bool HandleClientRpcFromFFI(uint64 ObjectId, const char* ArgsJson);
+    
+    // Handle client RPC on the game thread
+    void HandleClientRpc(uint64 ObjectId, const FString& FunctionName, TSharedPtr<FJsonObject> ArgsObj);
+    
+    // Parse JSON arguments into an array of FStdbRpcArg
+    TArray<FStdbRpcArg> ParseRpcArguments(const FString& ArgsJson);
+    
+    // Convert array of FStdbRpcArg to JSON string
+    FString SerializeRpcArguments(const TArray<FStdbRpcArg>& Args);
 }; 
