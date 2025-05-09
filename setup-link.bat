@@ -8,19 +8,9 @@ echo SpacetimeDB Unreal Client Plugin - Link Setup Script
 echo ====================================================
 echo.
 
-REM Set paths - modify these as needed
+REM Set hardcoded paths
 SET "PLUGIN_PATH=%~dp0SpacetimeDB_UnrealClient"
-SET "PROJECT_PATH=%~1"
-
-if "%PROJECT_PATH%"=="" (
-    echo ERROR: Missing project path parameter.
-    echo.
-    echo Usage: setup-link.bat [path\to\UE_Project]
-    echo Example: setup-link.bat C:\Projects\MyUnrealProject
-    echo.
-    pause
-    exit /b 1
-)
+SET "PROJECT_PATH=%~dp0STDB_UE_Example"
 
 echo Project path: %PROJECT_PATH%
 echo Plugin path: %PLUGIN_PATH%
@@ -36,6 +26,7 @@ if not exist "%PLUGIN_PATH%" (
 
 if not exist "%PROJECT_PATH%" (
     echo ERROR: Project directory not found at "%PROJECT_PATH%"
+    echo Please ensure the STDB_UE_Example directory exists at: %PROJECT_PATH%
     echo.
     pause
     exit /b 1
