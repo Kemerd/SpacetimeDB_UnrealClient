@@ -27,18 +27,18 @@ The following core modules/functionalities are declared in `ServerModule/src/lib
 
 ## II. Incomplete Server-Side Implementations:
 
-1.  [ ] **`ServerModule/src/property/mod.rs`:**
-    *   [ ] `set_object_property()` reducer:
-        *   [ ] Explicitly commented as placeholder: `// In a full implementation, we would check against property constraints`.
-        *   [ ] Explicitly commented as placeholder: `// In a real implementation, we would access the UObject table and update the property, then track the change for replication`.
-        *   [ ] Relies on undefined `ClientInfo` and `UObject` tables (or unclear mapping to existing tables like `ObjectInstance`).
-    *   [ ] `init()` function:
-        *   [ ] Explicitly commented as placeholder: `// In a real implementation, we would: 1. Load property definitions from configuration 2. Initialize the property registry 3. Set up replication schedules`.
+1.  [X] **`ServerModule/src/property/mod.rs`:**
+    *   [X] `set_object_property()` reducer:
+        *   [X] Explicitly commented as placeholder: `// In a full implementation, we would check against property constraints`.
+        *   [X] Explicitly commented as placeholder: `// In a real implementation, we would access the UObject table and update the property, then track the change for replication`.
+        *   [X] Relies on undefined `ClientInfo` and `UObject` tables (or unclear mapping to existing tables like `ObjectInstance`).
+    *   [X] `init()` function:
+        *   [X] Explicitly commented as placeholder: `// In a real implementation, we would: 1. Load property definitions from configuration 2. Initialize the property registry 3. Set up replication schedules`.
 
-2.  [ ] **`ServerModule/src/actor/spawn.rs`:**
-    *   [ ] `initialize_default_components()`:
-        *   [ ] Explicitly commented as placeholder: `// In a real implementation, you'd have a system to define which components are needed for each class`.
-        *   [ ] Uses hardcoded `component_class_id: 101`.
+2.  [X] **`ServerModule/src/actor/spawn.rs`:**
+    *   [X] `initialize_default_components()`:
+        *   [X] Explicitly commented as placeholder: `// In a real implementation, you'd have a system to define which components are needed for each class`.
+        *   [X] Uses hardcoded `component_class_id: 101`.
 
 3.  [ ] **`ServerModule/src/actor/lifecycle.rs`:**
     *   [ ] `destroy_actor()`:

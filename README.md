@@ -82,59 +82,6 @@ The relevancy system optimizes network usage by controlling which objects and pr
 - Zone management for logical grouping of objects and clients
 - Distance-based relevancy using spatial partitioning for efficiency
 
-## Prerequisites
-- Unreal Engine 5.3+
-- Rust (1.70+) - Install from [https://rustup.rs/](https://rustup.rs/)
-- cxxbridge (`cargo install cxxbridge-cmd`)
-- A C++ compiler compatible with your platform
-  - Windows: Visual Studio 2022
-  - macOS: Xcode
-  - Linux: GCC or Clang
-- SpacetimeDB CLI - For module development and testing
-
-## Project Structure
-```
-/SpacetimeDB_UnrealClient/
-├── /SharedModule/             # Shared types and interfaces
-│   ├── Cargo.toml            # Shared module dependencies
-│   └── /src/                 # Shared module source code
-│       ├── lib.rs            # Module entry point
-│       ├── types.rs          # Common data types
-│       ├── property.rs       # Property system definitions
-│       ├── object.rs         # Object system definitions
-│       └── constants.rs      # Shared constants
-│
-├── /ServerModule/             # Server-side implementation
-│   ├── Cargo.toml            # Server dependencies
-│   └── /src/                 # Server module source code
-│       ├── lib.rs            # Module entry point
-│       ├── actor/            # Actor management
-│       ├── object/           # Object management
-│       ├── property/         # Property handling
-│       ├── connection/       # Client connection management
-│       ├── rpc/              # Remote procedure call functionality
-│       ├── relevancy/        # Network relevancy system
-│       └── reducer/          # SpacetimeDB reducers
-│
-├── /ClientModule/             # Client-side implementation
-│   ├── Cargo.toml            # Client dependencies
-│   └── /src/                 # Client module source code
-│       ├── lib.rs            # Module entry point
-│       ├── object/           # Client object management
-│       ├── property/         # Client property handling
-│       ├── net/              # Network communication
-│       ├── rpc/              # RPC functionality
-│       └── ffi.rs            # FFI definitions for C++
-│
-├── /Source/                   # Unreal Engine C++ code
-│   └── /SpacetimeDB_UnrealClient/
-│       ├── SpacetimeDB_UnrealClient.Build.cs
-│       ├── SpacetimeDB_UnrealClient.h
-│       └── SpacetimeDB_UnrealClient.cpp
-│
-└── SpacetimeDB_UnrealClient.uplugin  # Plugin definition
-```
-
 ## How It Works
 
 ### Client-Server Communication
@@ -196,6 +143,130 @@ The relevancy system optimizes network usage by controlling which objects and pr
    - `send_rpc_to_zone`: Send to clients in a specific relevancy zone
 
 5. All RPC calls are logged for debugging and analytics
+
+## Code Generation System
+
+The plugin includes a powerful code generation system that eliminates the need for hardcoding Unreal Engine classes and components in Rust. This system scans your project's UE classes and automatically generates Rust code to register them with SpacetimeDB.
+
+### SpacetimeDBCodeGenerator
+
+The `USpacetimeDBCodeGenerator` is an Editor Subsystem that analyzes your project's class hierarchy and generates:
+
+1. **Class Registry**: Rust code that registers all relevant UE classes with SpacetimeDB, preserving class hierarchies, replication settings, and other metadata
+2. **Component Mappings**: Rust code that sets up default components for each actor class based on their CDO (Class Default Object)
+3. **Property Definitions**: Automatic registration of replicated properties with appropriate type mapping
+
+### Benefits
+
+- **Dynamic Class Discovery**: No need to manually register every class - the generator finds them automatically
+- **Component Inheritance**: Captures the exact component setup of your actors as defined in the editor
+- **Type Safety**: Ensures consistent class and component IDs between C++ and Rust
+- **Build-Time Security**: Class registration happens at build time, not runtime, preventing unauthorized class addition
+
+### How to Use
+
+1. **Access the Generator**: The generator is available as an Editor Subsystem
+   ```cpp
+   USpacetimeDBCodeGenerator* CodeGen = GEditor->GetEditorSubsystem<USpacetimeDBCodeGenerator>();
+   ```
+
+2. **Generate Class Registry**:
+   ```cpp
+   FString OutputPath = FPaths::ProjectPluginsDir() / "SpacetimeDB_UnrealClient/ServerModule/src/generated/class_registry.rs";
+   CodeGen->GenerateRustClassRegistry(OutputPath);
+   ```
+
+3. **Generate Component Mappings**:
+   ```cpp
+   FString OutputPath = FPaths::ProjectPluginsDir() / "SpacetimeDB_UnrealClient/ServerModule/src/generated/component_mappings.rs";
+   CodeGen->GenerateRustComponentMappings(OutputPath);
+   ```
+
+4. **When to Run**: Generate these files whenever:
+   - You add new actor or component classes to your project
+   - You change the default component setup of an actor
+   - You add or modify replicated properties
+
+### Integration with Server Module
+
+The generated files are automatically included in the server module's initialization:
+
+```rust
+// In ServerModule/src/object/init.rs
+pub fn initialize_class_system(ctx: &ReducerContext) {
+    // Register core classes (UObject, AActor, etc.)
+    register_core_classes(ctx);
+    
+    // Register all generated classes from the code generator
+    crate::generated::register_all_classes(ctx);
+    
+    // Register properties for all classes
+    crate::generated::register_all_properties(ctx);
+}
+```
+
+The component system also uses the generated mappings:
+
+```rust
+// In ServerModule/src/actor/spawn.rs
+fn initialize_default_components(ctx: &ReducerContext, actor_id: ActorId, class_id: u32) {
+    // Use generated component mappings
+    crate::generated::initialize_components_for_class(ctx, actor_id, class_id);
+}
+```
+
+## Prerequisites
+- Unreal Engine 5.3+
+- Rust (1.70+) - Install from [https://rustup.rs/](https://rustup.rs/)
+- cxxbridge (`cargo install cxxbridge-cmd`)
+- A C++ compiler compatible with your platform
+  - Windows: Visual Studio 2022
+  - macOS: Xcode
+  - Linux: GCC or Clang
+- SpacetimeDB CLI - For module development and testing
+
+## Project Structure
+```
+/SpacetimeDB_UnrealClient/
+├── /SharedModule/             # Shared types and interfaces
+│   ├── Cargo.toml            # Shared module dependencies
+│   └── /src/                 # Shared module source code
+│       ├── lib.rs            # Module entry point
+│       ├── types.rs          # Common data types
+│       ├── property.rs       # Property system definitions
+│       ├── object.rs         # Object system definitions
+│       └── constants.rs      # Shared constants
+│
+├── /ServerModule/             # Server-side implementation
+│   ├── Cargo.toml            # Server dependencies
+│   └── /src/                 # Server module source code
+│       ├── lib.rs            # Module entry point
+│       ├── actor/            # Actor management
+│       ├── object/           # Object management
+│       ├── property/         # Property handling
+│       ├── connection/       # Client connection management
+│       ├── rpc/              # Remote procedure call functionality
+│       ├── relevancy/        # Network relevancy system
+│       └── reducer/          # SpacetimeDB reducers
+│
+├── /ClientModule/             # Client-side implementation
+│   ├── Cargo.toml            # Client dependencies
+│   └── /src/                 # Client module source code
+│       ├── lib.rs            # Module entry point
+│       ├── object/           # Client object management
+│       ├── property/         # Client property handling
+│       ├── net/              # Network communication
+│       ├── rpc/              # RPC functionality
+│       └── ffi.rs            # FFI definitions for C++
+│
+├── /Source/                   # Unreal Engine C++ code
+│   └── /SpacetimeDB_UnrealClient/
+│       ├── SpacetimeDB_UnrealClient.Build.cs
+│       ├── SpacetimeDB_UnrealClient.h
+│       └── SpacetimeDB_UnrealClient.cpp
+│
+└── SpacetimeDB_UnrealClient.uplugin  # Plugin definition
+```
 
 ## Usage
 
