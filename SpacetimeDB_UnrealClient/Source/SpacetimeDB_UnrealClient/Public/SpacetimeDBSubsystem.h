@@ -19,7 +19,7 @@ struct FSpacetimeDBPropertyUpdateInfo
     GENERATED_BODY()
 
     /** The ID of the object that was updated */
-    UPROPERTY(Category = "SpacetimeDB")
+    UPROPERTY()
     int64 ObjectId;
 
     /** The object that was updated (may be null if object not found) */

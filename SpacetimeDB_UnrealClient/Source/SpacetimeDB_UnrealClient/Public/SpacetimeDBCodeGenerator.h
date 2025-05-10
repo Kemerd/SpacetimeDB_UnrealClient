@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
-#include "Subsystems/EditorSubsystem.h"
+
 #include "SpacetimeDBCodeGenerator.generated.h"
 
 /**
