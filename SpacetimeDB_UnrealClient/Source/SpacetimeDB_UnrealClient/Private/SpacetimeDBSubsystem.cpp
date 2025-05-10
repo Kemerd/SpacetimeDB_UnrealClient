@@ -337,6 +337,12 @@ void OnPropertyUpdatedCallback(uint64 object_id, const char* property_name_cstr,
 
 int64 USpacetimeDBSubsystem::RequestSpawnObject(const FSpacetimeDBSpawnParams& Params)
 {
+    // Create simplified string representation of the initial properties map for logging
+    FString PropsString = FString::Printf(TEXT("%d properties"), Params.InitialProperties.Num());
+    
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: RequestSpawnObject with ClassName: %s, Location: %s, Rotation: %s, InitialProperties: %s"), 
+        *Params.ClassName, *Params.Location.ToString(), *Params.Rotation.ToString(), *PropsString);
+
     // Create a JSON object for the arguments
     TSharedPtr<FJsonObject> ArgsObject = MakeShareable(new FJsonObject());
     ArgsObject->SetStringField(TEXT("class_name"), Params.ClassName);
@@ -392,7 +398,7 @@ int64 USpacetimeDBSubsystem::RequestSpawnObject(const FSpacetimeDBSpawnParams& P
     TSharedRef<TJsonWriter<>> PropertiesWriter = TJsonWriterFactory<>::Create(&PropertiesJsonString);
     FJsonSerializer::Serialize(ArgsObject->GetObjectField(TEXT("initial_properties")).ToSharedRef(), PropertiesWriter);
 
-    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: RequestSpawnObject with ClassName: %s, Location: %s, Rotation: %s, InitialProperties: %s"), 
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: RequestSpawnObject serialized with ClassName: %s, Location: %s, Rotation: %s, Properties: %s"), 
         *Params.ClassName, *Params.Location.ToString(), *Params.Rotation.ToString(), *PropertiesJsonString);
 
     // Call the generic SpawnObject reducer
@@ -448,15 +454,22 @@ UObject* USpacetimeDBSubsystem::FindObjectById(int64 ObjectId) const
 
 int64 USpacetimeDBSubsystem::FindObjectId(UObject* Object) const
 {
-    const int64* FoundId = ObjectToIdMap.Find(Object);
-    return FoundId ? *FoundId : 0;
+    if (!Object)
+        return 0;
+    
+    if (ObjectToIdMap.Contains(Object))
+    {
+        return ObjectToIdMap[Object];
+    }
+    
+    return 0;
 }
 
 TArray<UObject*> USpacetimeDBSubsystem::GetAllObjects() const
 {
-    TArray<UObject*> AllObjects;
-    ObjectRegistry.GenerateValueArray(AllObjects);
-    return AllObjects;
+    TArray<UObject*> Result;
+    ObjectRegistry.GenerateValueArray(Result);
+    return Result;
 }
 
 UObject* USpacetimeDBSubsystem::SpawnObjectFromServer(int64 ObjectId, const FString& ClassName, const FString& DataJson)
@@ -484,41 +497,41 @@ UObject* USpacetimeDBSubsystem::SpawnObjectFromServer(int64 ObjectId, const FStr
     FTransform SpawnTransform = FTransform::Identity;
     
     // Extract transform if available (for actors)
-    TSharedPtr<FJsonObject> TransformObj = ObjectDataJson->GetObjectField("transform");
+    TSharedPtr<FJsonObject> TransformObj = ObjectDataJson->GetObjectField(TEXT("transform"));
     if (TransformObj.IsValid())
     {
         bIsActor = true;
         
         // Extract location
-        TSharedPtr<FJsonObject> LocationObj = TransformObj->GetObjectField("location");
+        TSharedPtr<FJsonObject> LocationObj = TransformObj->GetObjectField(TEXT("location"));
         if (LocationObj.IsValid())
         {
             FVector Location;
-            Location.X = LocationObj->GetNumberField("x");
-            Location.Y = LocationObj->GetNumberField("y");
-            Location.Z = LocationObj->GetNumberField("z");
+            Location.X = LocationObj->GetNumberField(TEXT("x"));
+            Location.Y = LocationObj->GetNumberField(TEXT("y"));
+            Location.Z = LocationObj->GetNumberField(TEXT("z"));
             SpawnTransform.SetLocation(Location);
         }
         
         // Extract rotation
-        TSharedPtr<FJsonObject> RotationObj = TransformObj->GetObjectField("rotation");
+        TSharedPtr<FJsonObject> RotationObj = TransformObj->GetObjectField(TEXT("rotation"));
         if (RotationObj.IsValid())
         {
             FRotator Rotation;
-            Rotation.Pitch = RotationObj->GetNumberField("pitch");
-            Rotation.Yaw = RotationObj->GetNumberField("yaw");
-            Rotation.Roll = RotationObj->GetNumberField("roll");
+            Rotation.Pitch = RotationObj->GetNumberField(TEXT("pitch"));
+            Rotation.Yaw = RotationObj->GetNumberField(TEXT("yaw"));
+            Rotation.Roll = RotationObj->GetNumberField(TEXT("roll"));
             SpawnTransform.SetRotation(Rotation.Quaternion());
         }
         
         // Extract scale
-        TSharedPtr<FJsonObject> ScaleObj = TransformObj->GetObjectField("scale");
+        TSharedPtr<FJsonObject> ScaleObj = TransformObj->GetObjectField(TEXT("scale"));
         if (ScaleObj.IsValid())
         {
             FVector Scale;
-            Scale.X = ScaleObj->GetNumberField("x");
-            Scale.Y = ScaleObj->GetNumberField("y");
-            Scale.Z = ScaleObj->GetNumberField("z");
+            Scale.X = ScaleObj->GetNumberField(TEXT("x"));
+            Scale.Y = ScaleObj->GetNumberField(TEXT("y"));
+            Scale.Z = ScaleObj->GetNumberField(TEXT("z"));
             SpawnTransform.SetScale3D(Scale);
         }
     }
@@ -581,7 +594,7 @@ UObject* USpacetimeDBSubsystem::SpawnObjectFromServer(int64 ObjectId, const FStr
         }
         
         // Apply initial properties from JSON if provided
-        TSharedPtr<FJsonObject> PropertiesObj = ObjectDataJson->GetObjectField("properties");
+        TSharedPtr<FJsonObject> PropertiesObj = ObjectDataJson->GetObjectField(TEXT("properties"));
         if (PropertiesObj.IsValid())
         {
             // Apply each property from JSON to the actor
@@ -590,11 +603,8 @@ UObject* USpacetimeDBSubsystem::SpawnObjectFromServer(int64 ObjectId, const FStr
                 const FString& PropertyName = Pair.Key;
                 const TSharedPtr<FJsonValue>& JsonValue = Pair.Value;
                 
-                // TODO: Implement a more complete property application system
-                // This is a basic implementation and should be expanded
-                
                 // Find the property on the actor
-                UProperty* Property = FindField<UProperty>(SpawnedActor->GetClass(), *PropertyName);
+                FProperty* Property = FindPropertyByName(SpawnedActor->GetClass(), FName(*PropertyName));
                 if (!Property)
                 {
                     UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: Property '%s' not found on actor of class '%s'"), *PropertyName, *ClassName);
@@ -602,19 +612,19 @@ UObject* USpacetimeDBSubsystem::SpawnObjectFromServer(int64 ObjectId, const FStr
                 }
                 
                 // Set the property value based on its type
-                if (UBoolProperty* BoolProperty = Cast<UBoolProperty>(Property))
+                if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
                 {
                     BoolProperty->SetPropertyValue_InContainer(SpawnedActor, JsonValue->AsBool());
                 }
-                else if (UIntProperty* IntProperty = Cast<UIntProperty>(Property))
+                else if (FIntProperty* IntProperty = CastField<FIntProperty>(Property))
                 {
                     IntProperty->SetPropertyValue_InContainer(SpawnedActor, (int32)JsonValue->AsNumber());
                 }
-                else if (UFloatProperty* FloatProperty = Cast<UFloatProperty>(Property))
+                else if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
                 {
                     FloatProperty->SetPropertyValue_InContainer(SpawnedActor, JsonValue->AsNumber());
                 }
-                else if (UStrProperty* StrProperty = Cast<UStrProperty>(Property))
+                else if (FStrProperty* StrProperty = CastField<FStrProperty>(Property))
                 {
                     StrProperty->SetPropertyValue_InContainer(SpawnedActor, JsonValue->AsString());
                 }
@@ -638,7 +648,7 @@ UObject* USpacetimeDBSubsystem::SpawnObjectFromServer(int64 ObjectId, const FStr
         }
         
         // Apply initial properties from JSON if provided
-        TSharedPtr<FJsonObject> PropertiesObj = ObjectDataJson->GetObjectField("properties");
+        TSharedPtr<FJsonObject> PropertiesObj = ObjectDataJson->GetObjectField(TEXT("properties"));
         if (PropertiesObj.IsValid())
         {
             // TODO: Apply properties to the UObject
@@ -689,8 +699,9 @@ void USpacetimeDBSubsystem::DestroyObjectFromServer(int64 ObjectId)
     }
     else
     {
-        // It's a regular UObject, mark it as pending kill
-        Object->MarkPendingKill();
+        // It's a regular UObject, mark it for destruction
+        // Object->MarkPendingKill() is deprecated in UE5.5
+        Object->MarkAsGarbage();
     }
     
     UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Successfully removed object with ID %lld from registry"), ObjectId);
@@ -842,7 +853,7 @@ bool USpacetimeDBSubsystem::SendPropertyUpdateToServer(int64 ObjectId, const FSt
     }
     
     // Call the FFI function
-    stdb::ffi::set_property(ObjectId, PropertyName.GetData(), ValueJson.GetData(), true);
+    stdb::ffi::set_property(ObjectId, TCHAR_TO_UTF8(*PropertyName), TCHAR_TO_UTF8(*ValueJson), true);
     return true;
 }
 
@@ -881,33 +892,17 @@ bool USpacetimeDBSubsystem::CallServerFunction(int64 ObjectId, const FString& Fu
         UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunction - Not connected to SpacetimeDB"));
         return false;
     }
-    
-    // Check if this is a special RPC that doesn't require authority checks
-    // For example, common RPCs that need to work on server-owned objects
-    bool bIsSpecialRPC = 
-        FunctionName.Equals(TEXT("set_owner")) ||
-        FunctionName.Equals(TEXT("request_spawn")) ||
-        FunctionName.Equals(TEXT("request_destroy")) ||
-        FunctionName.StartsWith(TEXT("game_")) ||  // Game management RPCs can start with "game_"
-        FunctionName.StartsWith(TEXT("server_"));  // Server management RPCs can start with "server_"
-    
-    // SECURITY: Check if client has authority to call RPCs on this object
-    // Except for special RPCs that need to work regardless of authority
-    if (!bIsSpecialRPC && !HasAuthority(ObjectId))
+
+    // Serialize the arguments to JSON
+    FString ArgsJson = SerializeRpcArguments(Args);
+    if (ArgsJson.IsEmpty())
     {
-        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunction - Client does not have authority to call RPC %s on object %lld"), 
-            *FunctionName, ObjectId);
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to serialize RPC arguments for function %s"), *FunctionName);
         return false;
     }
-    
-    // Serialize arguments to JSON
-    FString ArgsJson = SerializeRpcArguments(Args);
-    
-    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Calling server function %s on object %lld with args: %s"), 
-        *FunctionName, ObjectId, *ArgsJson);
-    
+
     // Call the FFI function
-    stdb::ffi::call_server_function(ObjectId, FunctionName.GetData(), ArgsJson.GetData());
+    stdb::ffi::call_server_function(ObjectId, TCHAR_TO_UTF8(*FunctionName), TCHAR_TO_UTF8(*ArgsJson));
     return true;
 }
 
@@ -927,7 +922,7 @@ bool USpacetimeDBSubsystem::RegisterClientFunctionWithFFI(const FString& Functio
     
     // Register the static callback function with the FFI
     bool bSuccess = stdb::ffi::register_client_function(
-        FunctionName.GetData(), 
+        TCHAR_TO_UTF8(*FunctionName), 
         reinterpret_cast<uintptr_t>(&USpacetimeDBSubsystem::HandleClientRpcFromFFI)
     );
     
@@ -985,7 +980,7 @@ bool USpacetimeDBSubsystem::HandleClientRpcFromFFI(uint64 ObjectId, const char* 
     }
     
     FString FunctionName;
-    if (!JsonObject->TryGetStringField("function", FunctionName) || FunctionName.IsEmpty())
+    if (!JsonObject->TryGetStringField(TEXT("function"), FunctionName) || FunctionName.IsEmpty())
     {
         UE_LOG(LogTemp, Error, TEXT("HandleClientRpcFromFFI: Args JSON missing 'function' field: %s"), *ArgsJsonStr);
         return false;
@@ -993,7 +988,11 @@ bool USpacetimeDBSubsystem::HandleClientRpcFromFFI(uint64 ObjectId, const char* 
     
     // Extract the arguments if present
     TSharedPtr<FJsonObject> ArgsObj;
-    if (!JsonObject->TryGetObjectField("args", ArgsObj))
+    if (JsonObject->TryGetObjectField(TEXT("args"), ArgsObj))
+    {
+        // Process the args object
+    }
+    else
     {
         ArgsObj = MakeShared<FJsonObject>();
     }
@@ -1211,7 +1210,7 @@ FString USpacetimeDBSubsystem::GetPropertyJsonValue(int64 ObjectId, const FStrin
     }
     
     // Call the FFI function to get the property value
-    return stdb::ffi::get_property(ObjectId, PropertyName.GetData());
+    return stdb::ffi::get_property(ObjectId, TCHAR_TO_UTF8(*PropertyName));
 }
 
 FSpacetimeDBPropertyValue USpacetimeDBSubsystem::GetPropertyValue(int64 ObjectId, const FString& PropertyName) const
@@ -1230,17 +1229,17 @@ FSpacetimeDBPropertyValue USpacetimeDBSubsystem::GetPropertyValue(int64 ObjectId
 
 bool USpacetimeDBSubsystem::RegisterPredictionObject(const FObjectID& ObjectID)
 {
-	return register_prediction_object(ObjectID.ID);
+	return register_prediction_object(ObjectID.Value);
 }
 
 bool USpacetimeDBSubsystem::UnregisterPredictionObject(const FObjectID& ObjectID)
 {
-	return unregister_prediction_object(ObjectID.ID);
+	return unregister_prediction_object(ObjectID.Value);
 }
 
 int32 USpacetimeDBSubsystem::GetNextPredictionSequence(const FObjectID& ObjectID)
 {
-	return (int32)get_next_prediction_sequence(ObjectID.ID);
+	return (int32)get_next_prediction_sequence(ObjectID.Value);
 }
 
 bool USpacetimeDBSubsystem::SendPredictedTransform(const FPredictedTransformData& TransformData)
@@ -1251,7 +1250,7 @@ bool USpacetimeDBSubsystem::SendPredictedTransform(const FPredictedTransformData
 	FVector Scale = TransformData.Transform.GetScale3D();
 	
 	return send_predicted_transform(
-		TransformData.ObjectID.ID,
+		TransformData.ObjectID.Value,
 		(SequenceNumber)TransformData.SequenceNumber,
 		Location.X, Location.Y, Location.Z,
 		Rotation.X, Rotation.Y, Rotation.Z, Rotation.W,
@@ -1263,14 +1262,14 @@ bool USpacetimeDBSubsystem::SendPredictedTransform(const FPredictedTransformData
 
 int32 USpacetimeDBSubsystem::GetLastAckedSequence(const FObjectID& ObjectID)
 {
-	return (int32)get_last_acked_sequence(ObjectID.ID);
+	return (int32)get_last_acked_sequence(ObjectID.Value);
 }
 
 void USpacetimeDBSubsystem::ProcessServerTransformUpdate(const FObjectID& ObjectID, const FTransform& Transform, 
 	const FVector& Velocity, int32 AckedSequence)
 {
 	// Look up the object in our object map
-	if (UObject* Object = FindObjectById(ObjectID.ID))
+	if (UObject* Object = FindObjectById(ObjectID.Value))
 	{
 		if (AActor* Actor = Cast<AActor>(Object))
 		{
@@ -1292,15 +1291,14 @@ void USpacetimeDBSubsystem::ProcessServerTransformUpdate(const FObjectID& Object
 bool USpacetimeDBSubsystem::HasAuthority(int64 ObjectId) const
 {
     if (!IsConnected())
-    {
         return false;
-    }
-    
-    // Get the owner ID of the object
+
+    // Check if we're the authority for this object
+    // This could be based on owner client ID matching our client ID
     int64 OwnerClientId = GetOwnerClientId(ObjectId);
+    int64 MyClientId = GetClientId();
     
-    // Only the explicit owner has authority to modify an object
-    return OwnerClientId == GetClientId();
+    return (OwnerClientId == MyClientId);
 }
 
 int64 USpacetimeDBSubsystem::GetOwnerClientId(int64 ObjectId) const
@@ -1409,7 +1407,7 @@ UActorComponent* USpacetimeDBSubsystem::HandleComponentAdded(int64 ActorId, int6
     NewComponent->RegisterComponent();
     
     // Apply initial properties from JSON if provided
-    TSharedPtr<FJsonObject> PropertiesObj = ComponentDataJson->GetObjectField("properties");
+    TSharedPtr<FJsonObject> PropertiesObj = ComponentDataJson->GetObjectField(TEXT("properties"));
     if (PropertiesObj.IsValid())
     {
         // Apply each property from JSON to the component

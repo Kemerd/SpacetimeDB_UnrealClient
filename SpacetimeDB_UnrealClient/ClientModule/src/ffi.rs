@@ -252,6 +252,10 @@ mod ffi {
         fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxString>;
         
         fn dispatch_unreliable_rpc(object_id: u64, function_name: &CxxString, params: &CxxString) -> bool;
+        
+        fn call_server_function(object_id: u64, function_name: &CxxString, args_json: &CxxString) -> bool;
+        
+        fn register_client_function(function_name: &CxxString, handler_ptr: usize) -> bool;
     }
     
     // Connection functions

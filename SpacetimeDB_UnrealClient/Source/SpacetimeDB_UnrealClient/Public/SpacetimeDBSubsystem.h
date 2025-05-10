@@ -663,13 +663,53 @@ private:
     /** Handler for object ID remapped events */
     void InternalHandleObjectIdRemapped(uint64 TempId, uint64 ServerId);
 
-public:
-    /** Handles property updates from SpacetimeDB.
-     * Internal method called by SpacetimeDBClient callbacks.
+    /**
+     * Handles property updates from SpacetimeDB.
      * 
      * @param ObjectId ID of the object with the updated property
      * @param PropertyName Name of the updated property
      * @param ValueJson JSON string value of the property
      */
-    void InternalHandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson);
+    void HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson);
+
+    /**
+     * Finds the object ID for a UObject.
+     * 
+     * @param Object The UObject to find the ID for
+     * @return The object ID, or 0 if not found
+     */
+    int64 FindObjectId(UObject* Object) const;
+
+    /**
+     * Gets all objects in the registry.
+     * 
+     * @return Array of all objects
+     */
+    TArray<UObject*> GetAllObjects() const;
+
+    /**
+     * Checks if the client has authority to modify an object.
+     * 
+     * @param ObjectId The object ID to check
+     * @return True if the client has authority, false otherwise
+     */
+    bool HasAuthority(int64 ObjectId) const;
+
+    /**
+     * Sends a property update to the server.
+     * 
+     * @param ObjectId The object ID
+     * @param PropertyName The property name
+     * @param ValueJson The JSON value
+     * @return True if the update was sent successfully
+     */
+    bool SendPropertyUpdateToServer(int64 ObjectId, const FString& PropertyName, const FString& ValueJson);
+
+    /**
+     * Event handler for actor destroyed
+     * 
+     * @param DestroyedActor The destroyed actor
+     */
+    UFUNCTION()
+    void OnActorDestroyed(AActor* DestroyedActor);
 }; 

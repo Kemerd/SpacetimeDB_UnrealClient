@@ -3,6 +3,20 @@
 
 #include "SpacetimeDBTypeConversions.h"
 #include "ffi.h" // Include the FFI header generated from Rust
+#include "SpacetimeDBSharedTypes.h"
+
+// If the structure is not available, provide a stub implementation
+#ifndef SPACETIMEDB_SHARED_TYPES_INCLUDED
+namespace stdb {
+    namespace shared {
+        struct Vector3 {
+            float x;
+            float y;
+            float z;
+        };
+    }
+}
+#endif
 
 // Vector3 conversions
 stdb::shared::Vector3 FSpacetimeDBTypeConversions::ToStdbVector3(const FVector& Vector)
