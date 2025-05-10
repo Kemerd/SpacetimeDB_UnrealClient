@@ -14,7 +14,7 @@ public class SpacetimeDB_UnrealClient : ModuleRules
         PublicIncludePaths.AddRange(
             new string[] {
                 // Add path to CXX-generated headers
-                Path.Combine(ModuleDirectory, "../../ClientModule/target/cxxbridge")
+                Path.Combine(ModuleDirectory, "../../ClientModule/target/x86_64-pc-windows-msvc/cxxbridge")
             }
         );
         
@@ -46,6 +46,29 @@ public class SpacetimeDB_UnrealClient : ModuleRules
                 // ... add private dependencies that you statically link with here ...
             }
         );
+
+        // Windows API libraries needed by the Rust client
+        if (Target.Platform == UnrealTargetPlatform.Win64)
+        {
+            PublicSystemLibraries.AddRange(
+                new string[] {
+                    "ntdll.lib",
+                    "userenv.lib",
+                    "bcrypt.lib",
+                    "msvcrt.lib"  // Add MSVC runtime library explicitly
+                }
+            );
+
+            // C++ compatibility settings for Rust cxx bridge
+            PublicDefinitions.Add("_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH=1");
+            
+            // Configure C++ standard version to match the one used in Rust cxx bridge
+            CppStandard = CppStandardVersion.Cpp20;
+            
+            // For better compatibility with different C++ STL implementations
+            bUseRTTI = true;
+            bEnableExceptions = true;
+        }
         
         // Add Editor dependencies when building with editor support
         if (Target.bBuildEditor == true)
@@ -57,23 +80,7 @@ public class SpacetimeDB_UnrealClient : ModuleRules
                 }
             );
             
-            // Windows API libraries needed by the Rust client
-            if (Target.Platform == UnrealTargetPlatform.Win64)
-            {
-                PublicSystemLibraries.AddRange(
-                    new string[] {
-                        "ntdll.lib",
-                        "userenv.lib",
-                        "bcrypt.lib"
-                    }
-                );
-                
-                // For C++ standard library compatibility with Rust cxx bridge
-                PublicDefinitions.Add("_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH=1");
-                
-                // Configure C++ standard version to match the one used in Rust cxx bridge
-                CppStandard = CppStandardVersion.Cpp20;
-            }
+
         }
         
         DynamicallyLoadedModuleNames.AddRange(
@@ -142,7 +149,7 @@ public class SpacetimeDB_UnrealClient : ModuleRules
         }
         
         // Add Rust library path and header include path
-        string rustTargetPath = Path.Combine(ModuleDirectory, "../../ClientModule/target");
+        string rustTargetPath = Path.Combine(ModuleDirectory, "../../ClientModule/target/x86_64-pc-windows-msvc");
         string configFolder = (Target.Configuration == UnrealTargetConfiguration.Debug ||
                               Target.Configuration == UnrealTargetConfiguration.DebugGame) ? "debug" : "release";
         string rustLibPath = Path.Combine(rustTargetPath, configFolder);

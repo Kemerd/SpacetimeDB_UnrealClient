@@ -10,6 +10,17 @@ public class STDB_UE_Example : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 
+		// Add the preprocessor definition here
+		PublicDefinitions.Add("_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH=1");
+
+		// Add verbose linker flag for MSVC
+		if (Target.Platform == UnrealTargetPlatform.Win64) // Ensure it's for native MSVC compilation
+		{
+			// This is a common way to pass flags to the MSVC linker
+			PublicAdditionalLibraries.Add("/VERBOSE:LIB"); // For verbose library searching
+			// Or for general verbosity: PublicAdditionalLibraries.Add("/VERBOSE"); 
+		}
+
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
 		// Uncomment if you are using Slate UI
