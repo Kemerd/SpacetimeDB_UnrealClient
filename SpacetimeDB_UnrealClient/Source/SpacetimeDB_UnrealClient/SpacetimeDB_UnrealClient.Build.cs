@@ -61,22 +61,18 @@ public class SpacetimeDB_UnrealClient : ModuleRules
         {
             // Determine build script based on platform
             string rustBuildScript = "";
-            string libExtension = "";
             
             if (Target.Platform == UnrealTargetPlatform.Win64)
             {
                 rustBuildScript = "build-rust-win.bat";
-                libExtension = "lib";
             }
             else if (Target.Platform == UnrealTargetPlatform.Mac)
             {
                 rustBuildScript = "build-rust.sh";
-                libExtension = "a";
             }
             else if (Target.Platform == UnrealTargetPlatform.Linux)
             {
                 rustBuildScript = "build-rust.sh";
-                libExtension = "a";
             }
             else
             {
@@ -104,11 +100,11 @@ public class SpacetimeDB_UnrealClient : ModuleRules
                 }
             }
             
-            // Add pre-build step to build Rust library
-            PreBuildSteps.Add(rustBuildScriptPath);
+            // Note: In UE 5.5, PreBuildSteps is no longer available in ModuleRules
+            // Pre-build steps are now configured in the .uplugin file when EnabledByDefault is true
             
             // Log information about the build
-            Console.WriteLine($"SpacetimeDB: Running Rust build script: {rustBuildScriptPath}");
+            Console.WriteLine($"SpacetimeDB: Rust build script path: {rustBuildScriptPath}");
         }
         else
         {
