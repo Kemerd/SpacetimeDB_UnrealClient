@@ -138,6 +138,30 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnComponentRemovedDynamic, int64, 
 /** Delegate for handling SpacetimeDB error events with detailed error info */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSpacetimeDBErrorOccurred, const FSpacetimeDBErrorInfo&, ErrorInfo);
 
+/** Delegate for connection established events */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnConnectedDynamic);
+
+/** Delegate for disconnection events with reason */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDisconnectedDynamic, const FString&, Reason);
+
+/** Delegate for when client identity is received */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnIdentityReceivedDynamic, const FString&, Identity);
+
+/** Delegate for when table events are received */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEventReceivedDynamic, const FString&, TableName, const FString&, EventData);
+
+/** Delegate for when objects are created */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnObjectCreatedDynamic, int64, ObjectId, const FString&, ClassName, const FString&, InitialDataJson);
+
+/** Delegate for when objects are destroyed */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnObjectDestroyedDynamic, int64, ObjectId);
+
+/** Delegate for when object IDs are remapped */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnObjectIdRemappedDynamic, int64, TempId, int64, ServerId);
+
+/** Delegate for when properties are updated */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSpacetimeDBPropertyUpdated, const FSpacetimeDBPropertyUpdateInfo&, UpdateInfo);
+
 /**
  * @class USpacetimeDBSubsystem
  * @brief Game Instance Subsystem for managing SpacetimeDB connections.
@@ -527,35 +551,9 @@ private:
     // RPC delegate types
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnServerRpcReceived, int64, ObjectId, const FString&, FunctionName, const TArray<FStdbRpcArg>&, Arguments);
     
-    // Dynamic multicast delegates
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnConnectedDynamic);
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDisconnectedDynamic, const FString&, Reason);
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnIdentityReceivedDynamic, const FString&, Identity);
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEventReceivedDynamic, const FString&, TableName, const FString&, EventData);
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnErrorOccurredDynamic, const FString&, ErrorMessage);
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnObjectCreatedDynamic, int64, ObjectId, const FString&, ClassName, const FString&, InitialDataJson);
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnObjectDestroyedDynamic, int64, ObjectId);
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnObjectIdRemappedDynamic, int64, TempId, int64, ServerId);
-    
-    // Callback handlers for FFI events
-    void HandleConnected();
-    void HandleDisconnected(const FString& Reason);
-    void HandleIdentityReceived(const FString& Identity);
-    void HandleEventReceived(const FString& TableName, const FString& EventData);
-    void HandleErrorOccurred(const FString& ErrorMessage);
-    void HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson);
-    void HandleObjectDestroyed(uint64 ObjectId);
-    void HandleObjectIdRemapped(uint64 TempId, uint64 ServerId);
-    
     // Client instance
     FSpacetimeDBClient Client;
     
-
-    /**
-     * Delegate for property updates
-     */
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSpacetimeDBPropertyUpdated, const FSpacetimeDBPropertyUpdateInfo&, UpdateInfo);
-
     // Object Registry - Maps SpacetimeDB object IDs to Unreal UObjects
     TMap<int64, UObject*> ObjectRegistry;
     

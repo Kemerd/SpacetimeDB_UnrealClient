@@ -173,7 +173,7 @@ bool FSpacetimeDBClient::Disconnect()
 
 bool FSpacetimeDBClient::IsConnected() const
 {
-    return stdb::ffi::is_connected();
+    return stdb::ffi::is_client_connected();
 }
 
 bool FSpacetimeDBClient::CallReducer(const FString& ReducerName, const FString& ArgsJson)
@@ -217,12 +217,12 @@ bool FSpacetimeDBClient::CallReducer(const FString& ReducerName, const FString& 
         return false;
     }
     
-    // Prepare rusty strings for FFI - no try/catch needed in Unreal
-    rust::String rustReducerName = rust::String(TCHAR_TO_UTF8(*ReducerName));
-    rust::String rustArgsJson = rust::String(TCHAR_TO_UTF8(*ArgsJson));
+    // Prepare strings for FFI - convert to std::string as required by the FFI function
+    std::string stdReducerName = TCHAR_TO_UTF8(*ReducerName);
+    std::string stdArgsJson = TCHAR_TO_UTF8(*ArgsJson);
     
     // Call the FFI function and capture the result
-    bool bResult = stdb::ffi::call_reducer(rustReducerName, rustArgsJson);
+    bool bResult = stdb::ffi::call_reducer(stdReducerName, stdArgsJson);
     
     if (!bResult)
     {
@@ -294,15 +294,15 @@ bool FSpacetimeDBClient::SubscribeToTables(const TArray<FString>& TableNames)
         return false;
     }
     
-    // Convert from Unreal's TArray<FString> to a rust::Vec<rust::String>
-    std::vector<rust::String> rustTableNames;
+    // Convert from Unreal's TArray<FString> to a std::vector<std::string>
+    std::vector<std::string> stdTableNames;
     for (const FString& TableName : TableNames)
     {
-        rustTableNames.push_back(rust::String(TCHAR_TO_UTF8(*TableName)));
+        stdTableNames.push_back(TCHAR_TO_UTF8(*TableName));
     }
     
     // Call the FFI function and capture the result
-    bool bResult = stdb::ffi::subscribe_to_tables(rustTableNames);
+    bool bResult = stdb::ffi::subscribe_to_tables(stdTableNames);
     
     if (!bResult)
     {
@@ -361,7 +361,7 @@ void FSpacetimeDBClient::OnDisconnectedCallback(const char* Reason)
         FString ReasonStr = UTF8_TO_TCHAR(Reason);
         
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, []() {
+        AsyncTask(ENamedThreads::GameThread, [ReasonStr]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Disconnected from SpacetimeDB - Reason: %s"), *ReasonStr);
             Instance->OnDisconnected.Broadcast(ReasonStr);
         });
@@ -376,7 +376,7 @@ void FSpacetimeDBClient::OnEventReceivedCallback(const char* EventData, const ch
         FString TableNameStr = UTF8_TO_TCHAR(TableName);
         
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [TableNameStr, EventDataStr]() {
+        AsyncTask(ENamedThreads::GameThread, [EventDataStr, TableNameStr]() {
             UE_LOG(LogSpacetimeDB, Verbose, TEXT("Event received for table '%s'"), *TableNameStr);
             Instance->OnEventReceived.Broadcast(TableNameStr, EventDataStr);
         });
@@ -456,7 +456,7 @@ void FSpacetimeDBClient::OnObjectIdRemappedCallback(uint64 TempId, uint64 Server
     if (Instance)
     {
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [this, ErrorInfo]() {
+        AsyncTask(ENamedThreads::GameThread, [TempId, ServerId]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Object ID remapped - Temp ID: %llu -> Server ID: %llu"), TempId, ServerId);
             Instance->OnObjectIdRemapped.Broadcast(TempId, ServerId);
         });
@@ -481,7 +481,7 @@ void FSpacetimeDBClient::OnComponentAddedCallback(uint64 ActorId, uint64 Compone
             {
                 if (UGameInstance* GameInstance = *It)
                 {
-                    if (!GameInstance->IsPendingKill() && GameInstance->GetWorld() && GameInstance->GetWorld()->IsGameWorld())
+                    if (IsValid(GameInstance) && GameInstance->GetWorld() && GameInstance->GetWorld()->IsGameWorld())
                     {
                         if (USpacetimeDBSubsystem* Subsystem = GameInstance->GetSubsystem<USpacetimeDBSubsystem>())
                         {
@@ -500,7 +500,7 @@ void FSpacetimeDBClient::OnComponentRemovedCallback(uint64 ActorId, uint64 Compo
     if (Instance)
     {
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [this, ErrorInfo]() {
+        AsyncTask(ENamedThreads::GameThread, [ActorId, ComponentId]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Component removed - Actor: %llu, Component: %llu"), ActorId, ComponentId);
             Instance->OnComponentRemoved.Broadcast(ActorId, ComponentId);
             
@@ -509,7 +509,7 @@ void FSpacetimeDBClient::OnComponentRemovedCallback(uint64 ActorId, uint64 Compo
             {
                 if (UGameInstance* GameInstance = *It)
                 {
-                    if (!GameInstance->IsPendingKill() && GameInstance->GetWorld() && GameInstance->GetWorld()->IsGameWorld())
+                    if (IsValid(GameInstance) && GameInstance->GetWorld() && GameInstance->GetWorld()->IsGameWorld())
                     {
                         if (USpacetimeDBSubsystem* Subsystem = GameInstance->GetSubsystem<USpacetimeDBSubsystem>())
                         {

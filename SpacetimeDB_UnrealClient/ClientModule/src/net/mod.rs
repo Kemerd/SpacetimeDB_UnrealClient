@@ -6,9 +6,6 @@
 use stdb_shared::object::ObjectId;
 use stdb_shared::connection::{ConnectionState, ConnectionParams, DisconnectReason as SharedDisconnectReason};
 
-// Update to match current SDK structure
-use spacetimedb;
-
 // Use our custom TableUpdate from the property module
 use crate::property::TableUpdate;
 

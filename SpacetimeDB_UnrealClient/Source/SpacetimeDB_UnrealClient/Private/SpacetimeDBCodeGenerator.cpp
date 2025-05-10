@@ -10,7 +10,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/Controller.h"
-#include "Engine/StaticMeshComponent.h"
+
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/PlayerController.h"
