@@ -7,7 +7,8 @@
 #include "Serialization/JsonWriter.h"
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/TextProperty.h" // For PropertyPortFlags
-#include "UObject/PropertyAccessUtil.h" // For text import/export utilities
+
+
 
 // Serializes a property to JSON string
 FString USpacetimeDBJsonUtils::SerializePropertyToJson(FProperty* Property, const void* ValuePtr)
@@ -144,13 +145,13 @@ FString USpacetimeDBJsonUtils::SerializeMapToJson(FMapProperty* MapProperty, con
         if (MapHelper.IsValidIndex(i))
         {
             void* KeyPtr = MapHelper.GetKeyPtr(i);
-            void* ValuePtr = MapHelper.GetValuePtr(i);
+            void* MapValuePtr = MapHelper.GetValuePtr(i);
             
             // Convert key to string - maps in JSON need string keys
             FString KeyString;
-            FPropertyAccessUtils::PropertyToString(KeyProperty, KeyPtr, KeyString, nullptr);
+            KeyProperty->ExportText_Direct(KeyString, KeyPtr, nullptr, nullptr, PPF_None, nullptr);
             
-            TSharedPtr<FJsonValue> ValueJson = SerializePropertyToJsonValue(ValueProperty, ValuePtr);
+            TSharedPtr<FJsonValue> ValueJson = SerializePropertyToJsonValue(ValueProperty, MapValuePtr);
             if (ValueJson.IsValid())
             {
                 JsonObject->SetField(KeyString, ValueJson);
@@ -187,14 +188,14 @@ bool USpacetimeDBJsonUtils::DeserializeJsonToMap(FMapProperty* MapProperty, void
         void* TempKeyPtr = FMemory::Malloc(KeyProperty->GetSize(), KeyProperty->GetMinAlignment());
         KeyProperty->InitializeValue(TempKeyPtr);
         
-        FPropertyAccessUtils::StringToProperty(Pair.Key, KeyProperty, TempKeyPtr, nullptr);
+        KeyProperty->ImportText_Direct(*Pair.Key, TempKeyPtr, nullptr, PPF_None, nullptr);
         
         int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
         void* KeyPtr = MapHelper.GetKeyPtr(Index);
-        void* ValuePtr = MapHelper.GetValuePtr(Index);
+        void* ValueDestPtr = MapHelper.GetValuePtr(Index);
         
         KeyProperty->CopyCompleteValue(KeyPtr, TempKeyPtr);
-        DeserializeJsonValueToProperty(ValueProperty, ValuePtr, Pair.Value);
+        DeserializeJsonValueToProperty(ValueProperty, ValueDestPtr, Pair.Value);
         
         KeyProperty->DestroyValue(TempKeyPtr);
         FMemory::Free(TempKeyPtr);
@@ -435,11 +436,11 @@ FString USpacetimeDBJsonUtils::SerializeSpawnParamsToJson(const FSpacetimeDBSpaw
 {
     TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
     
-    JsonObject->SetStringField("ClassName", SpawnParams.ClassName);
-    JsonObject->SetObjectField("Location", VectorToJson(SpawnParams.Location));
-    JsonObject->SetObjectField("Rotation", RotatorToJson(SpawnParams.Rotation));
-    JsonObject->SetBoolField("Replicate", SpawnParams.bReplicate);
-    JsonObject->SetNumberField("OwnerClientId", SpawnParams.OwnerClientId);
+    JsonObject->SetStringField(TEXT("ClassName"), SpawnParams.ClassName);
+    JsonObject->SetObjectField(TEXT("Location"), VectorToJson(SpawnParams.Location));
+    JsonObject->SetObjectField(TEXT("Rotation"), RotatorToJson(SpawnParams.Rotation));
+    JsonObject->SetBoolField(TEXT("Replicate"), SpawnParams.bReplicate);
+    JsonObject->SetNumberField(TEXT("OwnerClientId"), SpawnParams.OwnerClientId);
     
     // Serialize initial properties map
     TSharedPtr<FJsonObject> PropertiesObject = MakeShareable(new FJsonObject);
@@ -447,7 +448,7 @@ FString USpacetimeDBJsonUtils::SerializeSpawnParamsToJson(const FSpacetimeDBSpaw
     {
         PropertiesObject->SetStringField(Pair.Key, Pair.Value);
     }
-    JsonObject->SetObjectField("InitialProperties", PropertiesObject);
+    JsonObject->SetObjectField(TEXT("InitialProperties"), PropertiesObject);
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
@@ -467,19 +468,19 @@ bool USpacetimeDBJsonUtils::DeserializeJsonToSpawnParams(const FString& JsonStri
         return false;
     }
     
-    JsonObject->TryGetStringField("ClassName", OutSpawnParams.ClassName);
-    JsonObject->TryGetBoolField("Replicate", OutSpawnParams.bReplicate);
-    JsonObject->TryGetNumberField("OwnerClientId", OutSpawnParams.OwnerClientId);
+    JsonObject->TryGetStringField(TEXT("ClassName"), OutSpawnParams.ClassName);
+    JsonObject->TryGetBoolField(TEXT("Replicate"), OutSpawnParams.bReplicate);
+    JsonObject->TryGetNumberField(TEXT("OwnerClientId"), OutSpawnParams.OwnerClientId);
     
     // Location
-    TSharedPtr<FJsonObject> LocationObj = JsonObject->GetObjectField("Location");
+    TSharedPtr<FJsonObject> LocationObj = JsonObject->GetObjectField(TEXT("Location"));
     if (LocationObj.IsValid())
     {
         JsonToVector(LocationObj, OutSpawnParams.Location);
     }
     
     // Rotation
-    TSharedPtr<FJsonObject> RotationObj = JsonObject->GetObjectField("Rotation");
+    TSharedPtr<FJsonObject> RotationObj = JsonObject->GetObjectField(TEXT("Rotation"));
     if (RotationObj.IsValid())
     {
         JsonToRotator(RotationObj, OutSpawnParams.Rotation);
@@ -487,7 +488,7 @@ bool USpacetimeDBJsonUtils::DeserializeJsonToSpawnParams(const FString& JsonStri
     
     // Initial properties
     OutSpawnParams.InitialProperties.Empty();
-    TSharedPtr<FJsonObject> PropertiesObj = JsonObject->GetObjectField("InitialProperties");
+    TSharedPtr<FJsonObject> PropertiesObj = JsonObject->GetObjectField(TEXT("InitialProperties"));
     if (PropertiesObj.IsValid())
     {
         for (const auto& Pair : PropertiesObj->Values)
@@ -519,9 +520,9 @@ TSharedPtr<FJsonValue> USpacetimeDBJsonUtils::SerializePropertyToJsonValue(FProp
     // Byte
     else if (FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
     {
-        if (ByteProperty->IsEnum())
+        UEnum* Enum = ByteProperty->Enum; // Use Enum property directly instead of GetEnum()
+        if (Enum)
         {
-            UEnum* Enum = ByteProperty->GetEnum();
             uint8 Value = ByteProperty->GetPropertyValue(ValuePtr);
             return MakeShared<FJsonValueString>(Enum->GetNameStringByValue(Value));
         }
@@ -662,13 +663,13 @@ TSharedPtr<FJsonValue> USpacetimeDBJsonUtils::SerializePropertyToJsonValue(FProp
             if (MapHelper.IsValidIndex(i))
             {
                 void* KeyPtr = MapHelper.GetKeyPtr(i);
-                void* ValuePtr = MapHelper.GetValuePtr(i);
+                void* MapValuePtr = MapHelper.GetValuePtr(i);
                 
                 // Convert key to string
                 FString KeyString;
-                FPropertyAccessUtils::PropertyToString(KeyProperty, KeyPtr, KeyString, nullptr);
+                KeyProperty->ExportText_Direct(KeyString, KeyPtr, nullptr, nullptr, PPF_None, nullptr);
                 
-                TSharedPtr<FJsonValue> ValueJson = SerializePropertyToJsonValue(ValueProperty, ValuePtr);
+                TSharedPtr<FJsonValue> ValueJson = SerializePropertyToJsonValue(ValueProperty, MapValuePtr);
                 if (ValueJson.IsValid())
                 {
                     JsonObject->SetField(KeyString, ValueJson);
@@ -703,7 +704,7 @@ TSharedPtr<FJsonValue> USpacetimeDBJsonUtils::SerializePropertyToJsonValue(FProp
     
     // Unsupported property type, convert to string (for debug purposes)
     FString ValueString;
-    FPropertyAccessUtils::PropertyToString(Property, ValuePtr, ValueString, nullptr);
+    Property->ExportText_Direct(ValueString, ValuePtr, nullptr, nullptr, PPF_None, nullptr);
     return MakeShared<FJsonValueString>(ValueString);
 }
 
@@ -734,11 +735,11 @@ bool USpacetimeDBJsonUtils::DeserializeJsonValueToProperty(FProperty* Property, 
     // Byte
     else if (FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
     {
-        if (ByteProperty->IsEnum())
+        if (ByteProperty->Enum) // Use Enum property directly instead of IsEnum/GetEnum
         {
             if (JsonValue->Type == EJson::String)
             {
-                UEnum* Enum = ByteProperty->GetEnum();
+                UEnum* Enum = ByteProperty->Enum;
                 int64 Value = Enum->GetValueByNameString(JsonValue->AsString());
                 if (Value != INDEX_NONE)
                 {
@@ -952,14 +953,14 @@ bool USpacetimeDBJsonUtils::DeserializeJsonValueToProperty(FProperty* Property, 
                 void* TempKeyPtr = FMemory::Malloc(KeyProperty->GetSize(), KeyProperty->GetMinAlignment());
                 KeyProperty->InitializeValue(TempKeyPtr);
                 
-                FPropertyAccessUtils::StringToProperty(Pair.Key, KeyProperty, TempKeyPtr, nullptr);
+                KeyProperty->ImportText_Direct(*Pair.Key, TempKeyPtr, nullptr, PPF_None, nullptr);
                 
                 int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
                 void* KeyPtr = MapHelper.GetKeyPtr(Index);
-                void* ValuePtr = MapHelper.GetValuePtr(Index);
+                void* MapValueDestPtr = MapHelper.GetValuePtr(Index);
                 
                 KeyProperty->CopyCompleteValue(KeyPtr, TempKeyPtr);
-                DeserializeJsonValueToProperty(ValueProperty, ValuePtr, Pair.Value);
+                DeserializeJsonValueToProperty(ValueProperty, MapValueDestPtr, Pair.Value);
                 
                 KeyProperty->DestroyValue(TempKeyPtr);
                 FMemory::Free(TempKeyPtr);
@@ -1005,7 +1006,8 @@ bool USpacetimeDBJsonUtils::DeserializeJsonValueToProperty(FProperty* Property, 
     if (JsonValue->Type == EJson::String)
     {
         const FString& StringValue = JsonValue->AsString();
-        return FPropertyAccessUtils::StringToProperty(StringValue, Property, ValuePtr, nullptr);
+        const TCHAR* Result = Property->ImportText_Direct(*StringValue, ValuePtr, nullptr, PPF_None, nullptr);
+        return Result != nullptr;
     }
     
     return false;
