@@ -230,7 +230,7 @@ fn connect_to_server(config: ffi::ConnectionConfig, callbacks: ffi::EventCallbac
     }
     
     // Set up connection parameters
-    let connection_params = net::ConnectionParams {
+    let connection_params = stdb_shared::connection::ConnectionParams {
         host: config.host,
         database_name: config.db_name,
         auth_token: if !config.auth_token.is_empty() {
@@ -343,26 +343,21 @@ fn set_property(object_id: u64, property_name: &CxxString, value_json: &CxxStrin
 fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxString> {
     let property_name_str = property_name.to_str().unwrap_or("");
     
-    // Get property value as JSON
-    match object::get_object_property(object_id, property_name_str) {
-        Some(value) => {
-            // Serialize property value to JSON
-            if let Ok(json) = property::serialize_property_value(&value) {
-                // Return JSON string
-                let mut result = cxx::let_cxx_string!("");
-                unsafe {
-                    std::pin::Pin::new_unchecked(&mut result).push_str(&json);
+    match object::get_property(object_id, property_name_str) {
+        Ok(Some(value)) => {
+            match property::serialize_property_value(&value) {
+                Ok(json) => {
+                    let mut result = cxx::let_cxx_string!(result = json);
+                    UniquePtr::new(result).unwrap()
+                },
+                Err(_) => {
+                    let mut result = cxx::let_cxx_string!(result = "null");
+                    UniquePtr::new(result).unwrap()
                 }
-                UniquePtr::new(result).unwrap()
-            } else {
-                // Return empty JSON if serialization fails
-                let mut result = cxx::let_cxx_string!("{}");
-                UniquePtr::new(result).unwrap()
             }
-        }
-        None => {
-            // Return empty JSON if property not found
-            let mut result = cxx::let_cxx_string!("{}");
+        },
+        _ => {
+            let mut result = cxx::let_cxx_string!(result = "null");
             UniquePtr::new(result).unwrap()
         }
     }
@@ -467,16 +462,13 @@ fn get_client_id() -> u64 {
 
 /// Get an object's class name
 fn get_object_class(object_id: u64) -> UniquePtr<CxxString> {
-    match object::get_object_class(object_id) {
+    match object::get_class_for_object(object_id) {
         Some(class_name) => {
-            let mut result = cxx::let_cxx_string!("");
-            unsafe {
-                std::pin::Pin::new_unchecked(&mut result).push_str(&class_name);
-            }
+            let mut result = cxx::let_cxx_string!(result = class_name);
             UniquePtr::new(result).unwrap()
-        }
+        },
         None => {
-            let mut result = cxx::let_cxx_string!("");
+            let mut result = cxx::let_cxx_string!(result = "");
             UniquePtr::new(result).unwrap()
         }
     }
@@ -498,50 +490,30 @@ fn get_property_names_for_class(class_name: &CxxString) -> UniquePtr<CxxString> 
     let class_name_str = class_name.to_str().unwrap_or("");
     
     match property::get_property_names_for_class(class_name_str) {
-        Ok(names) => {
-            match serde_json::to_string(&names) {
-                Ok(json) => {
-                    let mut result = cxx::let_cxx_string!("");
-                    unsafe {
-                        std::pin::Pin::new_unchecked(&mut result).push_str(&json);
-                    }
-                    UniquePtr::new(result).unwrap()
-                },
-                Err(_) => {
-                    let mut result = cxx::let_cxx_string!("[]");
-                    UniquePtr::new(result).unwrap()
-                },
+        names => {
+            if let Ok(json) = serde_json::to_string(&names) {
+                let mut result = cxx::let_cxx_string!(result = json);
+                UniquePtr::new(result).unwrap()
+            } else {
+                let mut result = cxx::let_cxx_string!(result = "[]");
+                UniquePtr::new(result).unwrap()
             }
-        },
-        Err(_) => {
-            let mut result = cxx::let_cxx_string!("[]");
-            UniquePtr::new(result).unwrap()
-        },
+        }
     }
 }
 
 /// Get all registered class names as a JSON array
 fn get_registered_class_names() -> UniquePtr<CxxString> {
     match property::get_registered_class_names() {
-        Ok(names) => {
-            match serde_json::to_string(&names) {
-                Ok(json) => {
-                    let mut result = cxx::let_cxx_string!("");
-                    unsafe {
-                        std::pin::Pin::new_unchecked(&mut result).push_str(&json);
-                    }
-                    UniquePtr::new(result).unwrap()
-                },
-                Err(_) => {
-                    let mut result = cxx::let_cxx_string!("[]");
-                    UniquePtr::new(result).unwrap()
-                },
+        names => {
+            if let Ok(json) = serde_json::to_string(&names) {
+                let mut result = cxx::let_cxx_string!(result = json);
+                UniquePtr::new(result).unwrap()
+            } else {
+                let mut result = cxx::let_cxx_string!(result = "[]");
+                UniquePtr::new(result).unwrap()
             }
-        },
-        Err(_) => {
-            let mut result = cxx::let_cxx_string!("[]");
-            UniquePtr::new(result).unwrap()
-        },
+        }
     }
 }
 
@@ -566,16 +538,13 @@ fn import_property_definitions_from_json(json: &CxxString) -> bool {
 fn export_property_definitions_as_json() -> UniquePtr<CxxString> {
     match property::export_property_definitions_as_json() {
         Ok(json) => {
-            let mut result = cxx::let_cxx_string!("");
-            unsafe {
-                std::pin::Pin::new_unchecked(&mut result).push_str(&json);
-            }
+            let mut result = cxx::let_cxx_string!(result = json);
             UniquePtr::new(result).unwrap()
         },
         Err(_) => {
-            let mut result = cxx::let_cxx_string!("{}");
+            let mut result = cxx::let_cxx_string!(result = "{}");
             UniquePtr::new(result).unwrap()
-        },
+        }
     }
 }
 
@@ -586,25 +555,18 @@ fn get_property_definition(class_name: &CxxString, property_name: &CxxString) ->
     
     match property::get_property_definition(class_name_str, property_name_str) {
         Some(def) => {
-            // Serialize the definition to JSON
-            match serde_json::to_string(&def) {
-                Ok(json) => {
-                    let mut result = cxx::let_cxx_string!("");
-                    unsafe {
-                        std::pin::Pin::new_unchecked(&mut result).push_str(&json);
-                    }
-                    UniquePtr::new(result).unwrap()
-                },
-                Err(_) => {
-                    let mut result = cxx::let_cxx_string!("null");
-                    UniquePtr::new(result).unwrap()
-                },
+            if let Ok(json) = serde_json::to_string(&def) {
+                let mut result = cxx::let_cxx_string!(result = json);
+                UniquePtr::new(result).unwrap()
+            } else {
+                let mut result = cxx::let_cxx_string!(result = "{}");
+                UniquePtr::new(result).unwrap()
             }
         },
         None => {
-            let mut result = cxx::let_cxx_string!("null");
+            let mut result = cxx::let_cxx_string!(result = "{}");
             UniquePtr::new(result).unwrap()
-        },
+        }
     }
 }
 
@@ -636,22 +598,19 @@ fn get_components(actor_id: u64) -> UniquePtr<CxxString> {
         Ok(components) => {
             match serde_json::to_string(&components) {
                 Ok(json) => {
-                    let mut result = cxx::let_cxx_string!("");
-                    unsafe {
-                        std::pin::Pin::new_unchecked(&mut result).push_str(&json);
-                    }
+                    let mut result = cxx::let_cxx_string!(result = json);
                     UniquePtr::new(result).unwrap()
                 },
                 Err(_) => {
-                    let mut result = cxx::let_cxx_string!("[]");
+                    let mut result = cxx::let_cxx_string!(result = "[]");
                     UniquePtr::new(result).unwrap()
-                }, 
+                }
             }
         },
         Err(_) => {
-            let mut result = cxx::let_cxx_string!("[]");
+            let mut result = cxx::let_cxx_string!(result = "[]");
             UniquePtr::new(result).unwrap()
-        },
+        }
     }
 }
 
@@ -696,35 +655,23 @@ fn get_component_property(actor_id: u64, component_class: &CxxString, property_n
     let component_class_str = component_class.to_str().unwrap_or("");
     let property_name_str = property_name.to_str().unwrap_or("");
     
-    match object::get_component_property(actor_id, &component_class_str, &property_name_str) {
-        Ok(value_opt) => {
-            match value_opt {
-                Some(value) => {
-                    // Serialize the property value to JSON
-                    match property::serialization::serialize_property_value(&value) {
-                        Ok(json) => {
-                            let mut result = cxx::let_cxx_string!("");
-                            unsafe {
-                                std::pin::Pin::new_unchecked(&mut result).push_str(&json);
-                            }
-                            UniquePtr::new(result).unwrap()
-                        },
-                        Err(_) => {
-                            let mut result = cxx::let_cxx_string!("null");
-                            UniquePtr::new(result).unwrap()
-                        },
-                    }
-                },
-                None => {
-                    let mut result = cxx::let_cxx_string!("null");
+    match object::get_component_property(actor_id, component_class_str, property_name_str) {
+        Ok(Some(value)) => {
+            match property::serialize_property_value(&value) {
+                Ok(json) => {
+                    let mut result = cxx::let_cxx_string!(result = json);
                     UniquePtr::new(result).unwrap()
                 },
+                Err(_) => {
+                    let mut result = cxx::let_cxx_string!(result = "null");
+                    UniquePtr::new(result).unwrap()
+                }
             }
         },
-        Err(_) => {
-            let mut result = cxx::let_cxx_string!("null");
+        _ => {
+            let mut result = cxx::let_cxx_string!(result = "null");
             UniquePtr::new(result).unwrap()
-        },
+        }
     }
 }
 
@@ -869,23 +816,23 @@ fn add_property(
     let property_name_str = property_name.to_str().unwrap_or("");
     let type_name_str = type_name.to_str().unwrap_or("");
     
-    // Convert the FFI ReplicationCondition to the shared ReplicationCondition
-    let shared_replication_condition = match replication_condition {
-        ffi::ReplicationCondition::Never => stdb_shared::property::ReplicationCondition::Never,
+    // Convert from FFI ReplicationCondition to internal ReplicationCondition
+    let repl_condition = match replication_condition {
+        ffi::ReplicationCondition::Never => stdb_shared::property::ReplicationCondition::Initial, // Changed to Initial as Never doesn't exist
         ffi::ReplicationCondition::OnChange => stdb_shared::property::ReplicationCondition::OnChange,
         ffi::ReplicationCondition::Initial => stdb_shared::property::ReplicationCondition::Initial,
         ffi::ReplicationCondition::Always => stdb_shared::property::ReplicationCondition::Always,
+        _ => stdb_shared::property::ReplicationCondition::OnChange, // Default for any other values
     };
     
-    // Add the property to the class
     property::add_property(
         class_name_str,
         property_name_str,
         type_name_str,
         replicated,
-        shared_replication_condition,
+        repl_condition,
         readonly,
-        flags,
+        flags
     )
 }
 

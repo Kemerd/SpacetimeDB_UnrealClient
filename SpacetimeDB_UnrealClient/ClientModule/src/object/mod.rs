@@ -4,15 +4,19 @@
 //! and property management. This module handles both actor and non-actor objects through
 //! a unified object representation.
 
-use stdb_shared::object::{ObjectId, SpawnParams};
-use stdb_shared::lifecycle::ObjectLifecycleState;
-use stdb_shared::property::PropertyValue;
+use stdb_shared::object::ObjectId;
+use stdb_shared::object::SpawnParams;
+use stdb_shared::property::{PropertyType, PropertyValue};
 use stdb_shared::types::*;
-
-use std::collections::HashMap;
+use stdb_shared::lifecycle::ObjectLifecycleState;
+use crate::property;
+use crate::net;
+use crate::class::{get_class, has_class, get_parent_class};
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use log::{debug, error, info, warn};
+use serde_json::{Value, json};
 
 /// Client-side object representation
 /// Handles both regular objects and actors in a unified structure
@@ -1173,4 +1177,30 @@ pub fn set_object_property_with_replication(
     }
     
     Ok(())
+}
+
+/// Get the class name for an object
+pub fn get_class_for_object(object_id: ObjectId) -> Option<String> {
+    let objects = CLIENT_OBJECTS.lock().unwrap();
+    if let Some(obj) = objects.get(&object_id) {
+        return Some(obj.class_name.clone());
+    }
+    None
+}
+
+/// Get all registered objects
+pub fn get_property(object_id: ObjectId, property_name: &str) -> Result<Option<PropertyValue>, String> {
+    let objects = CLIENT_OBJECTS.lock().unwrap();
+    
+    if let Some(obj) = objects.get(&object_id) {
+        return Ok(obj.properties.get(property_name).cloned());
+    }
+    
+    // No object found, check if we have property in the staging cache
+    let cache = crate::property::get_cached_property_value(object_id, property_name);
+    if cache.is_some() {
+        return Ok(cache);
+    }
+    
+    Ok(None)
 } 

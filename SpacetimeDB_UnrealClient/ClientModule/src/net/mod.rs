@@ -8,11 +8,12 @@ use stdb_shared::connection::{ConnectionState, ConnectionParams, ClientConnectio
 use spacetimedb_sdk::{
     Address, identity::Identity, 
     reducer::Status as ReducerStatus,
-    client::Client, client::ClientState,
-    disconnect::DisconnectReason,
-    table::{TableUpdate, TableOp, TableType},
-    value::Value as StdbValue,
 };
+use spacetimedb_sdk::client as sdk_client;
+use spacetimedb_sdk::client_api_messages::TableUpdate;
+use spacetimedb_sdk::table::{TableOp, TableType};
+use spacetimedb_sdk::value::Value as StdbValue;
+use spacetimedb_sdk::disconnect::DisconnectReason;
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -22,10 +23,10 @@ use log::{info, debug, error, warn, trace};
 use serde_json::Value;
 
 // Global client state
-static CLIENT: Lazy<Mutex<Option<Client>>> = Lazy::new(|| Mutex::new(None));
+static CLIENT: Lazy<Mutex<Option<sdk_client::Client>>> = Lazy::new(|| Mutex::new(None));
 static CONNECTION_STATE: Lazy<Mutex<ConnectionState>> = Lazy::new(|| Mutex::new(ConnectionState::Disconnected));
 static CLIENT_ID: Lazy<Mutex<u64>> = Lazy::new(|| Mutex::new(0));
-static SUBSCRIPTION: Lazy<Mutex<Option<SubscriptionHandle>>> = Lazy::new(|| Mutex::new(None));
+static SUBSCRIPTION: Lazy<Mutex<Option<sdk_client::SubscriptionHandle>>> = Lazy::new(|| Mutex::new(None));
 
 // Callback handlers
 type OnConnectedFn = Box<dyn Fn() + Send + 'static>;
@@ -110,7 +111,7 @@ pub fn connect(params: ConnectionParams) -> Result<(), String> {
     
     // Build connection URL
     let address_str = format!("{}/{}", params.host, params.database_name);
-    let address = match Address::from_str(&address_str) {
+    let address = match Address::from_hex(&address_str) {
         Ok(addr) => addr,
         Err(e) => {
             return Err(format!("Invalid address: {}", e));
@@ -120,20 +121,19 @@ pub fn connect(params: ConnectionParams) -> Result<(), String> {
     // Build auth token if provided
     let identity = match &params.auth_token {
         Some(token) => {
-            match Identity::from_bytes(token.as_bytes().to_vec()) {
-                Ok(id) => Some(id),
-                Err(e) => {
+            Identity::from_private_key_bytes(token.as_bytes().to_vec())
+                .map_err(|e| {
                     let mut state = CONNECTION_STATE.lock().unwrap();
                     *state = ConnectionState::Disconnected;
-                    return Err(format!("Invalid auth token: {}", e));
-                }
-            }
+                    format!("Invalid auth token: {}", e)
+                })
+                .ok()
         },
         None => None,
     };
     
     // Create client
-    let client = Client::new(address, identity);
+    let client = sdk_client::Client::new(address, identity);
     
     // Register event handlers
     client.on_client_state_change(handle_client_state_change);
@@ -177,7 +177,7 @@ pub fn connect(params: ConnectionParams) -> Result<(), String> {
 }
 
 /// Disconnect from the SpacetimeDB server
-pub fn disconnect() -> bool {
+pub fn disconnect_from_server() -> bool {
     // Check if connected
     {
         let state = *CONNECTION_STATE.lock().unwrap();
@@ -428,9 +428,9 @@ fn convert_disconnect_reason(reason: DisconnectReason) -> SharedDisconnectReason
 // ---- SpacetimeDB event handlers ----
 
 /// Handle client state changes
-fn handle_client_state_change(state: ClientState) {
+fn handle_client_state_change(state: sdk_client::ClientState) {
     match state {
-        ClientState::Connected => {
+        sdk_client::ClientState::Connected => {
             debug!("SpacetimeDB client connected");
             
             // Update connection state
@@ -466,17 +466,17 @@ fn handle_client_state_change(state: ClientState) {
                 handler();
             }
         },
-        ClientState::Connecting => {
+        sdk_client::ClientState::Connecting => {
             debug!("SpacetimeDB client connecting");
             
             // Update connection state
             let mut state = CONNECTION_STATE.lock().unwrap();
             *state = ConnectionState::Connecting;
         },
-        ClientState::Disconnecting => {
+        sdk_client::ClientState::Disconnecting => {
             debug!("SpacetimeDB client disconnecting");
         },
-        ClientState::Disconnected => {
+        sdk_client::ClientState::Disconnected => {
             debug!("SpacetimeDB client disconnected");
             
             // Update connection state
@@ -644,7 +644,7 @@ fn handle_reducer_call(func_name: String, arg_bytes: Vec<u8>, _caller_identity: 
 
 /// Process a table update from SpacetimeDB
 pub fn process_table_update(update: &TableUpdate) -> Result<(), String> {
-    let table_name = update.table_name();
+    let table_name = &update.table_name;
     debug!("Processing update for table: {}", table_name);
     
     // Look for registered handlers
@@ -670,55 +670,56 @@ pub fn process_table_update(update: &TableUpdate) -> Result<(), String> {
 
 /// Handle updates to the ObjectInstance table
 fn handle_object_instance_update(update: &TableUpdate) -> Result<(), String> {
-    match update.op() {
-        TableOp::Insert | TableOp::Update => {
-            // Extract object data
-            let mut row_iter = update.iter();
-            if let Some(row) = row_iter.next() {
-                // Extract object ID
-                let object_id = match row.get("id") {
-                    Some(StdbValue::U64(id)) => *id,
-                    _ => return Err("Missing or invalid object ID".to_string()),
-                };
-                
-                // Extract class name
-                let class_name = match row.get("class_name") {
-                    Some(StdbValue::String(name)) => name.clone(),
-                    _ => return Err("Missing or invalid class name".to_string()),
-                };
-                
-                // Extract lifecycle state
-                let state = match row.get("state") {
-                    Some(StdbValue::U8(state)) => *state,
-                    _ => 0, // Default to 0 (Initializing) if not found
-                };
-                
-                if state == 3 { // ObjectLifecycleState::Destroyed
-                    // Object is destroyed, trigger destruction handler
-                    if let Some(handler) = &*ON_OBJECT_DESTROYED.lock().unwrap() {
-                        handler(object_id);
-                    }
-                } else if update.op() == TableOp::Insert {
-                    // New object, trigger creation handler
-                    if let Some(handler) = &*ON_OBJECT_CREATED.lock().unwrap() {
-                        // For now, use empty JSON for initial properties
-                        // In a real implementation, we would query initial properties
-                        handler(object_id, &class_name, "{}");
-                    }
-                }
-            }
-        },
-        TableOp::Delete => {
-            // Find the object ID and trigger destruction
-            let mut row_iter = update.iter();
-            if let Some(row) = row_iter.next() {
-                if let Some(StdbValue::U64(object_id)) = row.get("id") {
-                    if let Some(handler) = &*ON_OBJECT_DESTROYED.lock().unwrap() {
-                        handler(*object_id);
+    // Process all rows in the update
+    for row in &update.table_row_operations {
+        match row.operation {
+            TableOp::Insert | TableOp::Update => {
+                // Extract object data
+                if let Some(row_data) = &row.row {
+                    // Extract object ID
+                    let object_id = match row_data.get("id") {
+                        Some(StdbValue::U64(id)) => *id,
+                        _ => return Err("Missing or invalid object ID".to_string()),
+                    };
+                    
+                    // Extract class name
+                    let class_name = match row_data.get("class_name") {
+                        Some(StdbValue::String(name)) => name.clone(),
+                        _ => return Err("Missing or invalid class name".to_string()),
+                    };
+                    
+                    // Extract lifecycle state
+                    let state = match row_data.get("state") {
+                        Some(StdbValue::U8(state)) => *state,
+                        _ => 0, // Default to 0 (Initializing) if not found
+                    };
+                    
+                    if state == 3 { // ObjectLifecycleState::Destroyed
+                        // Object is destroyed, trigger destruction handler
+                        if let Some(handler) = &*ON_OBJECT_DESTROYED.lock().unwrap() {
+                            handler(object_id);
+                        }
+                    } else if row.operation == TableOp::Insert {
+                        // New object, trigger creation handler
+                        if let Some(handler) = &*ON_OBJECT_CREATED.lock().unwrap() {
+                            // For now, use empty JSON for initial properties
+                            // In a real implementation, we would query initial properties
+                            handler(object_id, &class_name, "{}");
+                        }
                     }
                 }
-            }
-        },
+            },
+            TableOp::Delete => {
+                // Find the object ID and trigger destruction
+                if let Some(row_data) = &row.row {
+                    if let Some(StdbValue::U64(object_id)) = row_data.get("id") {
+                        if let Some(handler) = &*ON_OBJECT_DESTROYED.lock().unwrap() {
+                            handler(*object_id);
+                        }
+                    }
+                }
+            },
+        }
     }
     
     Ok(())
@@ -726,32 +727,32 @@ fn handle_object_instance_update(update: &TableUpdate) -> Result<(), String> {
 
 /// Handle updates to the ObjectProperty table
 fn handle_object_property_update(update: &TableUpdate) -> Result<(), String> {
-    if update.op() != TableOp::Delete {
-        // Extract property data
-        let mut row_iter = update.iter();
-        if let Some(row) = row_iter.next() {
-            // Extract object ID
-            let object_id = match row.get("object_id") {
-                Some(StdbValue::U64(id)) => *id,
-                _ => return Err("Missing or invalid object ID".to_string()),
-            };
-            
-            // Extract property name
-            let property_name = match row.get("name") {
-                Some(StdbValue::String(name)) => name.clone(),
-                _ => return Err("Missing or invalid property name".to_string()),
-            };
-            
-            // Extract property value
-            let value_json = match row.get("value") {
-                Some(value) => serde_json::to_string(value)
-                    .unwrap_or_else(|_| "null".to_string()),
-                None => "null".to_string(),
-            };
-            
-            // Trigger property updated handler
-            if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
-                handler(object_id, &property_name, &value_json);
+    for row in &update.table_row_operations {
+        if row.operation != TableOp::Delete {
+            if let Some(row_data) = &row.row {
+                // Extract object ID
+                let object_id = match row_data.get("object_id") {
+                    Some(StdbValue::U64(id)) => *id,
+                    _ => return Err("Missing or invalid object ID".to_string()),
+                };
+                
+                // Extract property name
+                let property_name = match row_data.get("name") {
+                    Some(StdbValue::String(name)) => name.clone(),
+                    _ => return Err("Missing or invalid property name".to_string()),
+                };
+                
+                // Extract property value
+                let value_json = match row_data.get("value") {
+                    Some(value) => serde_json::to_string(value)
+                        .unwrap_or_else(|_| "null".to_string()),
+                    None => "null".to_string(),
+                };
+                
+                // Trigger property updated handler
+                if let Some(handler) = &*ON_PROPERTY_UPDATED.lock().unwrap() {
+                    handler(object_id, &property_name, &value_json);
+                }
             }
         }
     }
@@ -761,54 +762,57 @@ fn handle_object_property_update(update: &TableUpdate) -> Result<(), String> {
 
 /// Process updates to object transforms in a transform table update
 fn handle_object_transform_update(update: &TableUpdate) -> Result<(), String> {
-    for row in &update.rows {
-        // Extract object ID and transform data
-        let object_id = row.data.get("object_id")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| "Failed to get object_id from transform update".to_string())?;
-        
-        match row.op {
-            TableOp::Insert | TableOp::Update => {
-                // Extract transform components
-                let location_x = row.data.get("location_x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
-                let location_y = row.data.get("location_y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
-                let location_z = row.data.get("location_z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
-                
-                let rotation_x = row.data.get("rotation_x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
-                let rotation_y = row.data.get("rotation_y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
-                let rotation_z = row.data.get("rotation_z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
-                let rotation_w = row.data.get("rotation_w").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
-                
-                let scale_x = row.data.get("scale_x").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
-                let scale_y = row.data.get("scale_y").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
-                let scale_z = row.data.get("scale_z").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
-                
-                // Update the object's transform
-                let location = stdb_shared::types::Vector3 {
-                    x: location_x,
-                    y: location_y,
-                    z: location_z,
-                };
-                
-                let rotation = stdb_shared::types::Quat {
-                    x: rotation_x,
-                    y: rotation_y,
-                    z: rotation_z,
-                    w: rotation_w,
-                };
-                
-                let scale = stdb_shared::types::Vector3 {
-                    x: scale_x,
-                    y: scale_y,
-                    z: scale_z,
-                };
-                
-                // Update the object's transform
-                if let Err(err) = crate::object::update_transform(object_id, Some(location), Some(rotation), Some(scale)) {
-                    warn!("Failed to update transform for object {}: {}", object_id, err);
-                }
-            },
-            _ => {}
+    for row in &update.table_row_operations {
+        if let Some(row_data) = &row.row {
+            // Extract object ID
+            let object_id = match row_data.get("object_id") {
+                Some(StdbValue::U64(id)) => *id,
+                _ => continue,
+            };
+            
+            match row.operation {
+                TableOp::Insert | TableOp::Update => {
+                    // Extract transform components
+                    let location_x = row_data.get("location_x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let location_y = row_data.get("location_y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let location_z = row_data.get("location_z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    
+                    let rotation_x = row_data.get("rotation_x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let rotation_y = row_data.get("rotation_y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let rotation_z = row_data.get("rotation_z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let rotation_w = row_data.get("rotation_w").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
+                    
+                    let scale_x = row_data.get("scale_x").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
+                    let scale_y = row_data.get("scale_y").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
+                    let scale_z = row_data.get("scale_z").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
+                    
+                    // Update the object's transform
+                    let location = stdb_shared::types::Vector3 {
+                        x: location_x,
+                        y: location_y,
+                        z: location_z,
+                    };
+                    
+                    let rotation = stdb_shared::types::Quat {
+                        x: rotation_x,
+                        y: rotation_y,
+                        z: rotation_z,
+                        w: rotation_w,
+                    };
+                    
+                    let scale = stdb_shared::types::Vector3 {
+                        x: scale_x,
+                        y: scale_y,
+                        z: scale_z,
+                    };
+                    
+                    // Update the object's transform
+                    if let Err(err) = crate::object::update_transform(object_id, Some(location), Some(rotation), Some(scale)) {
+                        warn!("Failed to update transform for object {}: {}", object_id, err);
+                    }
+                },
+                _ => {}
+            }
         }
     }
     
@@ -818,64 +822,84 @@ fn handle_object_transform_update(update: &TableUpdate) -> Result<(), String> {
 /// Handle updates to the PropertyDefinitionTable
 fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String> {
     // Process all rows in the update
-    for row in &update.rows {
-        match &row.op {
-            spacetimedb_sdk::table::TableOp::Insert | spacetimedb_sdk::table::TableOp::Update => {
-                // Extract fields from the row
-                let class_name = row.get_string("class_name").ok_or("Missing class_name field")?;
-                let prop_name = row.get_string("property_name").ok_or("Missing property_name field")?;
-                let prop_type_str = row.get_string("property_type").ok_or("Missing property_type field")?;
-                let replicated = row.get_bool("replicated").unwrap_or(false);
-                let readonly = row.get_bool("readonly").unwrap_or(false);
-                
-                // Parse property type (removing the "PropertyType::" prefix if present)
-                let type_str = prop_type_str.replace("PropertyType::", "");
-                let prop_type = match type_str.as_str() {
-                    "Bool" => stdb_shared::property::PropertyType::Bool,
-                    "Byte" => stdb_shared::property::PropertyType::Byte,
-                    "Int32" => stdb_shared::property::PropertyType::Int32,
-                    "Int64" => stdb_shared::property::PropertyType::Int64,
-                    "UInt32" => stdb_shared::property::PropertyType::UInt32,
-                    "UInt64" => stdb_shared::property::PropertyType::UInt64,
-                    "Float" => stdb_shared::property::PropertyType::Float,
-                    "Double" => stdb_shared::property::PropertyType::Double,
-                    "String" => stdb_shared::property::PropertyType::String,
-                    "Vector" => stdb_shared::property::PropertyType::Vector,
-                    "Rotator" => stdb_shared::property::PropertyType::Rotator,
-                    "Quat" => stdb_shared::property::PropertyType::Quat,
-                    "Transform" => stdb_shared::property::PropertyType::Transform,
-                    "Color" => stdb_shared::property::PropertyType::Color,
-                    "ObjectReference" => stdb_shared::property::PropertyType::ObjectReference,
-                    "ClassReference" => stdb_shared::property::PropertyType::ClassReference,
-                    "Array" => stdb_shared::property::PropertyType::Array,
-                    "Map" => stdb_shared::property::PropertyType::Map,
-                    "Set" => stdb_shared::property::PropertyType::Set,
-                    "Name" => stdb_shared::property::PropertyType::Name,
-                    "Text" => stdb_shared::property::PropertyType::Text,
-                    "Custom" => stdb_shared::property::PropertyType::Custom,
-                    "None" => stdb_shared::property::PropertyType::None,
-                    _ => {
-                        warn!("Unknown property type: {}", type_str);
-                        stdb_shared::property::PropertyType::None
-                    }
-                };
-                
-                // Register the property definition
-                crate::property::register_property_definition(
-                    &class_name,
-                    &prop_name,
-                    prop_type,
-                    replicated
-                );
-                
-                trace!("Registered property definition from server: {}.{} (type: {:?}, replicated: {})", 
-                    class_name, prop_name, prop_type, replicated);
-            },
-            spacetimedb_sdk::table::TableOp::Delete => {
-                // For now, we don't handle property definition deletion
-                // In a more complete implementation, we could remove property definitions here
-            },
-            _ => {} // Ignore other operations
+    for row in &update.table_row_operations {
+        if let Some(row_data) = &row.row {
+            match row.operation {
+                TableOp::Insert | TableOp::Update => {
+                    // Extract fields from the row
+                    let class_name = match row_data.get("class_name") {
+                        Some(StdbValue::String(s)) => s,
+                        _ => continue,
+                    };
+                    
+                    let prop_name = match row_data.get("property_name") {
+                        Some(StdbValue::String(s)) => s,
+                        _ => continue,
+                    };
+                    
+                    let prop_type_str = match row_data.get("property_type") {
+                        Some(StdbValue::String(s)) => s,
+                        _ => continue,
+                    };
+                    
+                    let replicated = match row_data.get("replicated") {
+                        Some(StdbValue::Bool(b)) => *b,
+                        _ => false,
+                    };
+                    
+                    let readonly = match row_data.get("readonly") {
+                        Some(StdbValue::Bool(b)) => *b,
+                        _ => false,
+                    };
+                    
+                    // Parse property type (removing the "PropertyType::" prefix if present)
+                    let type_str = prop_type_str.replace("PropertyType::", "");
+                    let prop_type = match type_str.as_str() {
+                        "Bool" => stdb_shared::property::PropertyType::Bool,
+                        "Byte" => stdb_shared::property::PropertyType::Byte,
+                        "Int32" => stdb_shared::property::PropertyType::Int32,
+                        "Int64" => stdb_shared::property::PropertyType::Int64,
+                        "UInt32" => stdb_shared::property::PropertyType::UInt32,
+                        "UInt64" => stdb_shared::property::PropertyType::UInt64,
+                        "Float" => stdb_shared::property::PropertyType::Float,
+                        "Double" => stdb_shared::property::PropertyType::Double,
+                        "String" => stdb_shared::property::PropertyType::String,
+                        "Vector" => stdb_shared::property::PropertyType::Vector,
+                        "Rotator" => stdb_shared::property::PropertyType::Rotator,
+                        "Quat" => stdb_shared::property::PropertyType::Quat,
+                        "Transform" => stdb_shared::property::PropertyType::Transform,
+                        "Color" => stdb_shared::property::PropertyType::Color,
+                        "ObjectReference" => stdb_shared::property::PropertyType::ObjectReference,
+                        "ClassReference" => stdb_shared::property::PropertyType::ClassReference,
+                        "Array" => stdb_shared::property::PropertyType::Array,
+                        "Map" => stdb_shared::property::PropertyType::Map,
+                        "Set" => stdb_shared::property::PropertyType::Set,
+                        "Name" => stdb_shared::property::PropertyType::Name,
+                        "Text" => stdb_shared::property::PropertyType::Text,
+                        "Custom" => stdb_shared::property::PropertyType::Custom,
+                        "None" => stdb_shared::property::PropertyType::None,
+                        _ => {
+                            warn!("Unknown property type: {}", type_str);
+                            stdb_shared::property::PropertyType::None
+                        }
+                    };
+                    
+                    // Register the property definition
+                    crate::property::register_property_definition(
+                        class_name,
+                        prop_name,
+                        prop_type,
+                        replicated
+                    );
+                    
+                    trace!("Registered property definition from server: {}.{} (type: {:?}, replicated: {})", 
+                        class_name, prop_name, prop_type, replicated);
+                },
+                TableOp::Delete => {
+                    // For now, we don't handle property definition deletion
+                },
+                _ => {}
+            }
         }
     }
     
