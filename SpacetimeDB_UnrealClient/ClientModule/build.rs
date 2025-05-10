@@ -8,10 +8,10 @@ fn main() {
     // Add C++ standard based on platform
     if cfg!(target_os = "windows") {
         // For MSVC compiler on Windows
-        build.flag("/std:c++17");
+        build.flag("/std:c++20");
     } else {
         // For other platforms
-        build.flag_if_supported("-std=c++17");
+        build.flag_if_supported("-std=c++20");
     }
     
     // Add our own include directory with simplified headers
