@@ -1307,7 +1307,7 @@ void USpacetimeDBSubsystem::ProcessServerTransformUpdate(const FObjectID& Object
 	const FVector& Velocity, int32 AckedSequence)
 {
 	// Look up the object in our object map
-	if (UObject* Object = FindObject(ObjectID.ID))
+	if (UObject* Object = FindObjectById(ObjectID.ID))
 	{
 		if (AActor* Actor = Cast<AActor>(Object))
 		{
