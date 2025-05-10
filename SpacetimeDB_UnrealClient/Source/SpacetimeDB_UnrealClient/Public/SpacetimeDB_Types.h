@@ -4,6 +4,21 @@
 #include "SpacetimeDB_Types.generated.h"
 
 /**
+ * Enum for SpacetimeDB value types (for RPC arguments)
+ */
+UENUM(BlueprintType)
+enum class ESpacetimeDBValueType : uint8
+{
+	Null        UMETA(DisplayName = "Null"),
+	Bool        UMETA(DisplayName = "Boolean"),
+	Int         UMETA(DisplayName = "Integer"),
+	Float       UMETA(DisplayName = "Float"),
+	String      UMETA(DisplayName = "String"),
+	CustomJson  UMETA(DisplayName = "Custom JSON"),
+	ArrayJson   UMETA(DisplayName = "Array JSON")
+};
+
+/**
  * Spawn parameters for creating objects in SpacetimeDB
  */
 USTRUCT(BlueprintType)
@@ -141,4 +156,16 @@ struct SPACETIMEDB_UNREALCLIENT_API FSpacetimeDBObjectID
 	FSpacetimeDBObjectID(int64 InValue) : Value(InValue) {}
 
 	operator int64() const { return Value; }
+};
+
+/**
+ * Object ID type for SpacetimeDB (for backward compatibility)
+ */
+USTRUCT(BlueprintType)
+struct SPACETIMEDB_UNREALCLIENT_API FObjectID : public FSpacetimeDBObjectID
+{
+	GENERATED_BODY()
+
+	FObjectID() : FSpacetimeDBObjectID() {}
+	FObjectID(int64 InValue) : FSpacetimeDBObjectID(InValue) {}
 };

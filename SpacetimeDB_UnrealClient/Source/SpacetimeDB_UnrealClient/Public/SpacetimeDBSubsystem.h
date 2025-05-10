@@ -10,30 +10,32 @@
 #include "SpacetimeDBFFI.h"
 #include "SpacetimeDB_ErrorHandler.h"
 #include "SpacetimeDBSubsystem.generated.h"
+
+
 // Property update info structure
-USTRUCT(BlueprintType)
+USTRUCT()
 struct FSpacetimeDBPropertyUpdateInfo
 {
     GENERATED_BODY()
 
     /** The ID of the object that was updated */
-    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    UPROPERTY(Category = "SpacetimeDB")
     int64 ObjectId;
 
     /** The object that was updated (may be null if object not found) */
-    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    UPROPERTY(Category = "SpacetimeDB")
     UObject* Object = nullptr;
 
     /** The name of the property that was updated */
-    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    UPROPERTY(Category = "SpacetimeDB")
     FString PropertyName;
 
     /** The raw JSON value of the property */
-    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    UPROPERTY(Category = "SpacetimeDB")
     FString RawJsonValue;
 
     /** The parsed property value */
-    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    UPROPERTY(Category = "SpacetimeDB")
     FSpacetimeDBPropertyValue PropertyValue;
 };
 
@@ -43,21 +45,21 @@ struct FSpacetimeDBPropertyUpdateInfo
  * @struct FStdbRpcArg
  * @brief Structure representing a single RPC argument
  */
-USTRUCT(BlueprintType)
+USTRUCT()
 struct SPACETIMEDB_UNREALCLIENT_API FStdbRpcArg
 {
     GENERATED_BODY()
 
     /** The name of the argument */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|RPC")
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|RPC")
     FString Name;
     
     /** The type of the argument */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|RPC")
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|RPC")
     ESpacetimeDBValueType Type = ESpacetimeDBValueType::Null;
     
     /** The value of the argument as a variant */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|RPC")
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|RPC")
     FSpacetimeDBPropertyValue Value;
 
     /** Default constructor */
@@ -335,7 +337,7 @@ public:
      * @param PropertyName The name of the property to get
      * @return The property value, or null value if not found
      */
-    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
+    UFUNCTION(Category = "SpacetimeDB|Properties")
     FSpacetimeDBPropertyValue GetPropertyValue(int64 ObjectId, const FString& PropertyName) const;
     
     /**
@@ -374,7 +376,7 @@ public:
      * @param Args The arguments to pass to the function
      * @return True if the call was initiated successfully
      */
-    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|RPC")
+    UFUNCTION(Category = "SpacetimeDB|RPC")
     bool CallServerFunctionOnObject(UObject* TargetObject, const FString& FunctionName, const TArray<FStdbRpcArg>& Args);
     
     /**
@@ -385,7 +387,7 @@ public:
      * @param Args The arguments to pass to the function
      * @return True if the call was initiated successfully
      */
-    UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|RPC")
+    UFUNCTION(Category = "SpacetimeDB|RPC")
     bool CallServerFunction(int64 ObjectId, const FString& FunctionName, const TArray<FStdbRpcArg>& Args);
     
     /**
@@ -491,7 +493,7 @@ public:
      * @return Array of component IDs attached to the actor
      */
     UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Components")
-    TArray<int64> GetComponentIdsForActor(AActor* Actor) const;
+    TArray<int64> GetComponentIdsForActorObject(AActor* Actor) const;
     
     /**
      * Adds a component to an actor (client-side request).

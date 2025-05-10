@@ -8,33 +8,33 @@
 /**
  * Structure to store the pre-update state for reconciliation
  */
-USTRUCT(BlueprintType)
+USTRUCT()
 struct FStateSnapshot
 {
 	GENERATED_BODY()
 
 	/** The timestamp when this state was captured */
-	UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB|Prediction")
+	UPROPERTY(Category = "SpacetimeDB|Prediction")
 	float Timestamp = 0.0f;
 
 	/** The transform at the time of capture */
-	UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB|Prediction")
+	UPROPERTY(Category = "SpacetimeDB|Prediction")
 	FTransform Transform;
 
 	/** The velocity at the time of capture */
-	UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB|Prediction")
+	UPROPERTY(Category = "SpacetimeDB|Prediction")
 	FVector Velocity = FVector::ZeroVector;
 
 	/** Custom state data (can be extended by game code) */
-	UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB|Prediction")
+	UPROPERTY(Category = "SpacetimeDB|Prediction")
 	TMap<FName, FSpacetimeDBPropertyValue> CustomState;
 
 	/** The input state that led to this snapshot */
-	UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB|Prediction")
+	UPROPERTY(Category = "SpacetimeDB|Prediction")
 	TMap<FName, float> InputState;
 
 	/** The sequence number of this snapshot - used to match with server acks */
-	UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB|Prediction")
+	UPROPERTY(Category = "SpacetimeDB|Prediction")
 	int32 SequenceNumber = 0;
 };
 

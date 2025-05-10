@@ -50,65 +50,65 @@ enum class ESpacetimeDBPropertyType : uint8
  * Struct to hold the various property value types
  * This struct mirrors the Rust PropertyValue enum, but uses a more C++-friendly approach
  */
-USTRUCT(BlueprintType)
+USTRUCT()
 struct SPACETIMEDB_UNREALCLIENT_API FSpacetimeDBPropertyValue
 {
     GENERATED_BODY()
 
     /** The type of this property value */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB")
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB")
     ESpacetimeDBPropertyType Type;
 
     // Primitive values
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Bool"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Bool"))
     bool BoolValue;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Byte"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Byte"))
     uint8 ByteValue;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Int32"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Int32"))
     int32 Int32Value;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Int64"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Int64"))
     int64 Int64Value;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::UInt32"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::UInt32"))
     uint32 UInt32Value;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::UInt64"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::UInt64"))
     uint64 UInt64Value;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Float"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Float"))
     float FloatValue;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Double"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Double"))
     double DoubleValue;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::String || Type == ESpacetimeDBPropertyType::Name || Type == ESpacetimeDBPropertyType::Text || Type == ESpacetimeDBPropertyType::ClassReference"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::String || Type == ESpacetimeDBPropertyType::Name || Type == ESpacetimeDBPropertyType::Text || Type == ESpacetimeDBPropertyType::ClassReference"))
     FString StringValue;
 
     // Structured values
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Vector"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Vector"))
     FVector VectorValue;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Rotator"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Rotator"))
     FRotator RotatorValue;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Quat"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Quat"))
     FQuat QuatValue;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Transform"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Transform"))
     FTransform TransformValue;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Color"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Color"))
     FColor ColorValue;
 
     // Reference values
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::ObjectReference"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::ObjectReference"))
     FSpacetimeDBObjectID ObjectReferenceValue;
 
     // JSON string values for container and custom types
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Array || Type == ESpacetimeDBPropertyType::Map || Type == ESpacetimeDBPropertyType::Set || Type == ESpacetimeDBPropertyType::Custom"))
+    UPROPERTY(EditAnywhere, Category = "SpacetimeDB|Values", meta = (EditCondition = "Type == ESpacetimeDBPropertyType::Array || Type == ESpacetimeDBPropertyType::Map || Type == ESpacetimeDBPropertyType::Set || Type == ESpacetimeDBPropertyType::Custom"))
     FString JsonValue;
 
     // Constructors

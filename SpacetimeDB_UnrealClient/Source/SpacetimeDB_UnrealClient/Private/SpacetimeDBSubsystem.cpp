@@ -1564,18 +1564,18 @@ TArray<int64> USpacetimeDBSubsystem::GetComponentIdsForActor(int64 ActorId) cons
     return Result;
 }
 
-TArray<int64> USpacetimeDBSubsystem::GetComponentIdsForActor(AActor* Actor) const
+TArray<int64> USpacetimeDBSubsystem::GetComponentIdsForActorObject(AActor* Actor) const
 {
     if (!Actor)
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: GetComponentIdsForActor - Actor is null"));
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: GetComponentIdsForActorObject - Actor is null"));
         return TArray<int64>();
     }
     
     int64 ActorId = GetObjectId(Actor);
     if (ActorId == 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: GetComponentIdsForActor - Actor %s has no SpacetimeDB ID"), 
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: GetComponentIdsForActorObject - Actor %s has no SpacetimeDB ID"), 
             *Actor->GetName());
         return TArray<int64>();
     }
