@@ -131,7 +131,7 @@ mod ffi {
         include!("UnrealReplication.h");
         include!("bridge.h");
         
-        // Add the make_unique_string function from our bridge.h
+        // Use function from global namespace
         fn make_unique_string(s: &str) -> UniquePtr<CxxString>;
     }
     
@@ -897,6 +897,6 @@ fn dispatch_unreliable_rpc(object_id: u64, function_name: &CxxString, params: &C
 // For each UniquePtr::new() call, we need to add a CxxString parameter
 // Here's a helper function to create a new CxxString in a UniquePtr
 fn create_cxx_string(s: &str) -> UniquePtr<CxxString> {
-    // Use the C++ helper function to properly allocate the string on the C++ heap
+    // Use the global namespace function as it's more likely to be found by the linker
     ffi::make_unique_string(s)
 } 

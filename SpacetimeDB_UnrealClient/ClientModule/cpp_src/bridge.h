@@ -15,15 +15,8 @@
  * management of objects that need to be passed across the FFI boundary.
  */
 
-namespace SpacetimeDBReplication
-{
-    /**
-     * Creates a UniquePtr-wrapped CxxString (std::string) from a Rust string slice.
-     * 
-     * @param s The Rust string slice to convert to a C++ owned string
-     * @return A std::unique_ptr to a std::string containing a copy of the input
-     */
-    inline std::unique_ptr<std::string> make_unique_string(rust::Str s) {
-        return std::make_unique<std::string>(s.data(), s.size());
-    }
-} 
+// Provide the function in the global namespace for better compatibility
+inline std::unique_ptr<std::string> make_unique_string(rust::Str s) {
+    return std::make_unique<std::string>(s.data(), s.size());
+}
+
