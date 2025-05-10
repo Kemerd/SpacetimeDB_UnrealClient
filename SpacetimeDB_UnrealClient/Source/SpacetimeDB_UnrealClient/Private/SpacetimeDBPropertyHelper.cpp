@@ -1022,4 +1022,52 @@ TSharedPtr<FJsonValue> FSpacetimeDBPropertyHelper::SerializePropertyToJsonValue(
         UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBPropertyHelper: Unsupported property type for serialization: %s"), *Property->GetName());
         return nullptr;
     }
+}
+
+FString FSpacetimeDBPropertyHelper::GetPropertyValueByName(UObject* Object, const FString& PropertyName)
+{
+    if (!Object)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetPropertyValueByName: Invalid object"));
+        return FString();
+    }
+
+    // Find the property by name - using FindPropertyByName instead of FindField
+    FProperty* Property = Object->GetClass()->FindPropertyByName(FName(*PropertyName));
+    if (!Property)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetPropertyValueByName: Property '%s' not found on object of class '%s'"), 
+            *PropertyName, *Object->GetClass()->GetName());
+        return FString();
+    }
+
+    // Get the property address
+    void* PropertyAddr = Property->ContainerPtrToValuePtr<void>(Object);
+
+    // Serialize the property to JSON
+    TSharedPtr<FJsonValue> JsonValue = SerializePropertyToJsonValue(Property, PropertyAddr);
+    if (!JsonValue.IsValid())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetPropertyValueByName: Failed to serialize property '%s'"), *PropertyName);
+        return FString();
+    }
+
+    // Convert JSON value to string
+    FString ResultJson;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultJson);
+    // Fix the Serialize call to match the expected parameters
+    FJsonSerializer::Serialize(JsonValue.ToSharedRef(), TEXT(""), Writer, true);
+    return ResultJson;
+}
+
+bool FSpacetimeDBPropertyHelper::SetPropertyValueByName(UObject* Object, const FString& PropertyName, const FString& JsonValue)
+{
+    if (!Object)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SetPropertyValueByName: Invalid object"));
+        return false;
+    }
+
+    // Forward to the JSON application function
+    return ApplyJsonToProperty(Object, PropertyName, JsonValue);
 } 

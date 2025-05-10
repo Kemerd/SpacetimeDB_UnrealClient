@@ -14,7 +14,13 @@ bool USpacetimeDBOwnershipHelper::HasOwnership(int64 ObjectId)
     }
     
     // Get the subsystem
-    USpacetimeDBSubsystem* SpacetimeDB = GEngine->GetEngineSubsystem<USpacetimeDBSubsystem>();
+    UGameInstance* GameInstance = UGameplayStatics::GetGameInstance(GEngine->GetWorld());
+    if (!GameInstance)
+    {
+        return false;
+    }
+    
+    USpacetimeDBSubsystem* SpacetimeDB = GameInstance->GetSubsystem<USpacetimeDBSubsystem>();
     if (!SpacetimeDB)
     {
         return false;
@@ -90,7 +96,13 @@ int64 USpacetimeDBOwnershipHelper::GetOwnerClientId(int64 ObjectId)
 bool USpacetimeDBOwnershipHelper::RequestSetOwner(int64 ObjectId, int64 NewOwnerClientId)
 {
     // Get the SpacetimeDB subsystem
-    USpacetimeDBSubsystem* SpacetimeDB = GEngine->GetEngineSubsystem<USpacetimeDBSubsystem>();
+    UGameInstance* GameInstance = UGameplayStatics::GetGameInstance(GEngine->GetWorld());
+    if (!GameInstance)
+    {
+        return false;
+    }
+    
+    USpacetimeDBSubsystem* SpacetimeDB = GameInstance->GetSubsystem<USpacetimeDBSubsystem>();
     if (!SpacetimeDB)
     {
         return false;

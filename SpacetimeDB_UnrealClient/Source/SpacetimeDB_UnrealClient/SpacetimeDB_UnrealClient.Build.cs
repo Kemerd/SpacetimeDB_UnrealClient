@@ -34,7 +34,8 @@ public class SpacetimeDB_UnrealClient : ModuleRules
                 "Networking",
                 "Sockets",
                 "Json",
-                "JsonUtilities"
+                "JsonUtilities",
+                "NetCore"
                 // ... add other public dependencies that you statically link with here ...
             }
         );
@@ -45,6 +46,35 @@ public class SpacetimeDB_UnrealClient : ModuleRules
                 // ... add private dependencies that you statically link with here ...
             }
         );
+        
+        // Add Editor dependencies when building with editor support
+        if (Target.bBuildEditor == true)
+        {
+            PrivateDependencyModuleNames.AddRange(
+                new string[] {
+                    "UnrealEd",
+                    "EditorSubsystem"
+                }
+            );
+            
+            // Windows API libraries needed by the Rust client
+            if (Target.Platform == UnrealTargetPlatform.Win64)
+            {
+                PublicSystemLibraries.AddRange(
+                    new string[] {
+                        "ntdll.lib",
+                        "userenv.lib",
+                        "bcrypt.lib"
+                    }
+                );
+                
+                // For C++ standard library compatibility with Rust cxx bridge
+                PublicDefinitions.Add("_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH=1");
+                
+                // Configure C++ standard version to match the one used in Rust cxx bridge
+                CppStandard = CppStandardVersion.Cpp20;
+            }
+        }
         
         DynamicallyLoadedModuleNames.AddRange(
             new string[]

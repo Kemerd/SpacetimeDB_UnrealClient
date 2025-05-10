@@ -448,3 +448,19 @@ void USpacetimeDBPredictionComponent::ApplySmoothCorrection(const FTransform& Ta
 		}
 	}
 }
+
+void USpacetimeDBPredictionComponent::GetTrackedProperties(TMap<FName, FSpacetimeDBPropertyValue>& OutProperties)
+{
+    // Capture all tracked properties
+    CaptureTrackedProperties(OutProperties);
+}
+
+void USpacetimeDBPredictionComponent::ApplyServerUpdate(const FString& PropertyName, const FSpacetimeDBPropertyValue& Value)
+{
+    // Create a temporary map with just this property
+    TMap<FName, FSpacetimeDBPropertyValue> PropertyMap;
+    PropertyMap.Add(FName(*PropertyName), Value);
+    
+    // Apply the property to our owner
+    ApplyTrackedProperties(PropertyMap);
+}

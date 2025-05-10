@@ -361,12 +361,26 @@ void USpacetimeDBSubsystem::InternalOnPropertyUpdated(int64 ObjectId, const FStr
 // FFI callback handlers for property updates
 void OnPropertyUpdatedCallback(uint64 object_id, const char* property_name_cstr, const char* value_json_cstr)
 {
-    USpacetimeDBSubsystem* Subsystem = GEngine->GetEngineSubsystem<USpacetimeDBSubsystem>();
-    if (Subsystem)
+    // Use GetGameInstance to find the appropriate subsystem
+    UGameInstance* GameInstance = nullptr;
+    if (GEngine && GEngine->GetWorld())
     {
-        FString PropertyName = FString(UTF8_TO_TCHAR(property_name_cstr));
-        FString ValueJson = FString(UTF8_TO_TCHAR(value_json_cstr));
-        Subsystem->InternalHandlePropertyUpdated(object_id, PropertyName, ValueJson);
+        GameInstance = UGameplayStatics::GetGameInstance(GEngine->GetWorld());
+    }
+    
+    if (GameInstance)
+    {
+        USpacetimeDBSubsystem* Subsystem = GameInstance->GetSubsystem<USpacetimeDBSubsystem>();
+        if (Subsystem)
+        {
+            FString PropertyName = FString(UTF8_TO_TCHAR(property_name_cstr));
+            FString ValueJson = FString(UTF8_TO_TCHAR(value_json_cstr));
+            Subsystem->InternalHandlePropertyUpdated(object_id, PropertyName, ValueJson);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("OnPropertyUpdatedCallback: Failed to find GameInstance"));
     }
 }
 
