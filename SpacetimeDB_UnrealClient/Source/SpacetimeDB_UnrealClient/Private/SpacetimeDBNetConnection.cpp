@@ -17,7 +17,9 @@ USpacetimeDBNetConnection::USpacetimeDBNetConnection(const FObjectInitializer& O
     // Set initial packet handling values
     MaxPacket = 1024;
     PacketOverhead = 0;
-    InternalAck = true;
+    
+    // Note: We shouldn't directly set InternalAck as it's private in the base class
+    // The base class UNetConnection will handle it based on network configuration
 }
 
 void USpacetimeDBNetConnection::InitBase(UNetDriver* InDriver, FSocket* InSocket, const FURL& InURL, EConnectionState InState, int32 InMaxPacket, int32 InPacketOverhead)

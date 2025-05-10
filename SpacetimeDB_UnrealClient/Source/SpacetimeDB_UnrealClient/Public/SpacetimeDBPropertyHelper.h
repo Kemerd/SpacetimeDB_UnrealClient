@@ -16,16 +16,6 @@ class SPACETIMEDB_UNREALCLIENT_API FSpacetimeDBPropertyHelper
 {
 public:
     /**
-     * Deserializes a JSON value and applies it to a UObject property
-     * 
-     * @param Object The UObject to update
-     * @param PropertyName The name of the property to update
-     * @param ValueJson The JSON value to apply
-     * @return True if the property was successfully updated
-     */
-    static bool ApplyJsonToProperty(UObject* Object, const FString& PropertyName, const FString& ValueJson);
-    
-    /**
      * Serializes a UObject property to JSON
      * 
      * @param Object The UObject containing the property
@@ -55,8 +45,36 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "SpacetimeDB|Properties")
     static bool ApplyJsonValueToProperty(UObject* Object, const FString& PropertyName, const TSharedPtr<FJsonValue>& JsonValue);
+    
+    /**
+     * Gets a property value as JSON from a UObject.
+     * 
+     * @param Object The object that contains the property
+     * @param PropertyName The name of the property to get
+     * @return JSON string representing the property value, or empty string if not found or error
+     */
+    static FString GetPropertyValueByName(UObject* Object, const FString& PropertyName);
+    
+    /**
+     * Sets a property value on a UObject from a JSON string.
+     * 
+     * @param Object The object to update
+     * @param PropertyName The name of the property to set
+     * @param JsonValue The JSON string value to set
+     * @return True if the property was successfully set
+     */
+    static bool SetPropertyValueByName(UObject* Object, const FString& PropertyName, const FString& JsonValue);
 
 private:
+    /**
+     * Serializes a property to a JSON value.
+     * 
+     * @param Property The property to serialize
+     * @param PropertyAddr Pointer to the property's memory
+     * @return The serialized JSON value
+     */
+    static TSharedPtr<FJsonValue> SerializePropertyToJsonValue(FProperty* Property, const void* PropertyAddr);
+
     // Helper functions for specific property types
     static bool DeserializeAndApplyNumericProperty(FNumericProperty* NumericProp, void* PropAddr, const TSharedPtr<FJsonValue>& JsonValue);
     static bool DeserializeAndApplyBoolProperty(FBoolProperty* BoolProp, void* PropAddr, const TSharedPtr<FJsonValue>& JsonValue);
@@ -67,8 +85,8 @@ private:
     static bool DeserializeAndApplyArrayProperty(FArrayProperty* ArrayProp, void* PropAddr, const TSharedPtr<FJsonValue>& JsonValue);
     static bool DeserializeAndApplyMapProperty(FMapProperty* MapProp, void* PropAddr, const TSharedPtr<FJsonValue>& JsonValue);
     static bool DeserializeAndApplyObjectProperty(FObjectProperty* ObjProp, void* PropAddr, const TSharedPtr<FJsonValue>& JsonValue);
-    static bool DeserializeAndApplySoftObjectProperty(FSoftObjectProperty* SoftObjProp, void* PropAddr, const TSharedPtr<FJsonValue>& JsonValue);
     static bool DeserializeAndApplyEnumProperty(FEnumProperty* EnumProp, void* PropAddr, const TSharedPtr<FJsonValue>& JsonValue);
+    static bool DeserializeAndApplySoftObjectProperty(FSoftObjectProperty* SoftObjProp, void* PropAddr, const TSharedPtr<FJsonValue>& JsonValue);
 
     // Helper functions for property serialization
     static TSharedPtr<FJsonValue> SerializeNumericProperty(FNumericProperty* NumericProp, const void* PropAddr);

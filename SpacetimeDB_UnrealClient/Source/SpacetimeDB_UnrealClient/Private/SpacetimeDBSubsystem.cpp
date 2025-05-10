@@ -28,17 +28,17 @@ void USpacetimeDBSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     GSubsystemInstances.Add(GetGameInstance(), this);
     
     // Register for client events
-    OnConnectedHandle = Client.OnConnected.AddUObject(this, &USpacetimeDBSubsystem::HandleConnected);
-    OnDisconnectedHandle = Client.OnDisconnected.AddUObject(this, &USpacetimeDBSubsystem::HandleDisconnected);
-    OnIdentityReceivedHandle = Client.OnIdentityReceived.AddUObject(this, &USpacetimeDBSubsystem::HandleIdentityReceived);
-    OnEventReceivedHandle = Client.OnEventReceived.AddUObject(this, &USpacetimeDBSubsystem::HandleEventReceived);
-    OnErrorOccurredHandle = Client.OnErrorOccurred.AddUObject(this, &USpacetimeDBSubsystem::HandleErrorOccurred);
+    OnConnectedHandle = Client.OnConnected.AddUObject(this, &USpacetimeDBSubsystem::InternalHandleConnected);
+    OnDisconnectedHandle = Client.OnDisconnected.AddUObject(this, &USpacetimeDBSubsystem::InternalHandleDisconnected);
+    OnIdentityReceivedHandle = Client.OnIdentityReceived.AddUObject(this, &USpacetimeDBSubsystem::InternalHandleIdentityReceived);
+    OnEventReceivedHandle = Client.OnEventReceived.AddUObject(this, &USpacetimeDBSubsystem::InternalHandleEventReceived);
+    OnErrorOccurredHandle = Client.OnErrorOccurred.AddUObject(this, &USpacetimeDBSubsystem::InternalHandleErrorOccurred);
     
     // Register for object system events
-    OnPropertyUpdatedHandle = Client.OnPropertyUpdated.AddUObject(this, &USpacetimeDBSubsystem::HandlePropertyUpdated);
-    OnObjectCreatedHandle = Client.OnObjectCreated.AddUObject(this, &USpacetimeDBSubsystem::HandleObjectCreated);
-    OnObjectDestroyedHandle = Client.OnObjectDestroyed.AddUObject(this, &USpacetimeDBSubsystem::HandleObjectDestroyed);
-    OnObjectIdRemappedHandle = Client.OnObjectIdRemapped.AddUObject(this, &USpacetimeDBSubsystem::HandleObjectIdRemapped);
+    OnPropertyUpdatedHandle = Client.OnPropertyUpdated.AddUObject(this, &USpacetimeDBSubsystem::InternalHandlePropertyUpdated);
+    OnObjectCreatedHandle = Client.OnObjectCreated.AddUObject(this, &USpacetimeDBSubsystem::InternalHandleObjectCreated);
+    OnObjectDestroyedHandle = Client.OnObjectDestroyed.AddUObject(this, &USpacetimeDBSubsystem::InternalHandleObjectDestroyed);
+    OnObjectIdRemappedHandle = Client.OnObjectIdRemapped.AddUObject(this, &USpacetimeDBSubsystem::InternalHandleObjectIdRemapped);
 }
 
 void USpacetimeDBSubsystem::Deinitialize()
@@ -180,7 +180,7 @@ FString USpacetimeDBSubsystem::GetClientIdentity() const
 
 // Event handlers to forward client events to Blueprint events
 
-void USpacetimeDBSubsystem::HandleConnected()
+void USpacetimeDBSubsystem::InternalHandleConnected()
 {
     UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Connected event received"));
     OnConnected.Broadcast();
@@ -192,7 +192,7 @@ void USpacetimeDBSubsystem::HandleConnected()
     }
 }
 
-void USpacetimeDBSubsystem::HandleDisconnected(const FString& Reason)
+void USpacetimeDBSubsystem::InternalHandleDisconnected(const FString& Reason)
 {
     UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Disconnected event received: %s"), *Reason);
     OnDisconnected.Broadcast(Reason);
@@ -200,50 +200,84 @@ void USpacetimeDBSubsystem::HandleDisconnected(const FString& Reason)
     // Optional: Display a notification in game if desired
     if (GEngine)
     {
-        FString Message = FString::Printf(TEXT("Disconnected from SpacetimeDB: %s"), *Reason);
-        GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, Message);
+        GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Disconnected from SpacetimeDB: %s"), *Reason));
     }
 }
 
-void USpacetimeDBSubsystem::HandleIdentityReceived(const FString& Identity)
+void USpacetimeDBSubsystem::InternalHandleIdentityReceived(const FString& Identity)
 {
     UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Identity received: %s"), *Identity);
     OnIdentityReceived.Broadcast(Identity);
 }
 
-void USpacetimeDBSubsystem::HandleEventReceived(const FString& TableName, const FString& EventData)
+void USpacetimeDBSubsystem::InternalHandleEventReceived(const FString& TableName, const FString& EventData)
 {
-    // Use Verbose log level since this could be high frequency
-    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Event received for table %s"), *TableName);
+    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Event received for table %s: %s"), *TableName, *EventData);
     OnEventReceived.Broadcast(TableName, EventData);
 }
 
-void USpacetimeDBSubsystem::HandleErrorOccurred(const FString& ErrorMessage)
+void USpacetimeDBSubsystem::InternalHandleErrorOccurred(const FSpacetimeDBErrorInfo& ErrorInfo)
 {
-    UE_LOG(LogSpacetimeDB, Error, TEXT("SpacetimeDBSubsystem: Error event received: %s"), *ErrorMessage);
-    
-    // Create a basic error info object (more context would already be in the FFI error from client)
-    FSpacetimeDBErrorInfo ErrorInfo(
-        ErrorMessage,
-        ESpacetimeDBErrorSeverity::Error,
-        TEXT("Subsystem")
-    );
-    
-    // Broadcast the error
+    UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Error occurred: %s"), *ErrorInfo.Message);
     OnErrorOccurred.Broadcast(ErrorInfo);
     
-    // Display an on-screen error message in development builds
-#if !UE_BUILD_SHIPPING
-    if (GEngine)
+    // Optional: Display a notification in game for critical errors
+    if (GEngine && ErrorInfo.Severity >= ESpacetimeDBErrorSeverity::Critical)
     {
-        GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, FString::Printf(TEXT("SpacetimeDB Error: %s"), *ErrorMessage));
+        GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, FString::Printf(TEXT("SpacetimeDB Error: %s"), *ErrorInfo.Message));
     }
-#endif
 }
 
 // Object system event handlers
 
 void USpacetimeDBSubsystem::HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson)
+{
+    // Delegate to the main property update handler
+    InternalOnPropertyUpdated(static_cast<int64>(ObjectId), PropertyName, ValueJson);
+}
+
+void USpacetimeDBSubsystem::InternalHandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson)
+{
+    // Delegate to the main property update handler
+    InternalOnPropertyUpdated(static_cast<int64>(ObjectId), PropertyName, ValueJson);
+}
+
+void USpacetimeDBSubsystem::HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object created event - ID: %llu, Class: %s"), ObjectId, *ClassName);
+    
+    // Create the object
+    UObject* NewObject = SpawnObjectFromServer(ObjectId, ClassName, DataJson);
+    
+    if (NewObject)
+    {
+        // Broadcast the object created event
+        OnObjectCreated.Broadcast(ObjectId, ClassName, DataJson);
+    }
+}
+
+void USpacetimeDBSubsystem::HandleObjectDestroyed(uint64 ObjectId)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object destroyed event - ID: %llu"), ObjectId);
+    
+    // Broadcast the object destroyed event before actually destroying it
+    OnObjectDestroyed.Broadcast(ObjectId);
+    
+    // Destroy the object
+    DestroyObjectFromServer(ObjectId);
+}
+
+void USpacetimeDBSubsystem::HandleObjectIdRemapped(uint64 TempId, uint64 ServerId)
+{
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object ID remapped - Temp ID: %llu, Server ID: %llu"), TempId, ServerId);
+    
+    // Broadcast the object ID remapped event
+    OnObjectIdRemapped.Broadcast(TempId, ServerId);
+    
+    // TODO: Implement ID remapping in the object registry
+}
+
+void USpacetimeDBSubsystem::InternalOnPropertyUpdated(int64 ObjectId, const FString& PropertyName, const FString& ValueJson)
 {
     // Use Verbose log level since this could be high frequency
     UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBSubsystem: Property updated - Object %llu, Property %s"), ObjectId, *PropertyName);
@@ -285,66 +319,6 @@ void USpacetimeDBSubsystem::HandlePropertyUpdated(uint64 ObjectId, const FString
     
     // Broadcast the update whether we successfully applied it or not
     OnPropertyUpdated.Broadcast(UpdateInfo);
-}
-
-void USpacetimeDBSubsystem::HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson)
-{
-    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object created - ID %llu, Class %s"), ObjectId, *ClassName);
-    OnObjectCreated.Broadcast(static_cast<int64>(ObjectId), ClassName, DataJson);
-    
-    // TODO: Once object tracking system is implemented, create local object
-}
-
-void USpacetimeDBSubsystem::HandleObjectDestroyed(uint64 ObjectId)
-{
-    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object destroyed - ID %llu"), ObjectId);
-    OnObjectDestroyed.Broadcast(static_cast<int64>(ObjectId));
-    
-    // TODO: Once object tracking system is implemented, destroy local object
-}
-
-void USpacetimeDBSubsystem::HandleObjectIdRemapped(uint64 TempId, uint64 ServerId)
-{
-    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object ID remapped - Temp ID %llu -> Server ID %llu"), TempId, ServerId);
-    OnObjectIdRemapped.Broadcast(static_cast<int64>(TempId), static_cast<int64>(ServerId));
-    
-    // TODO: Once object tracking system is implemented, update object ID mappings
-}
-
-// Property update callback
-void USpacetimeDBSubsystem::OnPropertyUpdated(int64 ObjectId, const FString& PropertyName, const FString& ValueJson)
-{
-    // Queue this for processing on the game thread
-    AsyncTask(ENamedThreads::GameThread, [this, ObjectId, PropertyName, ValueJson]()
-    {
-        // Process the property update
-        if (USpacetimeDBPropertyHandler::HandlePropertyUpdate(ObjectId, PropertyName, ValueJson))
-        {
-            // Broadcast the property update event
-            FSpacetimeDBPropertyUpdateInfo UpdateInfo;
-            UpdateInfo.ObjectId = FSpacetimeDBObjectID(ObjectId);
-            UpdateInfo.PropertyName = PropertyName;
-            UpdateInfo.RawJsonValue = ValueJson;
-            
-            // Parse the property value for the delegate
-            UpdateInfo.PropertyValue = FSpacetimeDBPropertyValue::FromJsonString(ValueJson);
-
-            // Find the target object
-            USpacetimeDBClient* Client = USpacetimeDBClient::Get();
-            if (Client)
-            {
-                UpdateInfo.Object = Client->GetObjectById(UpdateInfo.ObjectId);
-            }
-            
-            // Broadcast the property update event
-            OnPropertyUpdated.Broadcast(UpdateInfo);
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to handle property update for object %lld, property %s"),
-                ObjectId, *PropertyName);
-        }
-    });
 }
 
 // FFI callback handlers for property updates
@@ -734,57 +708,39 @@ void USpacetimeDBSubsystem::OnActorDestroyed(AActor* DestroyedActor)
 
 // Update existing handler methods
 
-void USpacetimeDBSubsystem::HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson)
+void USpacetimeDBSubsystem::InternalHandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson)
 {
-    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object created - ID %llu, Class %s"), ObjectId, *ClassName);
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object created event - ID: %llu, Class: %s"), ObjectId, *ClassName);
     
-    // Broadcast this event to BP/C++ delegates
-    OnObjectCreated.Broadcast(static_cast<int64>(ObjectId), ClassName, DataJson);
+    // Create the object
+    UObject* NewObject = SpawnObjectFromServer(ObjectId, ClassName, DataJson);
     
-    // Create the actual object in the game
-    UObject* NewObject = SpawnObjectFromServer(static_cast<int64>(ObjectId), ClassName, DataJson);
-    if (!NewObject)
+    if (NewObject)
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to spawn object from server"));
+        // Broadcast the object created event
+        OnObjectCreated.Broadcast(ObjectId, ClassName, DataJson);
     }
 }
 
-void USpacetimeDBSubsystem::HandleObjectDestroyed(uint64 ObjectId)
+void USpacetimeDBSubsystem::InternalHandleObjectDestroyed(uint64 ObjectId)
 {
-    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object destroyed - ID %llu"), ObjectId);
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object destroyed event - ID: %llu"), ObjectId);
     
-    // Broadcast this event to BP/C++ delegates
-    OnObjectDestroyed.Broadcast(static_cast<int64>(ObjectId));
+    // Broadcast the object destroyed event before actually destroying it
+    OnObjectDestroyed.Broadcast(ObjectId);
     
-    // Destroy the actual object in the game
-    DestroyObjectFromServer(static_cast<int64>(ObjectId));
+    // Destroy the object
+    DestroyObjectFromServer(ObjectId);
 }
 
-void USpacetimeDBSubsystem::HandleObjectIdRemapped(uint64 TempId, uint64 ServerId)
+void USpacetimeDBSubsystem::InternalHandleObjectIdRemapped(uint64 TempId, uint64 ServerId)
 {
-    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object ID remapped - Temp ID %llu -> Server ID %llu"), TempId, ServerId);
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Object ID remapped - Temp ID: %llu, Server ID: %llu"), TempId, ServerId);
     
-    // Broadcast this event to BP/C++ delegates
-    OnObjectIdRemapped.Broadcast(static_cast<int64>(TempId), static_cast<int64>(ServerId));
+    // Broadcast the object ID remapped event
+    OnObjectIdRemapped.Broadcast(TempId, ServerId);
     
-    // Update our object registry
-    UObject* Object = FindObjectById(static_cast<int64>(TempId));
-    if (Object)
-    {
-        // Update the registry with the new ID
-        ObjectRegistry.Remove(static_cast<int64>(TempId));
-        ObjectRegistry.Add(static_cast<int64>(ServerId), Object);
-        
-        // Update the reverse lookup
-        ObjectToIdMap.Remove(Object);
-        ObjectToIdMap.Add(Object, static_cast<int64>(ServerId));
-        
-        UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Updated registry for object ID remap: %llu -> %llu"), TempId, ServerId);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: Could not find object with temp ID %llu for remapping"), TempId);
-    }
+    // TODO: Implement ID remapping in the object registry
 }
 
 // Add methods for setting properties

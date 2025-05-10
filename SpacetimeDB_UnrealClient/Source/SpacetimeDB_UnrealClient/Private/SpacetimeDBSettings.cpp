@@ -1,26 +1,27 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright SpacetimeDB. All Rights Reserved.
 
 #include "SpacetimeDBSettings.h"
 
 USpacetimeDBSettings::USpacetimeDBSettings()
 {
-    // Set default values from README.md
-    SpacetimeHost = TEXT("localhost:3000");
-    SpacetimeDBName = TEXT("");
-    SpacetimeAuthToken = TEXT("");
+    // Default connection settings
+    DefaultHostname = TEXT("localhost:3000");
+    DefaultDatabaseName = TEXT("spacetimedb-example");
     bAutoConnect = false;
+    ReconnectionDelay = 2.0f;
+    MaxReconnectionAttempts = 3;
     
-    // Default performance settings
-    MaxObjects = 100000;
-    ReplicationInterval = 0.1f;
+    // Default debugging settings
+    bEnableDebugLogging = false;
     
-    // Default relevancy settings
-    DefaultRelevancy = TEXT("AlwaysRelevant");
-    MaxRelevancyDistance = 10000.0f;
-    ZoneLimit = 1000;
+    // Default networking settings
+    bEnablePrediction = true;
     
-    // Default debug settings
-    bVerboseLogging = false;
+    // Default table subscriptions
+    bAutoSubscribeDefaultTables = true;
+    DefaultTableSubscriptions.Add(TEXT("object_class"));
+    DefaultTableSubscriptions.Add(TEXT("property_definition"));
+    DefaultTableSubscriptions.Add(TEXT("object_instance"));
 }
 
 const USpacetimeDBSettings* USpacetimeDBSettings::Get()

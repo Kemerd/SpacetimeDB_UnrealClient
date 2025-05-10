@@ -1,16 +1,16 @@
+// Copyright SpacetimeDB. All Rights Reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Dom/JsonObject.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonReader.h"
-#include "Serialization/JsonWriter.h"
-#include "UObject/UnrealType.h"
+#include "Json.h"
+#include "UObject/Object.h"
+#include "JsonObjectConverter.h"
+#include "SpacetimeDB_Types.h"
 #include "SpacetimeDB_JsonUtils.generated.h"
 
 /**
- * Utility class for handling JSON serialization and deserialization for SpacetimeDB properties and RPCs.
- * Handles conversion between Unreal Engine data types and JSON representations used by the SpacetimeDB Rust modules.
+ * Utility class for JSON serialization and deserialization for SpacetimeDB.
  */
 UCLASS()
 class SPACETIMEDB_UNREALCLIENT_API USpacetimeDBJsonUtils : public UObject
@@ -19,51 +19,42 @@ class SPACETIMEDB_UNREALCLIENT_API USpacetimeDBJsonUtils : public UObject
 
 public:
 	/**
-	 * Serializes a UProperty value to a JSON string.
-	 * @param Property - The UProperty to serialize.
+	 * Serializes a UProperty to a JSON string.
+	 * @param Property - The property to serialize.
 	 * @param ValuePtr - Pointer to the property value.
-	 * @return JSON string representation of the property value.
+	 * @return JSON string representation of the property.
 	 */
 	static FString SerializePropertyToJson(FProperty* Property, const void* ValuePtr);
 
 	/**
-	 * Deserializes a JSON string to a UProperty value.
-	 * @param Property - The UProperty to deserialize into.
+	 * Deserializes a JSON string to a property.
+	 * @param Property - The property to deserialize into.
 	 * @param ValuePtr - Pointer to where the property value should be stored.
-	 * @param JsonString - JSON string representation of the property value.
+	 * @param JsonString - JSON string to deserialize.
 	 * @return True if deserialization was successful.
 	 */
 	static bool DeserializeJsonToProperty(FProperty* Property, void* ValuePtr, const FString& JsonString);
 
 	/**
 	 * Serializes a UStruct to a JSON string.
-	 * @param StructType - The UScriptStruct type.
-	 * @param StructPtr - Pointer to the struct data.
+	 * @param StructType - The struct type to serialize.
+	 * @param StructPtr - Pointer to the struct instance.
 	 * @return JSON string representation of the struct.
 	 */
 	static FString SerializeStructToJson(UScriptStruct* StructType, const void* StructPtr);
 
 	/**
 	 * Deserializes a JSON string to a UStruct.
-	 * @param StructType - The UScriptStruct type.
-	 * @param StructPtr - Pointer to where the struct data should be stored.
-	 * @param JsonString - JSON string representation of the struct.
+	 * @param StructType - The struct type to deserialize into.
+	 * @param StructPtr - Pointer to where the struct should be stored.
+	 * @param JsonString - JSON string to deserialize.
 	 * @return True if deserialization was successful.
 	 */
 	static bool DeserializeJsonToStruct(UScriptStruct* StructType, void* StructPtr, const FString& JsonString);
 
 	/**
-	 * Serializes a primitive value to JSON.
-	 * Handles bool, integer, float, and string types.
-	 * @param Value - The value to serialize.
-	 * @return JSON value object.
-	 */
-	template<typename T>
-	static TSharedPtr<FJsonValue> SerializePrimitiveToJson(const T& Value);
-
-	/**
-	 * Deserializes a JSON value to a primitive value.
-	 * @param JsonValue - The JSON value to deserialize.
+	 * Deserializes a JSON value to a primitive type.
+	 * @param JsonValue - JSON value to deserialize.
 	 * @param OutValue - Output parameter for the deserialized value.
 	 * @return True if deserialization was successful.
 	 */
@@ -71,65 +62,65 @@ public:
 	static bool DeserializeJsonToPrimitive(const TSharedPtr<FJsonValue>& JsonValue, T& OutValue);
 
 	/**
-	 * Serializes an array to a JSON array.
-	 * @param ArrayProperty - The array property.
-	 * @param ArrayPtr - Pointer to the array data.
+	 * Serializes an array property to a JSON string.
+	 * @param ArrayProperty - The array property to serialize.
+	 * @param ArrayPtr - Pointer to the array.
 	 * @return JSON string representation of the array.
 	 */
 	static FString SerializeArrayToJson(FArrayProperty* ArrayProperty, const void* ArrayPtr);
 
 	/**
-	 * Deserializes a JSON array to an array.
-	 * @param ArrayProperty - The array property.
-	 * @param ArrayPtr - Pointer to where the array data should be stored.
-	 * @param JsonString - JSON string representation of the array.
+	 * Deserializes a JSON string to an array property.
+	 * @param ArrayProperty - The array property to deserialize into.
+	 * @param ArrayPtr - Pointer to where the array should be stored.
+	 * @param JsonString - JSON string to deserialize.
 	 * @return True if deserialization was successful.
 	 */
 	static bool DeserializeJsonToArray(FArrayProperty* ArrayProperty, void* ArrayPtr, const FString& JsonString);
 
 	/**
-	 * Serializes a map to a JSON object.
-	 * @param MapProperty - The map property.
-	 * @param MapPtr - Pointer to the map data.
+	 * Serializes a map property to a JSON string.
+	 * @param MapProperty - The map property to serialize.
+	 * @param MapPtr - Pointer to the map.
 	 * @return JSON string representation of the map.
 	 */
 	static FString SerializeMapToJson(FMapProperty* MapProperty, const void* MapPtr);
 
 	/**
-	 * Deserializes a JSON object to a map.
-	 * @param MapProperty - The map property.
-	 * @param MapPtr - Pointer to where the map data should be stored.
-	 * @param JsonString - JSON string representation of the map.
+	 * Deserializes a JSON string to a map property.
+	 * @param MapProperty - The map property to deserialize into.
+	 * @param MapPtr - Pointer to where the map should be stored.
+	 * @param JsonString - JSON string to deserialize.
 	 * @return True if deserialization was successful.
 	 */
 	static bool DeserializeJsonToMap(FMapProperty* MapProperty, void* MapPtr, const FString& JsonString);
 
 	/**
-	 * Serializes a set to a JSON array.
-	 * @param SetProperty - The set property.
-	 * @param SetPtr - Pointer to the set data.
+	 * Serializes a set property to a JSON string.
+	 * @param SetProperty - The set property to serialize.
+	 * @param SetPtr - Pointer to the set.
 	 * @return JSON string representation of the set.
 	 */
 	static FString SerializeSetToJson(FSetProperty* SetProperty, const void* SetPtr);
 
 	/**
-	 * Deserializes a JSON array to a set.
-	 * @param SetProperty - The set property.
-	 * @param SetPtr - Pointer to where the set data should be stored.
-	 * @param JsonString - JSON string representation of the set.
+	 * Deserializes a JSON string to a set property.
+	 * @param SetProperty - The set property to deserialize into.
+	 * @param SetPtr - Pointer to where the set should be stored.
+	 * @param JsonString - JSON string to deserialize.
 	 * @return True if deserialization was successful.
 	 */
 	static bool DeserializeJsonToSet(FSetProperty* SetProperty, void* SetPtr, const FString& JsonString);
 
 	/**
-	 * Helper to convert an FVector to JSON.
+	 * Converts a vector to a JSON object.
 	 * @param Vector - The vector to convert.
 	 * @return JSON object representation of the vector.
 	 */
 	static TSharedPtr<FJsonObject> VectorToJson(const FVector& Vector);
 
 	/**
-	 * Helper to convert JSON to an FVector.
+	 * Converts a JSON object to a vector.
 	 * @param JsonObject - The JSON object to convert.
 	 * @param OutVector - Output parameter for the converted vector.
 	 * @return True if conversion was successful.
@@ -137,14 +128,14 @@ public:
 	static bool JsonToVector(const TSharedPtr<FJsonObject>& JsonObject, FVector& OutVector);
 
 	/**
-	 * Helper to convert an FRotator to JSON.
+	 * Converts a rotator to a JSON object.
 	 * @param Rotator - The rotator to convert.
 	 * @return JSON object representation of the rotator.
 	 */
 	static TSharedPtr<FJsonObject> RotatorToJson(const FRotator& Rotator);
 
 	/**
-	 * Helper to convert JSON to an FRotator.
+	 * Converts a JSON object to a rotator.
 	 * @param JsonObject - The JSON object to convert.
 	 * @param OutRotator - Output parameter for the converted rotator.
 	 * @return True if conversion was successful.
@@ -152,14 +143,14 @@ public:
 	static bool JsonToRotator(const TSharedPtr<FJsonObject>& JsonObject, FRotator& OutRotator);
 
 	/**
-	 * Helper to convert an FTransform to JSON.
+	 * Converts a transform to a JSON object.
 	 * @param Transform - The transform to convert.
 	 * @return JSON object representation of the transform.
 	 */
 	static TSharedPtr<FJsonObject> TransformToJson(const FTransform& Transform);
 
 	/**
-	 * Helper to convert JSON to an FTransform.
+	 * Converts a JSON object to a transform.
 	 * @param JsonObject - The JSON object to convert.
 	 * @param OutTransform - Output parameter for the converted transform.
 	 * @return True if conversion was successful.
@@ -168,7 +159,7 @@ public:
 
 	/**
 	 * Serializes RPC arguments to a JSON string.
-	 * @param Args - Array of RPC arguments.
+	 * @param Args - Array of JSON values representing the arguments.
 	 * @return JSON string representation of the arguments.
 	 */
 	static FString SerializeRpcArgsToJson(const TArray<TSharedPtr<FJsonValue>>& Args);
@@ -176,14 +167,14 @@ public:
 	/**
 	 * Deserializes a JSON string to RPC arguments.
 	 * @param JsonString - JSON string representation of the arguments.
-	 * @param OutArgs - Output array for the deserialized arguments.
+	 * @param OutArgs - Output parameter for the deserialized arguments.
 	 * @return True if deserialization was successful.
 	 */
 	static bool DeserializeJsonToRpcArgs(const FString& JsonString, TArray<TSharedPtr<FJsonValue>>& OutArgs);
 
 	/**
-	 * Serializes RPC result to a JSON string.
-	 * @param Result - The RPC result.
+	 * Serializes an RPC result to a JSON string.
+	 * @param Result - The RPC result as a JSON value.
 	 * @return JSON string representation of the result.
 	 */
 	static FString SerializeRpcResultToJson(const TSharedPtr<FJsonValue>& Result);

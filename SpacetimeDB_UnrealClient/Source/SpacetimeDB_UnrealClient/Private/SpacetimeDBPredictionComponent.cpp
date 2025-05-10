@@ -270,6 +270,25 @@ void USpacetimeDBPredictionComponent::CaptureTrackedProperties(TMap<FName, FSpac
 	}
 }
 
+void USpacetimeDBPredictionComponent::GetTrackedProperties(TMap<FName, FSpacetimeDBPropertyValue>& OutProperties)
+{
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+
+	// Get property values for all tracked properties
+	for (const FName& PropName : TrackedProperties)
+	{
+		FString JsonValue = FSpacetimeDBPropertyHelper::GetPropertyValueByName(Owner, PropName.ToString());
+		if (!JsonValue.IsEmpty())
+		{
+			OutProperties.Add(PropName, JsonValue);
+		}
+	}
+}
+
 void USpacetimeDBPredictionComponent::ApplyTrackedProperties(const TMap<FName, FSpacetimeDBPropertyValue>& Properties)
 {
 	AActor* Owner = GetOwner();
@@ -281,7 +300,7 @@ void USpacetimeDBPredictionComponent::ApplyTrackedProperties(const TMap<FName, F
 	// Apply property values for all tracked properties
 	for (const TPair<FName, FSpacetimeDBPropertyValue>& Pair : Properties)
 	{
-		USpacetimeDBPropertyHelper::SetPropertyValueByName(Owner, Pair.Key, Pair.Value);
+		FSpacetimeDBPropertyHelper::SetPropertyValueByName(Owner, Pair.Key.ToString(), Pair.Value.ToString());
 	}
 }
 

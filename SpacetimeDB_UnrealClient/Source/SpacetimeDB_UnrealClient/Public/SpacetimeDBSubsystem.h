@@ -180,6 +180,13 @@ public:
     virtual void Deinitialize() override;
     // End USubsystem
 
+    /**
+     * Gets the SpacetimeDB client ID (identity).
+     * 
+     * @return The client ID as a 64-bit integer, or 0 if not connected
+     */
+    uint64 GetClientId() const;
+
     /** 
      * Connects to a SpacetimeDB instance.
      * 
@@ -547,12 +554,55 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "SpacetimeDB|Components")
     FOnComponentRemovedDynamic OnComponentRemoved;
 
+// Event handler methods
+public:
+    /** Handler for connection established events */
+    void HandleConnected();
+    
+    /** Handler for disconnection events */
+    void HandleDisconnected(const FString& Reason);
+    
+    /** Handler for identity received events */
+    void HandleIdentityReceived(const FString& Identity);
+    
+    /** Handler for table event received events */
+    void HandleEventReceived(const FString& TableName, const FString& EventData);
+    
+    /** Handler for error events */
+    void HandleErrorOccurred(const FSpacetimeDBErrorInfo& ErrorInfo);
+    
+    /** Handler for object created events */
+    void HandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson);
+    
+    /** Handler for object destroyed events */
+    void HandleObjectDestroyed(uint64 ObjectId);
+    
+    /** Handler for object ID remapped events */
+    void HandleObjectIdRemapped(uint64 TempId, uint64 ServerId);
+    
+    /** Handler for property updated events - this is a method that's called for blueprint event broadcast */
+    void InternalOnPropertyUpdated(int64 ObjectId, const FString& PropertyName, const FString& ValueJson);
+
+protected:
+    /** The SpacetimeDB client instance used for network communication */
+    FSpacetimeDBClient Client;
+    
+    /** Delegate handles for client events */
+    FDelegateHandle OnConnectedHandle;
+    FDelegateHandle OnDisconnectedHandle;
+    FDelegateHandle OnIdentityReceivedHandle;
+    FDelegateHandle OnEventReceivedHandle;
+    FDelegateHandle OnErrorOccurredHandle;
+    FDelegateHandle OnPropertyUpdatedHandle;
+    FDelegateHandle OnObjectCreatedHandle;
+    FDelegateHandle OnObjectDestroyedHandle;
+    FDelegateHandle OnObjectIdRemappedHandle;
+
+
+    
 private:
     // RPC delegate types
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnServerRpcReceived, int64, ObjectId, const FString&, FunctionName, const TArray<FStdbRpcArg>&, Arguments);
-    
-    // Client instance
-    FSpacetimeDBClient Client;
     
     // Object Registry - Maps SpacetimeDB object IDs to Unreal UObjects
     TMap<int64, UObject*> ObjectRegistry;
@@ -565,18 +615,6 @@ private:
     
     // Internal method to destroy an object based on a server notification
     void DestroyObjectFromServer(int64 ObjectId);
-    
-    // Property update handling
-    void HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson);
-
-    /**
-     * Send a property update to the server
-     * @param ObjectId The ID of the object to update
-     * @param PropertyName The name of the property to update
-     * @param ValueJson The JSON representation of the new property value
-     * @return True if the property update was successfully sent
-     */
-    bool SendPropertyUpdateToServer(int64 ObjectId, const FString& PropertyName, const FString& ValueJson);
     
     // Type definition for client RPC handlers
     typedef TFunction<void(int64, const TArray<FStdbRpcArg>&)> FClientRpcHandler;
@@ -598,4 +636,37 @@ private:
     
     // Convert array of FStdbRpcArg to JSON string
     FString SerializeRpcArguments(const TArray<FStdbRpcArg>& Args);
+
+    /** Handle connection established */
+    void InternalHandleConnected();
+    
+    /** Handle disconnection event */
+    void InternalHandleDisconnected(const FString& Reason);
+    
+    /** Handle identity received event */
+    void InternalHandleIdentityReceived(const FString& Identity);
+    
+    /** Handle table event received */
+    void InternalHandleEventReceived(const FString& TableName, const FString& EventData);
+    
+    /** Handle errors from SpacetimeDB */
+    void InternalHandleErrorOccurred(const FSpacetimeDBErrorInfo& ErrorInfo);
+    
+    /** Handle object created event */
+    void InternalHandleObjectCreated(uint64 ObjectId, const FString& ClassName, const FString& DataJson);
+    
+    /** Handle object destroyed event */
+    void InternalHandleObjectDestroyed(uint64 ObjectId);
+    
+    /** Handler for object ID remapped events */
+    void InternalHandleObjectIdRemapped(uint64 TempId, uint64 ServerId);
+
+    /** Handles property updates from SpacetimeDB.
+     * Internal method called by SpacetimeDBClient callbacks.
+     * 
+     * @param ObjectId ID of the object with the updated property
+     * @param PropertyName Name of the updated property
+     * @param ValueJson JSON string value of the property
+     */
+    void InternalHandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson);
 }; 

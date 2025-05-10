@@ -5,7 +5,11 @@
 #include "CoreMinimal.h"
 #include "Engine/NetDriver.h"
 #include "SpacetimeDBClient.h"
+#include "SpacetimeDB_ErrorHandler.h"
 #include "SpacetimeDBNetDriver.generated.h"
+
+// Forward declarations
+class FSpacetimeDBNetDriverPrivate;
 
 /**
  * @class USpacetimeDBNetDriver
@@ -39,6 +43,9 @@ private:
     /** The SpacetimeDB client instance used for network communication */
     FSpacetimeDBClient Client;
     
+    /** Private implementation data */
+    FSpacetimeDBNetDriverPrivate* NetDriverPrivate;
+    
     /** Flag to indicate if this driver is acting as a server (listen) or client (connect) */
     bool bIsServer;
     
@@ -60,7 +67,7 @@ private:
     void HandleDisconnected(const FString& Reason);
     void HandleIdentityReceived(const FString& Identity);
     void HandleEventReceived(const FString& TableName, const FString& EventData);
-    void HandleErrorOccurred(const FString& ErrorMessage);
+    void HandleErrorOccurred(const FSpacetimeDBErrorInfo& ErrorInfo);
     
     // Process table events from SpacetimeDB and update replication state
     void ProcessTableEvent(const FString& TableName, const FString& EventData);

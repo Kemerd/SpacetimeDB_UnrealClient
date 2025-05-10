@@ -47,7 +47,7 @@ void on_property_updated(uint64_t object_id, const char* property_name, const ch
         USpacetimeDBSubsystem* SpacetimeDB = GameInstance->GetSubsystem<USpacetimeDBSubsystem>();
         if (SpacetimeDB)
         {
-            SpacetimeDB->HandlePropertyUpdate(object_id, PropertyName, ValueJson);
+            SpacetimeDB->InternalHandlePropertyUpdated(object_id, PropertyName, ValueJson);
         }
         else
         {

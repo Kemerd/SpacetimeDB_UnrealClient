@@ -131,73 +131,22 @@ FString FSpacetimeDBPropertyHelper::SerializePropertyToJson(UObject* Object, con
 {
     if (!Object)
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDB: Cannot serialize property from null object. Property: %s"), *PropertyName);
         return FString();
     }
 
+    // Find the property 
     FProperty* Property = Object->GetClass()->FindPropertyByName(FName(*PropertyName));
     if (!Property)
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDB: Property not found for serialization: %s on object %s"), 
-            *PropertyName, *Object->GetName());
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBPropertyHelper: Property %s not found in object %s"), *PropertyName, *Object->GetName());
         return FString();
     }
 
-    // Get the address of the property in the object
-    const void* PropertyAddress = Property->ContainerPtrToValuePtr<void>(Object);
-    TSharedPtr<FJsonValue> JsonValue;
+    // Get the property's address
+    void* PropertyAddr = Property->ContainerPtrToValuePtr<void>(Object);
 
-    // Handle different property types
-    if (FNumericProperty* NumericProp = CastField<FNumericProperty>(Property))
-    {
-        JsonValue = SerializeNumericProperty(NumericProp, PropertyAddress);
-    }
-    else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
-    {
-        JsonValue = SerializeBoolProperty(BoolProp, PropertyAddress);
-    }
-    else if (FStrProperty* StrProp = CastField<FStrProperty>(Property))
-    {
-        JsonValue = SerializeStrProperty(StrProp, PropertyAddress);
-    }
-    else if (FTextProperty* TextProp = CastField<FTextProperty>(Property))
-    {
-        JsonValue = SerializeTextProperty(TextProp, PropertyAddress);
-    }
-    else if (FNameProperty* NameProp = CastField<FNameProperty>(Property))
-    {
-        JsonValue = SerializeNameProperty(NameProp, PropertyAddress);
-    }
-    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
-    {
-        JsonValue = SerializeStructProperty(StructProp, PropertyAddress);
-    }
-    else if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(Property))
-    {
-        JsonValue = SerializeArrayProperty(ArrayProp, PropertyAddress);
-    }
-    else if (FMapProperty* MapProp = CastField<FMapProperty>(Property))
-    {
-        JsonValue = SerializeMapProperty(MapProp, PropertyAddress);
-    }
-    else if (FObjectProperty* ObjProp = CastField<FObjectProperty>(Property))
-    {
-        JsonValue = SerializeObjectProperty(ObjProp, PropertyAddress);
-    }
-    else if (FSoftObjectProperty* SoftObjProp = CastField<FSoftObjectProperty>(Property))
-    {
-        JsonValue = SerializeSoftObjectProperty(SoftObjProp, PropertyAddress);
-    }
-    else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
-    {
-        JsonValue = SerializeEnumProperty(EnumProp, PropertyAddress);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDB: Unsupported property type for serialization: %s"), *PropertyName);
-        return FString();
-    }
-
+    // Call the appropriate serialization function based on property type
+    TSharedPtr<FJsonValue> JsonValue = SerializePropertyToJsonValue(Property, PropertyAddr);
     if (!JsonValue.IsValid())
     {
         return FString();
@@ -1014,4 +963,63 @@ bool FSpacetimeDBPropertyHelper::ApplyJsonValueToProperty(UObject* Object, const
     }
 
     return bSuccess;
+}
+
+TSharedPtr<FJsonValue> FSpacetimeDBPropertyHelper::SerializePropertyToJsonValue(FProperty* Property, const void* PropertyAddr)
+{
+    if (!Property || !PropertyAddr)
+    {
+        return nullptr;
+    }
+
+    // Handle different property types
+    if (FNumericProperty* NumericProp = CastField<FNumericProperty>(Property))
+    {
+        return SerializeNumericProperty(NumericProp, PropertyAddr);
+    }
+    else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
+    {
+        return SerializeBoolProperty(BoolProp, PropertyAddr);
+    }
+    else if (FStrProperty* StrProp = CastField<FStrProperty>(Property))
+    {
+        return SerializeStrProperty(StrProp, PropertyAddr);
+    }
+    else if (FTextProperty* TextProp = CastField<FTextProperty>(Property))
+    {
+        return SerializeTextProperty(TextProp, PropertyAddr);
+    }
+    else if (FNameProperty* NameProp = CastField<FNameProperty>(Property))
+    {
+        return SerializeNameProperty(NameProp, PropertyAddr);
+    }
+    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
+    {
+        return SerializeStructProperty(StructProp, PropertyAddr);
+    }
+    else if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(Property))
+    {
+        return SerializeArrayProperty(ArrayProp, PropertyAddr);
+    }
+    else if (FMapProperty* MapProp = CastField<FMapProperty>(Property))
+    {
+        return SerializeMapProperty(MapProp, PropertyAddr);
+    }
+    else if (FObjectProperty* ObjProp = CastField<FObjectProperty>(Property))
+    {
+        return SerializeObjectProperty(ObjProp, PropertyAddr);
+    }
+    else if (FSoftObjectProperty* SoftObjProp = CastField<FSoftObjectProperty>(Property))
+    {
+        return SerializeSoftObjectProperty(SoftObjProp, PropertyAddr);
+    }
+    else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+    {
+        return SerializeEnumProperty(EnumProp, PropertyAddr);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBPropertyHelper: Unsupported property type for serialization: %s"), *Property->GetName());
+        return nullptr;
+    }
 } 

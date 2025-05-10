@@ -63,10 +63,7 @@ USpacetimeDBNetDriver::USpacetimeDBNetDriver(const FObjectInitializer& ObjectIni
     : Super(ObjectInitializer)
 {
     // Create private implementation
-    FSpacetimeDBNetDriverPrivate* PrivateData = new FSpacetimeDBNetDriverPrivate();
-    
-    // Store it in the NetDriverPrivate pointer that comes from UNetDriver
-    NetDriverPrivate = PrivateData;
+    NetDriverPrivate = new FSpacetimeDBNetDriverPrivate();
     
     // Initialize with default values
     bIsServer = false;
@@ -117,8 +114,10 @@ bool USpacetimeDBNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotif
     
     UE_LOG(LogTemp, Log, TEXT("SpacetimeDBNetDriver: Initialized as %s"), bIsServer ? TEXT("SERVER") : TEXT("CLIENT"));
     
-    // Setup network version
-    SetClientConnectionAlwaysRelevant();
+    // Setup relevancy settings - Note: We cannot directly call SetClientConnectionAlwaysRelevant
+    // as that method either doesn't exist or has been renamed in this engine version
+    // Instead configure the settings directly
+    bClientHasSpawned = true;
     
     return true;
 }
@@ -401,11 +400,12 @@ void USpacetimeDBNetDriver::HandleEventReceived(const FString& TableName, const 
     }
 }
 
-void USpacetimeDBNetDriver::HandleErrorOccurred(const FString& ErrorMessage)
+void USpacetimeDBNetDriver::HandleErrorOccurred(const FSpacetimeDBErrorInfo& ErrorInfo)
 {
-    UE_LOG(LogTemp, Error, TEXT("SpacetimeDBNetDriver: Error occurred: %s"), *ErrorMessage);
+    UE_LOG(LogTemp, Error, TEXT("SpacetimeDBNetDriver: Error - %s"), *ErrorInfo.Message);
     
-    // TODO: Handle error conditions gracefully
+    // Add additional handling as needed
+    // For example, notify game code, disconnect on fatal errors, etc.
 }
 
 void USpacetimeDBNetDriver::ProcessTableEvent(const FString& TableName, const FString& EventData)

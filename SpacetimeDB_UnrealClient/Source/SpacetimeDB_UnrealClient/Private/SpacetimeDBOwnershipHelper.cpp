@@ -8,23 +8,26 @@
 
 bool USpacetimeDBOwnershipHelper::HasOwnership(int64 ObjectId)
 {
-    UGameInstance* GameInstance = UGameplayStatics::GetGameInstance(GEngine->GetWorld());
-    if (!GameInstance)
+    if (ObjectId <= 0)
     {
         return false;
     }
-
-    USpacetimeDBSubsystem* SpacetimeDB = GameInstance->GetSubsystem<USpacetimeDBSubsystem>();
-    if (!SpacetimeDB || !SpacetimeDB->IsConnected())
+    
+    // Get the subsystem
+    USpacetimeDBSubsystem* SpacetimeDB = GEngine->GetEngineSubsystem<USpacetimeDBSubsystem>();
+    if (!SpacetimeDB)
     {
         return false;
     }
-
-    // Check if the object's owner_id matches the local client ID
-    int64 OwnerClientId = GetOwnerClientId(ObjectId);
-    int64 LocalClientId = SpacetimeDB->GetClientId();
-
-    return OwnerClientId == LocalClientId;
+    
+    // Get the client ID
+    uint64 ClientId = SpacetimeDB->GetClient().GetClientID();
+    
+    // Get the owner ID for this object
+    int64 OwnerId = GetOwnerClientId(ObjectId);
+    
+    // Compare the client ID with the owner ID
+    return (OwnerId > 0) && (OwnerId == ClientId);
 }
 
 bool USpacetimeDBOwnershipHelper::HasAuthority(int64 ObjectId)
@@ -86,24 +89,27 @@ int64 USpacetimeDBOwnershipHelper::GetOwnerClientId(int64 ObjectId)
 
 bool USpacetimeDBOwnershipHelper::RequestSetOwner(int64 ObjectId, int64 NewOwnerClientId)
 {
-    UGameInstance* GameInstance = UGameplayStatics::GetGameInstance(GEngine->GetWorld());
-    if (!GameInstance)
+    // Get the SpacetimeDB subsystem
+    USpacetimeDBSubsystem* SpacetimeDB = GEngine->GetEngineSubsystem<USpacetimeDBSubsystem>();
+    if (!SpacetimeDB)
     {
         return false;
     }
-
-    USpacetimeDBSubsystem* SpacetimeDB = GameInstance->GetSubsystem<USpacetimeDBSubsystem>();
-    if (!SpacetimeDB || !SpacetimeDB->IsConnected())
+    
+    // Check if the current client has authority
+    if (!HasAuthority(ObjectId))
     {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBOwnershipHelper: Cannot set owner - No authority over object %lld"), ObjectId);
         return false;
     }
-
+    
     // We'll use the set_property RPC to set the owner_id
     FString ValueJson = FString::Printf(TEXT("%lld"), NewOwnerClientId);
     
     // Call the server function to set the owner
-    return SpacetimeDB->CallServerFunction(ObjectId, TEXT("set_owner"), 
-        TArray<FStdbRpcArg>{FStdbRpcArg(TEXT("new_owner_id"), NewOwnerClientId)});
+    TArray<FStdbRpcArg> Args;
+    Args.Add(FStdbRpcArg(TEXT("new_owner_id"), (int32)NewOwnerClientId));
+    return SpacetimeDB->CallServerFunction(ObjectId, TEXT("set_owner"), Args);
 }
 
 bool USpacetimeDBOwnershipHelper::CanCallRPC(int64 ObjectId, const FString& FunctionName)

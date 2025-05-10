@@ -97,7 +97,7 @@ bool USpacetimeDBCodeGenerator::GenerateRustClassRegistry(const FString& OutputP
     
     for (const auto& ClassPair : ClassIdMap)
     {
-        UClass* Class = FindObject<UClass>(ANY_PACKAGE, *FPackageName::GetShortClassName(ClassPair.Key));
+        UClass* Class = FindObject<UClass>(ANY_PACKAGE, *ClassPair.Key.Replace(TEXT("/Script/"), TEXT(".")));
         if (Class)
         {
             FString Registration = GenerateClassRegistration(Class, ClassPair.Value);
@@ -107,7 +107,7 @@ bool USpacetimeDBCodeGenerator::GenerateRustClassRegistry(const FString& OutputP
         }
     }
     
-    Lines.Add(TEXT("    log::debug!(\"Registered {} core engine classes\", %d);"), ClassIdMap.Num());
+    Lines.Add(FString::Printf(TEXT("    log::debug!(\"Registered {} core engine classes\", %d)"), ClassIdMap.Num()));
     Lines.Add(TEXT(""));
 
     // Then register project-specific classes (these will have IDs 100+)
@@ -132,8 +132,8 @@ bool USpacetimeDBCodeGenerator::GenerateRustClassRegistry(const FString& OutputP
         ProjectClassCount++;
     }
 
-    Lines.Add(TEXT("    log::debug!(\"Registered {} project-specific classes\", %d);"), ProjectClassCount);
-    Lines.Add(TEXT("    log::info!(\"Registered {} total classes\", %d);"), ClassIdMap.Num() + ProjectClassCount);
+    Lines.Add(FString::Printf(TEXT("    log::debug!(\"Registered {} project-specific classes\", %d)"), ProjectClassCount));
+    Lines.Add(FString::Printf(TEXT("    log::info!(\"Registered {} total classes\", %d)"), ClassIdMap.Num() + ProjectClassCount));
     Lines.Add(TEXT("}"));
     Lines.Add(TEXT(""));
 
@@ -149,7 +149,7 @@ bool USpacetimeDBCodeGenerator::GenerateRustClassRegistry(const FString& OutputP
     
     for (const auto& ClassPair : ClassIdMap)
     {
-        UClass* Class = FindObject<UClass>(ANY_PACKAGE, *FPackageName::GetShortClassName(ClassPair.Key));
+        UClass* Class = FindObject<UClass>(ANY_PACKAGE, *ClassPair.Key.Replace(TEXT("/Script/"), TEXT(".")));
         if (Class)
         {
             FString PropertyRegistrations = GeneratePropertyRegistrations(Class, ClassPair.Value);
