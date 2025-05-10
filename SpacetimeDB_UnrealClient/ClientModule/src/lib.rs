@@ -139,4 +139,48 @@ pub fn destroy_actor(
     object_id: ObjectId,
 ) -> Result<(), String> {
     object::destroy_object(object_id)
+}
+
+// Provide the missing WebAssembly host functions that are used by the SpacetimeDB library
+// These are normally provided by the SpacetimeDB runtime in a WebAssembly environment
+
+#[no_mangle]
+pub extern "C" fn bytes_source_read(_ptr: *mut u8, _len: usize) -> u32 {
+    // Stub implementation
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn bytes_sink_write(_ptr: *const u8, _len: usize) {
+    // Stub implementation
+}
+
+#[no_mangle]
+pub extern "C" fn console_log(_level: u8, _target: *const u8, _target_len: usize, 
+                            _filename: *const u8, _filename_len: usize,
+                            _line: u32, _message: *const u8, _message_len: usize) {
+    // Stub implementation
+}
+
+#[no_mangle]
+pub extern "C" fn identity() -> [u8; 32] {
+    // Return empty identity
+    [0; 32]
+}
+
+#[no_mangle]
+pub extern "C" fn table_id_from_name(_name: *const u8, _name_len: usize) -> u32 {
+    // Stub implementation
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn console_timer_start(_name: *const u8, _name_len: usize) -> u32 {
+    // Stub implementation
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn console_timer_end(_timer_id: u32) {
+    // Stub implementation
 } 
