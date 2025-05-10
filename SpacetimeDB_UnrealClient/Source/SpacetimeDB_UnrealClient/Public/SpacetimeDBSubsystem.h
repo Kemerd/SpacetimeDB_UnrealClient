@@ -712,4 +712,13 @@ private:
      */
     UFUNCTION()
     void OnActorDestroyed(AActor* DestroyedActor);
+
+    /**
+     * Helper to call a reducer on the client while bypassing const issues.
+     * 
+     * @param ReducerName The name of the reducer to call
+     * @param ArgsJson The JSON arguments to pass to the reducer
+     * @return True if the call was successful
+     */
+    bool CallReducerHelper(const FString& ReducerName, const FString& ArgsJson) const;
 }; 

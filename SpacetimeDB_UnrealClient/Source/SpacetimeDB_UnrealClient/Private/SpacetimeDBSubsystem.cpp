@@ -178,7 +178,12 @@ int64 USpacetimeDBSubsystem::GetSpacetimeDBClientID() const
 
 bool USpacetimeDBSubsystem::CallReducer(const FString& ReducerName, const FString& ArgsJson)
 {
-    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: CallReducer(%s, %s)"), *ReducerName, *ArgsJson);
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallReducer - Not connected to SpacetimeDB"));
+        return false;
+    }
+    
     return Client.CallReducer(ReducerName, ArgsJson);
 }
 
@@ -891,32 +896,6 @@ bool USpacetimeDBSubsystem::SendPropertyUpdateToServer(int64 ObjectId, const FSt
 
 // RPC System Implementation
 
-bool USpacetimeDBSubsystem::CallServerFunctionOnObject(UObject* TargetObject, const FString& FunctionName, const TArray<FStdbRpcArg>& Args)
-{
-    if (!IsConnected())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Not connected to SpacetimeDB"));
-        return false;
-    }
-    
-    if (!TargetObject)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Target object is null"));
-        return false;
-    }
-    
-    // Get the object ID
-    int64 ObjectId = GetObjectId(TargetObject);
-    if (ObjectId == 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Cannot find SpacetimeDB ID for object %s"), *TargetObject->GetName());
-        return false;
-    }
-    
-    // Call through with the object ID
-    return CallServerFunction(ObjectId, FunctionName, Args);
-}
-
 bool USpacetimeDBSubsystem::CallServerFunction(int64 ObjectId, const FString& FunctionName, const TArray<FStdbRpcArg>& Args)
 {
     if (!IsConnected())
@@ -924,18 +903,16 @@ bool USpacetimeDBSubsystem::CallServerFunction(int64 ObjectId, const FString& Fu
         UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunction - Not connected to SpacetimeDB"));
         return false;
     }
-
-    // Serialize the arguments to JSON
+    
+    // Convert arguments to JSON
     FString ArgsJson = SerializeRpcArguments(Args);
-    if (ArgsJson.IsEmpty())
-    {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to serialize RPC arguments for function %s"), *FunctionName);
-        return false;
-    }
-
-    // Call the FFI function
-    stdb::ffi::call_server_function(ObjectId, TCHAR_TO_UTF8(*FunctionName), TCHAR_TO_UTF8(*ArgsJson));
-    return true;
+    
+    // Create the RPC call JSON
+    FString RpcJson = FString::Printf(TEXT("{\"object_id\":%lld,\"function\":\"%s\",\"args\":%s}"), 
+        ObjectId, *FunctionName, *ArgsJson);
+    
+    // Call the reducer using helper
+    return CallReducerHelper(TEXT("call_function"), RpcJson);
 }
 
 bool USpacetimeDBSubsystem::RegisterClientFunctionWithFFI(const FString& FunctionName)
@@ -1021,9 +998,9 @@ bool USpacetimeDBSubsystem::HandleClientRpcFromFFI(uint64 ObjectId, const char* 
     // Extract the arguments if present
     TSharedPtr<FJsonObject> ArgsObj;
     TSharedPtr<FJsonValue> ArgsValue;
-    if (JsonObject->TryGetValue(TEXT("args"), ArgsValue) && ArgsValue->Type == EJson::Object)
+    if (JsonObject->Values.Contains(TEXT("args")) && JsonObject->Values[TEXT("args")]->Type == EJson::Object)
     {
-        ArgsObj = ArgsValue->AsObject();
+        ArgsObj = JsonObject->Values[TEXT("args")]->AsObject();
     }
     else
     {
@@ -1142,75 +1119,53 @@ TArray<FStdbRpcArg> USpacetimeDBSubsystem::ParseRpcArguments(const FString& Args
 
 FString USpacetimeDBSubsystem::SerializeRpcArguments(const TArray<FStdbRpcArg>& Args)
 {
+    // Create a JSON object to hold the arguments
     TSharedPtr<FJsonObject> JsonObject = MakeShared<FJsonObject>();
     
     // Add each argument to the JSON object
     for (const FStdbRpcArg& Arg : Args)
     {
-        switch (Arg.Type)
+        // Extract the value based on the property type stored in the Value
+        switch (Arg.Value.Type)
         {
-            case ESpacetimeDBValueType::Null:
-                JsonObject->SetField(Arg.Name, MakeShared<FJsonValueNull>());
+            case ESpacetimeDBPropertyType::Bool:
+                JsonObject->SetBoolField(Arg.Name, Arg.Value.BoolValue);
                 break;
                 
-            case ESpacetimeDBValueType::Bool:
-                JsonObject->SetBoolField(Arg.Name, Arg.Value.AsBool());
+            case ESpacetimeDBPropertyType::Int32:
+                JsonObject->SetNumberField(Arg.Name, Arg.Value.Int32Value);
                 break;
                 
-            case ESpacetimeDBValueType::Int:
-                JsonObject->SetNumberField(Arg.Name, Arg.Value.AsInt32());
+            case ESpacetimeDBPropertyType::Int64:
+                JsonObject->SetNumberField(Arg.Name, static_cast<double>(Arg.Value.Int64Value));
                 break;
                 
-            case ESpacetimeDBValueType::Float:
-                JsonObject->SetNumberField(Arg.Name, Arg.Value.AsFloat());
+            case ESpacetimeDBPropertyType::Float:
+                JsonObject->SetNumberField(Arg.Name, Arg.Value.FloatValue);
                 break;
                 
-            case ESpacetimeDBValueType::String:
-                JsonObject->SetStringField(Arg.Name, Arg.Value.AsString());
+            case ESpacetimeDBPropertyType::Double:
+                JsonObject->SetNumberField(Arg.Name, Arg.Value.DoubleValue);
                 break;
                 
-            case ESpacetimeDBValueType::CustomJson:
-                {
-                    // Parse the JSON string to extract the object
-                    TSharedPtr<FJsonObject> CustomObj;
-                    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Arg.Value.AsJson());
-                    if (FJsonSerializer::Deserialize(Reader, CustomObj))
-                    {
-                        JsonObject->SetObjectField(Arg.Name, CustomObj);
-                    }
-                    else
-                    {
-                        // Fallback to string if parsing fails
-                        JsonObject->SetStringField(Arg.Name, Arg.Value.AsJson());
-                    }
-                }
+            case ESpacetimeDBPropertyType::String:
+                JsonObject->SetStringField(Arg.Name, Arg.Value.StringValue);
                 break;
                 
-            case ESpacetimeDBValueType::ArrayJson:
-                {
-                    // Parse the JSON string to extract the array
-                    TArray<TSharedPtr<FJsonValue>> ArrayValues;
-                    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Arg.Value.AsJson());
-                    if (FJsonSerializer::Deserialize(Reader, ArrayValues))
-                    {
-                        JsonObject->SetArrayField(Arg.Name, ArrayValues);
-                    }
-                    else
-                    {
-                        // Fallback to string if parsing fails
-                        JsonObject->SetStringField(Arg.Name, Arg.Value.AsJson());
-                    }
-                }
+            default:
+                // For other types, use the string representation
+                JsonObject->SetStringField(Arg.Name, Arg.Value.StringValue);
                 break;
         }
     }
     
     // Serialize the JSON object to a string
-    FString ResultJson;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultJson);
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
     FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer);
+    Writer->Close();
     
-    return ResultJson;
+    return OutputString;
 }
 
 int64 USpacetimeDBSubsystem::GetObjectId(UObject* Object) const
@@ -1336,38 +1291,62 @@ bool USpacetimeDBSubsystem::HasAuthority(int64 ObjectId) const
 
 int64 USpacetimeDBSubsystem::GetOwnerClientId(int64 ObjectId) const
 {
-    if (!IsConnected())
+    // Implementation of GetOwnerClientId - check the object properties for owner information
+    // Find the object by ID
+    UObject* Object = FindObjectById(ObjectId);
+    if (!Object)
     {
-        return 0;
+        return 0; // Not found or not owned
     }
     
-    // Get the object's owner_id property
-    FString OwnerIdJson = GetPropertyJsonValue(ObjectId, TEXT("owner_id"));
-    if (OwnerIdJson.IsEmpty() || OwnerIdJson == TEXT("null"))
+    // Check for the owner client ID property
+    FString OwnerIdJson = GetPropertyJsonValue(ObjectId, TEXT("owner_client_id"));
+    if (OwnerIdJson.IsEmpty())
     {
-        return 0; // No owner (server-owned)
+        return 0; // No owner property found
     }
     
-    // Parse the JSON string to get the owner ID
-    int64 OwnerClientId = FCString::Atoi64(*OwnerIdJson);
-    return OwnerClientId;
+    // Parse the owner client ID
+    int64 OwnerId = 0;
+    
+    // Direct parsing from JSON to avoid dependency on helper
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(OwnerIdJson);
+    if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
+    {
+        double NumericValue = 0.0;
+        if (JsonObject->TryGetNumberField(TEXT("value"), NumericValue))
+        {
+            OwnerId = static_cast<int64>(NumericValue);
+        }
+    }
+    
+    return OwnerId;
 }
 
 bool USpacetimeDBSubsystem::HasOwnership(int64 ObjectId) const
 {
-    return GetOwnerClientId(ObjectId) == GetClientId();
+    // Check if we have ownership of the object
+    int64 OwnerId = GetOwnerClientId(ObjectId);
+    int64 ClientId = GetClientId();
+    
+    return (OwnerId == ClientId && ClientId != 0);
 }
 
 bool USpacetimeDBSubsystem::RequestSetOwner(int64 ObjectId, int64 NewOwnerClientId)
 {
     if (!IsConnected())
     {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: RequestSetOwner - Not connected to SpacetimeDB"));
         return false;
     }
     
-    // This must go through a server RPC since changing ownership is a privileged operation
-    return CallServerFunction(ObjectId, TEXT("set_owner"), 
-        TArray<FStdbRpcArg>{FStdbRpcArg(TEXT("new_owner_id"), (int32)NewOwnerClientId)});
+    // Create a simpler JSON argument directly since FStdbRpcArg might have type mismatches
+    FString ArgsJson = FString::Printf(TEXT("{\"object_id\":%lld,\"owner_client_id\":%lld}"), 
+        ObjectId, NewOwnerClientId);
+    
+    // Call the server function using helper
+    return CallReducerHelper(TEXT("set_owner"), ArgsJson);
 }
 
 //============================
@@ -1549,7 +1528,7 @@ TArray<int64> USpacetimeDBSubsystem::GetComponentIdsForActor(int64 ActorId) cons
     FString ArgsJson = FString::Printf(TEXT("{\"actor_id\":%lld}"), ActorId);
     
     // Call the reducer - we'll need to handle the response elsewhere
-    Client.CallReducer(TEXT("get_components"), ArgsJson);
+    CallReducerHelper(TEXT("get_components"), ArgsJson);
     
     // For now, we can return any components we already know about from our local registry
     // This would need to be enhanced with a proper callback system
@@ -1608,7 +1587,7 @@ int64 USpacetimeDBSubsystem::RequestAddComponent(int64 ActorId, const FString& C
         ActorId, *ComponentClassName);
     
     // Call the reducer
-    if (!Client.CallReducer(TEXT("create_and_attach_component"), ArgsJson))
+    if (!CallReducerHelper(TEXT("create_and_attach_component"), ArgsJson))
     {
         UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: RequestAddComponent - Failed to call reducer"));
         return 0;
@@ -1667,12 +1646,12 @@ bool USpacetimeDBSubsystem::RequestRemoveComponent(int64 ActorId, int64 Componen
         ActorId, ComponentId);
     
     // Call the reducer
-    return Client.CallReducer(TEXT("remove_component"), ArgsJson);
+    return CallReducerHelper(TEXT("remove_component"), ArgsJson);
 }
 
 uint64 USpacetimeDBSubsystem::GetClientId() const
 {
-    return IsConnected() ? Client.GetClientID() : 0;
+    return Client.GetClientID();
 }
 
 FString USpacetimeDBSubsystem::GetPropertyJsonValue(UObject* Object, const FString& PropertyName) const
@@ -1691,21 +1670,41 @@ FString USpacetimeDBSubsystem::GetPropertyJsonValue(UObject* Object, const FStri
     return GetPropertyJsonValue(ObjectId, PropertyName);
 }
 
-bool USpacetimeDBSubsystem::CallServerFunction(int64 ObjectId, const FString& FunctionName, const TArray<FStdbRpcArg>& Args)
+// Add a helper method to safely call CallReducer on a const client reference
+bool USpacetimeDBSubsystem::CallReducerHelper(const FString& ReducerName, const FString& ArgsJson) const
 {
     if (!IsConnected())
     {
-        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunction - Not connected to SpacetimeDB"));
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallReducerHelper - Not connected to SpacetimeDB"));
         return false;
     }
     
-    // Convert arguments to JSON
-    FString ArgsJson = SerializeRpcArguments(Args);
+    // Call the reducer function on the client
+    return Client.CallReducer(ReducerName, ArgsJson);
+}
+
+bool USpacetimeDBSubsystem::CallServerFunctionOnObject(UObject* TargetObject, const FString& FunctionName, const TArray<FStdbRpcArg>& Args)
+{
+    if (!IsConnected())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Not connected to SpacetimeDB"));
+        return false;
+    }
     
-    // Create the RPC call JSON
-    FString RpcJson = FString::Printf(TEXT("{\"object_id\":%lld,\"function\":\"%s\",\"args\":%s}"), 
-        ObjectId, *FunctionName, *ArgsJson);
+    if (!TargetObject)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Target object is null"));
+        return false;
+    }
     
-    // Call the reducer
-    return Client.CallReducer(TEXT("call_function"), RpcJson);
+    // Get the object ID
+    int64 ObjectId = GetObjectId(TargetObject);
+    if (ObjectId == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SpacetimeDBSubsystem: CallServerFunctionOnObject - Cannot find SpacetimeDB ID for object %s"), *TargetObject->GetName());
+        return false;
+    }
+    
+    // Call through with the object ID
+    return CallServerFunction(ObjectId, FunctionName, Args);
 } 

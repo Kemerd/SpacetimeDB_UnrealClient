@@ -1,7 +1,6 @@
 // Copyright SpacetimeDB. All Rights Reserved.
 
 #include "SpacetimeDB_ErrorHandler.h"
-#include "Misc/StackTrace.h"
 #include "Misc/Parse.h"
 
 FSpacetimeDBErrorInfo FSpacetimeDBErrorHandler::LogError(
@@ -118,7 +117,9 @@ FSpacetimeDBErrorInfo FSpacetimeDBErrorHandler::HandleFFIError(
     FString StackTrace;
     if (bLogStackTrace)
     {
-        StackTrace = FString::Printf(TEXT("\nStack trace:\n%s"), *FStackTrace::GetStackTrace(2)); // Skip this and calling function
+        // Stack trace functionality is not available in this engine version
+        // Instead, just log a message indicating where the error occurred
+        StackTrace = TEXT("\nStack trace not available in this engine version");
     }
     
     // Log the error
