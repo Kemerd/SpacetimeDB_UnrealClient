@@ -20,6 +20,7 @@ use crate::prediction::{get_prediction_system, PredictedTransformUpdate, Sequenc
 use stdb_shared::types::Transform;
 use log;
 use crate::{class, prediction};
+use std::ffi::{c_char, CString};
 
 // Define the VelocityData struct since it doesn't seem to exist in the shared types
 // This matches the usage in the prediction module
@@ -49,7 +50,6 @@ pub static CALLBACKS: Lazy<Mutex<EventCallbacks>> = Lazy::new(|| Mutex::new(Even
 // --- Helper functions for callback invocation ---
 // These functions safely convert `usize` back to function pointers and call them.
 // They are marked `unsafe` because they dereference raw pointers.
-use std::ffi::{c_char, CStr, CString};
 
 fn invoke_on_connected(cb_ptr: usize) {
     if cb_ptr != 0 {
@@ -349,30 +349,21 @@ fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxStrin
             match property::serialize_property_value(&value) {
                 Ok(json) => {
                     // Create a new CxxString with the JSON value
-                    let mut result = cxx::UniquePtr::new().unwrap();
-                    let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-                    pinned.push_str(&json);
-                    result
+                    create_cxx_string(&json)
                 },
                 Err(e) => {
                     // Create a new CxxString with the error message
-                    let mut result = cxx::UniquePtr::new().unwrap();
-                    let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-                    pinned.push_str(&format!("Error serializing property: {}", e));
-                    result
+                    create_cxx_string(&format!("Error serializing property: {}", e))
                 }
             }
         },
         Ok(None) => {
             // Return an empty string for properties that don't exist
-            cxx::UniquePtr::new().unwrap()
+            create_cxx_string("")
         },
         Err(e) => {
             // Create a new CxxString with the error message
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str(&format!("Error getting property: {}", e));
-            result
+            create_cxx_string(&format!("Error getting property: {}", e))
         }
     }
 }
@@ -480,17 +471,11 @@ fn get_object_class(object_id: u64) -> UniquePtr<CxxString> {
     match object::get_object_class(object_id) {
         Some(class_name) => {
             // Create a new CxxString with the class name
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str(&class_name);
-            result
+            create_cxx_string(&class_name)
         },
         None => {
             // Return an empty string if the object doesn't exist
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str("");
-            result
+            create_cxx_string("")
         }
     }
 }
@@ -513,26 +498,17 @@ fn get_property_names_for_class(class_name: &CxxString) -> UniquePtr<CxxString> 
     // Check if property definitions exist for this class
     if !property::has_property_definitions_for_class(&class_name_str) {
         // Return empty array if no property definitions exist
-        let mut result = cxx::UniquePtr::new().unwrap();
-        let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-        pinned.push_str("[]");
-        return result;
+        return create_cxx_string("[]");
     }
     
     // Get the property names as JSON
     match property::get_property_names_for_class_as_json(&class_name_str) {
         Ok(json) => {
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str(&json);
-            result
+            create_cxx_string(&json)
         },
         Err(_) => {
             // Return empty array on error
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str("[]");
-            result
+            create_cxx_string("[]")
         }
     }
 }
@@ -542,17 +518,11 @@ fn get_registered_class_names() -> UniquePtr<CxxString> {
     // Get the registered class names as JSON
     match property::get_registered_class_names_as_json() {
         Ok(json) => {
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str(&json);
-            result
+            create_cxx_string(&json)
         },
         Err(_) => {
             // Return empty array on error
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str("[]");
-            result
+            create_cxx_string("[]")
         }
     }
 }
@@ -579,17 +549,11 @@ fn export_property_definitions_as_json() -> UniquePtr<CxxString> {
     // Get the property definitions as JSON
     match property::export_property_definitions_as_json() {
         Ok(json) => {
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str(&json);
-            result
+            create_cxx_string(&json)
         },
         Err(_) => {
             // Return empty object on error
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str("{}");
-            result
+            create_cxx_string("{}")
         }
     }
 }
@@ -602,17 +566,11 @@ fn get_property_definition(class_name: &CxxString, property_name: &CxxString) ->
     // Get the property definition as JSON
     match property::get_property_definition_as_json(&class_name_str, &property_name_str) {
         Ok(json) => {
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str(&json);
-            result
+            create_cxx_string(&json)
         },
         Err(_) => {
             // Return empty object if property doesn't exist
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str("{}");
-            result
+            create_cxx_string("{}")
         }
     }
 }
@@ -646,24 +604,15 @@ fn get_components(actor_id: u64) -> UniquePtr<CxxString> {
         Ok(components) => {
             if let Ok(json) = serde_json::to_string(&components) {
                 // Create a new CxxString with the JSON components list
-                let mut result = cxx::UniquePtr::new().unwrap();
-                let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-                pinned.push_str(&json);
-                result
+                create_cxx_string(&json)
             } else {
                 // Return empty array on error
-                let mut result = cxx::UniquePtr::new().unwrap();
-                let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-                pinned.push_str("[]");
-                result
+                create_cxx_string("[]")
             }
         },
         Err(_) => {
             // Return empty array if no components found
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str("[]");
-            result
+            create_cxx_string("[]")
         }
     }
 }
@@ -715,30 +664,21 @@ fn get_component_property(actor_id: u64, component_class: &CxxString, property_n
             match property::serialize_property_value(&value) {
                 Ok(json) => {
                     // Create a new CxxString with the JSON value
-                    let mut result = cxx::UniquePtr::new().unwrap();
-                    let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-                    pinned.push_str(&json);
-                    result
+                    create_cxx_string(&json)
                 },
                 Err(e) => {
                     // Create a new CxxString with the error message
-                    let mut result = cxx::UniquePtr::new().unwrap();
-                    let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-                    pinned.push_str(&format!("Error serializing component property: {}", e));
-                    result
+                    create_cxx_string(&format!("Error serializing component property: {}", e))
                 }
             }
         },
         Ok(None) => {
             // Return an empty string for properties that don't exist
-            cxx::UniquePtr::new().unwrap()
+            create_cxx_string("")
         },
         Err(e) => {
             // Create a new CxxString with the error message
-            let mut result = cxx::UniquePtr::new().unwrap();
-            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
-            pinned.push_str(&format!("Error getting component property: {}", e));
-            result
+            create_cxx_string(&format!("Error getting component property: {}", e))
         }
     }
 }
@@ -948,4 +888,12 @@ fn dispatch_unreliable_rpc(object_id: u64, function_name: &CxxString, params: &C
             false
         }
     }
+}
+
+// For each UniquePtr::new() call, we need to add a CxxString parameter
+// Here's a helper function to create a new CxxString in a UniquePtr
+fn create_cxx_string(s: &str) -> UniquePtr<CxxString> {
+    let mut string = CxxString::new().unwrap();
+    string.push_str(s);
+    UniquePtr::new(string).unwrap()
 } 

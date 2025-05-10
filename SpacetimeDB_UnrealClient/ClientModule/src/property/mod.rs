@@ -12,14 +12,34 @@ use stdb_shared::object::ObjectId;
 use stdb_shared::property::{PropertyType, PropertyValue, PropertyDefinition};
 use log::{debug, trace, warn};
 use serde_json::{Value, json};
-use spacetimedb_sdk::messages::TableUpdate;
-use spacetimedb_sdk::messages::TableOp;
+use spacetimedb::AlgebraicValue;
 
 // Import submodules
 pub mod serialization;
 
 // Re-export serialization functions for convenience
 pub use serialization::{serialize_property_value, deserialize_property_value};
+
+// Define our own TableUpdate and TableOp to replace the missing SDK structures
+pub struct TableRow {
+    pub row: Option<HashMap<String, Value>>,
+}
+
+pub struct TableRowOperation {
+    pub operation: TableOp,
+    pub row: Option<HashMap<String, Value>>,
+}
+
+pub enum TableOp {
+    Insert,
+    Update,
+    Delete,
+}
+
+pub struct TableUpdate {
+    pub table_name: String,
+    pub table_row_operations: Vec<TableRowOperation>,
+}
 
 // Property staging cache
 // This cache serves as a temporary storage for property values that:
@@ -201,7 +221,7 @@ pub fn init() {
 }
 
 /// Handle property definition updates from the server
-fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String> {
+pub fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String> {
     // Process all rows in the update
     for row in &update.table_row_operations {
         if let Some(row_data) = &row.row {
@@ -223,22 +243,22 @@ fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String>
                         _ => return Err("Missing property_type in property definition".to_string()),
                     };
                     
-                    let property_type = parse_property_type(property_type_str)?;
+                    let property_type = parse_property_type(&property_type_str)?;
                     
                     let replicated = match row_data.get("replicated") {
-                        Some(Value::Bool(b)) => *b,
+                        Some(Value::Bool(b)) => b,
                         _ => false,
                     };
                     
                     let replication_condition_str = match row_data.get("replication_condition") {
-                        Some(Value::String(s)) => s,
-                        _ => "OnChange",
+                        Some(Value::String(s)) => s.to_string(),
+                        _ => "OnChange".to_string(),
                     };
                     
-                    let replication_condition = parse_replication_condition(replication_condition_str)?;
+                    let replication_condition = parse_replication_condition(&replication_condition_str)?;
                     
                     let readonly = match row_data.get("readonly") {
-                        Some(Value::Bool(b)) => *b,
+                        Some(Value::Bool(b)) => b,
                         _ => false,
                     };
                     
@@ -251,53 +271,47 @@ fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String>
                     let definition = PropertyDefinition {
                         name: property_name.to_string(),
                         property_type,
-                        replicated,
+                        replicated: *replicated,
                         replication_condition,
-                        readonly,
+                        readonly: *readonly,
                         flags,
                     };
                     
-                    // Register the property definition
+                    // Add to definitions
                     let mut definitions = PROPERTY_DEFINITIONS.lock().unwrap();
-                    
-                    // Get or create the class property map
                     let class_props = definitions
                         .entry(property_class.to_string())
                         .or_insert_with(HashMap::new);
                     
-                    // Add to map
                     class_props.insert(property_name.to_string(), definition);
                     
-                    debug!("Registered property definition from server: {}.{}", property_class, property_name);
-                    
-                    Ok(())
+                    return Ok(());
                 },
                 TableOp::Delete => {
-                    // Get the property information to remove it
+                    // Extract property name and class
                     let property_name = match row_data.get("property_name") {
                         Some(Value::String(s)) => s,
-                        _ => return Err("Missing property_name in property definition".to_string()),
+                        _ => return Err("Missing property_name in property definition delete".to_string()),
                     };
                     
                     let property_class = match row_data.get("class_name") {
                         Some(Value::String(s)) => s,
-                        _ => return Err("Missing class_name in property definition".to_string()),
+                        _ => return Err("Missing class_name in property definition delete".to_string()),
                     };
                     
-                    // Remove the property definition
+                    // Remove from definitions
                     let mut definitions = PROPERTY_DEFINITIONS.lock().unwrap();
                     if let Some(class_props) = definitions.get_mut(property_class) {
                         class_props.remove(property_name);
-                        debug!("Removed property definition: {}.{}", property_class, property_name);
                     }
                     
-                    Ok(())
+                    return Ok(());
                 },
-                _ => Ok(()),
+                _ => return Ok(()),
             }
-        } else {
-            Ok(())
         }
+        
+        return Ok(());
     }
     
     Ok(())
@@ -306,26 +320,29 @@ fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String>
 /// Parse property type from string
 fn parse_property_type(type_str: &str) -> Result<PropertyType, String> {
     match type_str {
-        "Bool" => Ok(PropertyType::Bool),
+        "Boolean" => Ok(PropertyType::Boolean),
+        "Integer" => Ok(PropertyType::Integer),
         "Float" => Ok(PropertyType::Float),
-        "Int32" => Ok(PropertyType::Int32),
         "String" => Ok(PropertyType::String),
         "Vector" => Ok(PropertyType::Vector),
-        "Quat" => Ok(PropertyType::Quat),
+        "Rotator" => Ok(PropertyType::Rotator),
         "Transform" => Ok(PropertyType::Transform),
         "Color" => Ok(PropertyType::Color),
-        "ObjectRef" => Ok(PropertyType::ObjectReference),
-        "Enum" => Ok(PropertyType::Custom),
+        "DateTime" => Ok(PropertyType::DateTime),
+        "Object" => Ok(PropertyType::Object),
+        "Array" => Ok(PropertyType::Array),
+        "Map" => Ok(PropertyType::Map),
+        "Set" => Ok(PropertyType::Set),
+        "Binary" => Ok(PropertyType::Binary),
         _ => Err(format!("Unknown property type: {}", type_str)),
     }
 }
 
 /// Parse replication condition from string
 fn parse_replication_condition(condition_str: &str) -> Result<stdb_shared::property::ReplicationCondition, String> {
-    match condition_str {
-        "Never" => Ok(stdb_shared::property::ReplicationCondition::Initial),
-        "OnChange" => Ok(stdb_shared::property::ReplicationCondition::OnChange),
+    match condition_str.as_str() {
         "Initial" => Ok(stdb_shared::property::ReplicationCondition::Initial),
+        "OnChange" => Ok(stdb_shared::property::ReplicationCondition::OnChange),
         "Always" => Ok(stdb_shared::property::ReplicationCondition::Always),
         _ => Err(format!("Unknown replication condition: {}", condition_str)),
     }
@@ -568,4 +585,26 @@ pub fn unregister_property_definition(class_name: &str, property_name: &str) -> 
     }
     
     false
+}
+
+/// Implement the helper functions that were referenced but missing
+pub fn get_property_names_for_class_as_json(class_name: &str) -> Result<String, String> {
+    let property_names = get_property_names_for_class(class_name);
+    serde_json::to_string(&property_names)
+        .map_err(|e| format!("Failed to serialize property names: {}", e))
+}
+
+pub fn get_registered_class_names_as_json() -> Result<String, String> {
+    let class_names = get_registered_class_names();
+    serde_json::to_string(&class_names)
+        .map_err(|e| format!("Failed to serialize class names: {}", e))
+}
+
+pub fn get_property_definition_as_json(class_name: &str, property_name: &str) -> Result<String, String> {
+    if let Some(definition) = get_property_definition(class_name, property_name) {
+        serde_json::to_string(&definition)
+            .map_err(|e| format!("Failed to serialize property definition: {}", e))
+    } else {
+        Ok("{}".to_string())
+    }
 } 
