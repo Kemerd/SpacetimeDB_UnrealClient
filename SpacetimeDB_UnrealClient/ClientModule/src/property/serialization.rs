@@ -8,7 +8,7 @@ use stdb_shared::types::*;
 use stdb_shared::object::ObjectId;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use log::{warn, error};
+use log::{warn};
 
 /// Serialize a property value to a JSON string
 pub fn serialize_property_value(value: &PropertyValue) -> Result<String, String> {

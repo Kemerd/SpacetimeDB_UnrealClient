@@ -23,19 +23,19 @@ struct FSpacetimeDBPropertyUpdateInfo
     int64 ObjectId;
 
     /** The object that was updated (may be null if object not found) */
-    UPROPERTY(Category = "SpacetimeDB")
+    UPROPERTY()
     UObject* Object = nullptr;
 
     /** The name of the property that was updated */
-    UPROPERTY(Category = "SpacetimeDB")
+    UPROPERTY()
     FString PropertyName;
 
     /** The raw JSON value of the property */
-    UPROPERTY(Category = "SpacetimeDB")
+    UPROPERTY()
     FString RawJsonValue;
 
     /** The parsed property value */
-    UPROPERTY(Category = "SpacetimeDB")
+    UPROPERTY()
     FSpacetimeDBPropertyValue PropertyValue;
 };
 
@@ -337,7 +337,7 @@ public:
      * @param PropertyName The name of the property to get
      * @return The property value, or null value if not found
      */
-    UFUNCTION(Category = "SpacetimeDB|Properties")
+    UFUNCTION()
     FSpacetimeDBPropertyValue GetPropertyValue(int64 ObjectId, const FString& PropertyName) const;
     
     /**
@@ -376,7 +376,7 @@ public:
      * @param Args The arguments to pass to the function
      * @return True if the call was initiated successfully
      */
-    UFUNCTION(Category = "SpacetimeDB|RPC")
+    UFUNCTION()
     bool CallServerFunctionOnObject(UObject* TargetObject, const FString& FunctionName, const TArray<FStdbRpcArg>& Args);
     
     /**
@@ -387,7 +387,7 @@ public:
      * @param Args The arguments to pass to the function
      * @return True if the call was initiated successfully
      */
-    UFUNCTION(Category = "SpacetimeDB|RPC")
+    UFUNCTION()
     bool CallServerFunction(int64 ObjectId, const FString& FunctionName, const TArray<FStdbRpcArg>& Args);
     
     /**

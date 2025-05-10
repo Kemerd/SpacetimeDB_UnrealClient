@@ -15,7 +15,7 @@ use crate::class;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use serde_json::{Value, json};
 
 /// Client-side object representation

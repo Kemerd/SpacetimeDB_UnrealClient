@@ -14,27 +14,27 @@ struct FStateSnapshot
 	GENERATED_BODY()
 
 	/** The timestamp when this state was captured */
-	UPROPERTY(Category = "SpacetimeDB|Prediction")
+	UPROPERTY()
 	float Timestamp = 0.0f;
 
 	/** The transform at the time of capture */
-	UPROPERTY(Category = "SpacetimeDB|Prediction")
+	UPROPERTY()
 	FTransform Transform;
 
 	/** The velocity at the time of capture */
-	UPROPERTY(Category = "SpacetimeDB|Prediction")
+	UPROPERTY()
 	FVector Velocity = FVector::ZeroVector;
 
 	/** Custom state data (can be extended by game code) */
-	UPROPERTY(Category = "SpacetimeDB|Prediction")
+	UPROPERTY()
 	TMap<FName, FSpacetimeDBPropertyValue> CustomState;
 
 	/** The input state that led to this snapshot */
-	UPROPERTY(Category = "SpacetimeDB|Prediction")
+	UPROPERTY()
 	TMap<FName, float> InputState;
 
 	/** The sequence number of this snapshot - used to match with server acks */
-	UPROPERTY(Category = "SpacetimeDB|Prediction")
+	UPROPERTY()
 	int32 SequenceNumber = 0;
 };
 
