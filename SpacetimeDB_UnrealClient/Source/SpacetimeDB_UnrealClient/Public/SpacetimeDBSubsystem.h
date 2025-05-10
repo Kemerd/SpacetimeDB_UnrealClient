@@ -10,32 +10,34 @@
 #include "SpacetimeDBFFI.h"
 #include "SpacetimeDB_ErrorHandler.h"
 #include "SpacetimeDBSubsystem.generated.h"
-
-/**
- * @struct FSpacetimeDBSpawnParams
- * @brief Parameters for spawning an actor or object in SpacetimeDB
- */
+// Property update info structure
 USTRUCT(BlueprintType)
-struct SPACETIMEDB_UNREALCLIENT_API FSpacetimeDBSpawnParams
+struct FSpacetimeDBPropertyUpdateInfo
 {
     GENERATED_BODY()
 
-    /** The class name of the object to spawn (must match a class registered with SpacetimeDB) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB")
-    FString ClassName;
+    /** The ID of the object that was updated */
+    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    int64 ObjectId;
 
-    /** Optional initial transform for actors */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB")
-    FTransform Transform = FTransform::Identity;
+    /** The object that was updated (may be null if object not found) */
+    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    UObject* Object = nullptr;
 
-    /** Initial properties as a JSON string */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB")
-    FString PropertiesJson;
+    /** The name of the property that was updated */
+    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    FString PropertyName;
 
-    /** Whether this object should be replicated to other clients */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpacetimeDB")
-    bool bReplicate = true;
+    /** The raw JSON value of the property */
+    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    FString RawJsonValue;
+
+    /** The parsed property value */
+    UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
+    FSpacetimeDBPropertyValue PropertyValue;
 };
+
+
 
 /**
  * @struct FStdbRpcArg
@@ -546,32 +548,6 @@ private:
     // Client instance
     FSpacetimeDBClient Client;
     
-    // Property update info structure
-    USTRUCT(BlueprintType)
-    struct FSpacetimeDBPropertyUpdateInfo
-    {
-        GENERATED_BODY()
-
-        /** The ID of the object that was updated */
-        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
-        int64 ObjectId;
-
-        /** The object that was updated (may be null if object not found) */
-        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
-        UObject* Object = nullptr;
-
-        /** The name of the property that was updated */
-        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
-        FString PropertyName;
-
-        /** The raw JSON value of the property */
-        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
-        FString RawJsonValue;
-
-        /** The parsed property value */
-        UPROPERTY(BlueprintReadOnly, Category = "SpacetimeDB")
-        FSpacetimeDBPropertyValue PropertyValue;
-    };
 
     /**
      * Delegate for property updates
