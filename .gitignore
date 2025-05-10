@@ -136,3 +136,5 @@ __pycache__/
 /SpacetimeDB_UnrealClient/ClientModule/target
 /SpacetimeDB_UnrealClient/ClientModule/target
 /SpacetimeDB_UnrealClient/ClientModule/target/cxxbridge
+/STDB_UE_Example/Plugins
+/STDB_UE_Example/Binaries
