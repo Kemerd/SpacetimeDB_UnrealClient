@@ -5,6 +5,7 @@
 #include "SpacetimeDBSubsystem.h"
 #include "Engine/World.h"
 #include "SpacetimeDBPropertyHelper.h"
+#include "SpacetimeDB_PropertyValue.h"
 
 // Helper functions for vector operations 
 FORCEINLINE static float GetManhattanDistance(const FVector& A, const FVector& B)
@@ -298,19 +299,36 @@ void USpacetimeDBPredictionComponent::CaptureTrackedProperties(TMap<FName, FSpac
 
 void USpacetimeDBPredictionComponent::GetTrackedProperties(TMap<FName, FSpacetimeDBPropertyValue>& OutProperties)
 {
+	// Get the owning actor of this component.
 	AActor* Owner = GetOwner();
 	if (!Owner)
 	{
+		// If there's no owner, we cannot retrieve properties.
 		return;
 	}
 
-	// Get property values for all tracked properties
+	// Clear any existing properties in the output map.
+	OutProperties.Empty();
+
+	// Iterate over all property names that are being tracked by this component.
 	for (const FName& PropName : TrackedProperties)
 	{
-		FString JsonValue = FSpacetimeDBPropertyHelper::GetPropertyValueByName(Owner, PropName.ToString());
-		if (!JsonValue.IsEmpty())
+		// Retrieve the property value as a JSON string from the owner actor.
+		// FSpacetimeDBPropertyHelper::GetPropertyValueByName is expected to serialize the property into a JSON string.
+		FString JsonValueStr = FSpacetimeDBPropertyHelper::GetPropertyValueByName(Owner, PropName.ToString());
+		
+		if (!JsonValueStr.IsEmpty())
 		{
-			OutProperties.Add(PropName, JsonValue);
+			// Convert the JSON string representation of the property value into an FSpacetimeDBPropertyValue struct.
+			FSpacetimeDBPropertyValue PropertyValue = FSpacetimeDBPropertyValue::FromJsonString(JsonValueStr);
+			
+			// Add the successfully converted property value to the output map.
+			OutProperties.Add(PropName, PropertyValue);
+		}
+		else
+		{
+			// Log a warning if a tracked property could not be retrieved or was empty.
+			UE_LOG(LogSpacetimeDB, Warning, TEXT("Could not get property value for tracked property '%s' on actor '%s'."), *PropName.ToString(), *Owner->GetName());
 		}
 	}
 }
@@ -461,5 +479,174 @@ void USpacetimeDBPredictionComponent::ApplySmoothCorrection(const FTransform& Ta
 			FVector NewVelocity = FMath::Lerp(TargetVelocity, CurrentVelocity, BlendFactor);
 			MovementComp->Velocity = NewVelocity;
 		}
+	}
+}
+
+void USpacetimeDBPredictionComponent::ApplyServerUpdate(const FString& PropertyName, const FSpacetimeDBPropertyValue& PropValue)
+{
+	// Get the owning actor of this component.
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		// If there's no owner, we cannot apply any updates.
+		UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Owner is null, cannot apply property '%s'."), *PropertyName);
+		return;
+	}
+
+	// Find the FProperty on the Owner actor that matches the given PropertyName.
+	FProperty* Property = Owner->GetClass()->FindPropertyByName(FName(*PropertyName));
+	if (!Property)
+	{
+		// If the property is not found on the owner, log a warning.
+		UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Property '%s' not found on actor '%s'."), *PropertyName, *Owner->GetName());
+		return;
+	}
+
+	// Get a direct pointer to the memory location of the property within the Owner actor.
+	void* PropertyAddress = Property->ContainerPtrToValuePtr<void>(Owner);
+
+	// Based on the FProperty type, cast it and set its value using the provided PropValue.
+	// This section handles various common property types.
+
+	if (FNumericProperty* NumericProperty = CastField<FNumericProperty>(Property))
+	{
+		// Handle numeric types (float, int, double, etc.)
+		if (NumericProperty->IsFloatingPoint())
+		{
+			// Check if the server-provided value is a float or double.
+			if (PropValue.Type == ESpacetimeDBPropertyType::Float)
+			{
+				NumericProperty->SetFloatingPointPropertyValue(PropertyAddress, PropValue.AsFloat());
+			}
+			else if (PropValue.Type == ESpacetimeDBPropertyType::Double)
+			{
+				NumericProperty->SetFloatingPointPropertyValue(PropertyAddress, PropValue.AsDouble());
+			}
+			else
+			{
+				UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Type mismatch for float/double property '%s'. Expected Float/Double, got %s"), *PropertyName, *UEnum::GetValueAsString(PropValue.Type));
+			}
+		}
+		else // Integer types
+		{
+			// Check if the server-provided value is an int32 or int64.
+			if (PropValue.Type == ESpacetimeDBPropertyType::Int32)
+			{
+				NumericProperty->SetIntPropertyValue(PropertyAddress, PropValue.AsInt32());
+			}
+			else if (PropValue.Type == ESpacetimeDBPropertyType::Int64)
+			{
+				NumericProperty->SetIntPropertyValue(PropertyAddress, PropValue.AsInt64());
+			}
+			else if (PropValue.Type == ESpacetimeDBPropertyType::Byte) // Also handle Byte as an integer type
+			{
+				NumericProperty->SetIntPropertyValue(PropertyAddress, PropValue.AsByte());
+			}
+			else
+			{
+				UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Type mismatch for integer property '%s'. Expected Int32/Int64/Byte, got %s"), *PropertyName, *UEnum::GetValueAsString(PropValue.Type));
+			}
+		}
+	}
+	else if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+	{
+		// Handle boolean properties.
+		if (PropValue.Type == ESpacetimeDBPropertyType::Bool)
+		{
+			BoolProperty->SetPropertyValue(PropertyAddress, PropValue.AsBool());
+		}
+		else
+		{
+			UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Type mismatch for bool property '%s'. Expected Bool, got %s"), *PropertyName, *UEnum::GetValueAsString(PropValue.Type));
+		}
+	}
+	else if (FStrProperty* StringProperty = CastField<FStrProperty>(Property))
+	{
+		// Handle FString properties.
+		if (PropValue.Type == ESpacetimeDBPropertyType::String)
+		{
+			StringProperty->SetPropertyValue(PropertyAddress, PropValue.AsString());
+		}
+		else
+		{
+			UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Type mismatch for string property '%s'. Expected String, got %s"), *PropertyName, *UEnum::GetValueAsString(PropValue.Type));
+		}
+	}
+	else if (FNameProperty* NameProperty = CastField<FNameProperty>(Property))
+	{
+		// Handle FName properties. FNames are often stored as strings in SpacetimeDB.
+		if (PropValue.Type == ESpacetimeDBPropertyType::Name || PropValue.Type == ESpacetimeDBPropertyType::String)
+		{
+			NameProperty->SetPropertyValue(PropertyAddress, FName(PropValue.AsString()));
+		}
+		else
+		{
+			UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Type mismatch for FName property '%s'. Expected Name or String, got %s"), *PropertyName, *UEnum::GetValueAsString(PropValue.Type));
+		}
+	}
+	else if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
+	{
+		// Handle FText properties. FTexts are often stored as strings in SpacetimeDB.
+		if (PropValue.Type == ESpacetimeDBPropertyType::Text || PropValue.Type == ESpacetimeDBPropertyType::String)
+		{
+			TextProperty->SetPropertyValue(PropertyAddress, FText::FromString(PropValue.AsString()));
+		}
+		else
+		{
+			UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Type mismatch for FText property '%s'. Expected Text or String, got %s"), *PropertyName, *UEnum::GetValueAsString(PropValue.Type));
+		}
+	}
+	else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		// Handle common UStruct types like FVector, FRotator, FTransform.
+		// This relies on FSpacetimeDBPropertyHelper::SetPropertyValueByName to handle the JSON to Struct conversion.
+		// The PropValue itself might be a direct struct or a JSON string for custom/complex structs.
+
+		if (StructProperty->Struct == TBaseStructure<FVector>::Get())
+		{
+			if (PropValue.Type == ESpacetimeDBPropertyType::Vector)
+			{
+				*static_cast<FVector*>(PropertyAddress) = PropValue.AsVector();
+			}
+			else { UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Type mismatch for FVector property '%s'. Expected Vector, got %s"), *PropertyName, *UEnum::GetValueAsString(PropValue.Type)); }
+		}
+		else if (StructProperty->Struct == TBaseStructure<FRotator>::Get())
+		{
+			if (PropValue.Type == ESpacetimeDBPropertyType::Rotator)
+			{
+				*static_cast<FRotator*>(PropertyAddress) = PropValue.AsRotator();
+			}
+			else { UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Type mismatch for FRotator property '%s'. Expected Rotator, got %s"), *PropertyName, *UEnum::GetValueAsString(PropValue.Type)); }
+		}
+		else if (StructProperty->Struct == TBaseStructure<FTransform>::Get())
+		{
+			if (PropValue.Type == ESpacetimeDBPropertyType::Transform)
+			{
+				*static_cast<FTransform*>(PropertyAddress) = PropValue.AsTransform();
+			}
+			else { UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Type mismatch for FTransform property '%s'. Expected Transform, got %s"), *PropertyName, *UEnum::GetValueAsString(PropValue.Type)); }
+		}
+		// Potentially handle other FStructs here if they have direct ESpacetimeDBPropertyType counterparts
+		// For more complex structs or those represented as JSON, we might need to use a helper.
+		else if (PropValue.Type == ESpacetimeDBPropertyType::Custom || PropValue.Type == ESpacetimeDBPropertyType::Array || PropValue.Type == ESpacetimeDBPropertyType::Map)
+		{
+			// If the property is a USTRUCT and the value is JSON, attempt to set it using the helper.
+			// This assumes the FString returned by AsJson() is the correct format.
+			FString JsonString = PropValue.AsJson();
+			if (!FSpacetimeDBPropertyHelper::SetPropertyValueByName(Owner, PropertyName, JsonString))
+			{
+				UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Failed to set struct property '%s' from JSON."), *PropertyName);
+			}
+		}
+		else
+		{
+			UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Unhandled struct property type or mismatch for '%s'. Struct: %s, ValueType: %s"), *PropertyName, *StructProperty->Struct->GetName(), *UEnum::GetValueAsString(PropValue.Type));
+		}
+	}
+	// Add handling for other property types as needed (e.g., FArrayProperty, FMapProperty, FObjectProperty).
+	else
+	{
+		// Log a warning for unhandled property types.
+		UE_LOG(LogSpacetimeDB, Warning, TEXT("ApplyServerUpdate: Unhandled property type for '%s': %s"), *PropertyName, *Property->GetClass()->GetName());
 	}
 }

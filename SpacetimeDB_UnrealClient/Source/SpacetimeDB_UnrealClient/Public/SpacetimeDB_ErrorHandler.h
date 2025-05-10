@@ -81,9 +81,6 @@ struct SPACETIMEDB_UNREALCLIENT_API FSpacetimeDBErrorInfo
         , bAutoRecovered(bInAutoRecovered)
     {
     }
-    
-    /** Required for UHT to generate proper code for this struct */
-    FORCEINLINE static UScriptStruct* StaticStruct();
 };
 
 /**
