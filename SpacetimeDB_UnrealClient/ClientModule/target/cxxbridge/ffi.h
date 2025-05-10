@@ -202,6 +202,9 @@ struct EventCallbackPointers final {
   ::std::size_t on_object_destroyed CXX_DEFAULT_VALUE(0);
   ::std::size_t on_error_occurred CXX_DEFAULT_VALUE(0);
   ::std::size_t on_object_id_remapped CXX_DEFAULT_VALUE(0);
+  ::std::size_t on_event_received CXX_DEFAULT_VALUE(0);
+  ::std::size_t on_component_added CXX_DEFAULT_VALUE(0);
+  ::std::size_t on_component_removed CXX_DEFAULT_VALUE(0);
 
   using IsRelocatable = ::std::true_type;
 };
@@ -236,5 +239,7 @@ bool connect_to_server(::stdb::ffi::ConnectionConfig config, ::stdb::ffi::EventC
 bool disconnect_from_server() noexcept;
 
 bool is_connected() noexcept;
+
+::rust::String get_client_identity() noexcept;
 } // namespace ffi
 } // namespace stdb

@@ -21,6 +21,7 @@ use stdb_shared::types::Transform;
 use log;
 use crate::{class, prediction};
 use std::ffi::{c_char, CString};
+use serde_json::json;
 
 // Define the VelocityData struct since it doesn't seem to exist in the shared types
 // This matches the usage in the prediction module
@@ -42,6 +43,9 @@ pub struct EventCallbacks {
     pub on_object_destroyed: usize,
     pub on_error_occurred: usize,
     pub on_object_id_remapped: usize,
+    pub on_event_received: usize,
+    pub on_component_added: usize,
+    pub on_component_removed: usize,
 }
 
 /// Global storage for callback function pointers
@@ -122,6 +126,46 @@ fn invoke_on_error(cb_ptr: usize, error_message: &str) {
     }
 }
 
+/// Invoke the callback for when an event is received
+fn invoke_on_event_received(cb_ptr: usize, event_data: &str, table_name: &str) {
+    if cb_ptr != 0 {
+        let func: unsafe extern "C" fn(*const c_char, *const c_char) = 
+            unsafe { std::mem::transmute(cb_ptr) };
+        
+        let c_event_data = CString::new(event_data)
+            .unwrap_or_else(|_| CString::new("{}").unwrap());
+        
+        let c_table_name = CString::new(table_name)
+            .unwrap_or_else(|_| CString::new("unknown").unwrap());
+        
+        unsafe { func(c_event_data.as_ptr(), c_table_name.as_ptr()) };
+    }
+}
+
+/// Invoke the callback for when a component is added to an actor
+fn invoke_on_component_added(cb_ptr: usize, actor_id: ObjectId, component_id: ObjectId, component_class_name: &str, data_json: &str) {
+    if cb_ptr != 0 {
+        let func: unsafe extern "C" fn(u64, u64, *const c_char, *const c_char) = 
+            unsafe { std::mem::transmute(cb_ptr) };
+        
+        let c_component_class_name = CString::new(component_class_name)
+            .unwrap_or_else(|_| CString::new("unknown").unwrap());
+        
+        let c_data_json = CString::new(data_json)
+            .unwrap_or_else(|_| CString::new("{}").unwrap());
+        
+        unsafe { func(actor_id, component_id, c_component_class_name.as_ptr(), c_data_json.as_ptr()) };
+    }
+}
+
+/// Invoke the callback for when a component is removed from an actor
+fn invoke_on_component_removed(cb_ptr: usize, actor_id: ObjectId, component_id: ObjectId) {
+    if cb_ptr != 0 {
+        let func: unsafe extern "C" fn(u64, u64) = unsafe { std::mem::transmute(cb_ptr) };
+        unsafe { func(actor_id, component_id) };
+    }
+}
+
 // --- FFI Bridge Definition ---
 // This section uses `cxx::bridge` to define the interface between Rust and C++.
 #[cxx::bridge(namespace = "stdb::ffi")]
@@ -167,6 +211,9 @@ mod ffi {
         pub on_object_destroyed: usize,
         pub on_error_occurred: usize,
         pub on_object_id_remapped: usize,
+        pub on_event_received: usize,
+        pub on_component_added: usize,
+        pub on_component_removed: usize,
     }
     
     // Property system functions
@@ -213,6 +260,7 @@ mod ffi {
         fn disconnect_from_server() -> bool;
         fn is_connected() -> bool;
         fn get_client_identity() -> String;
+        fn call_reducer(reducer_name: &CxxString, args_json: &CxxString) -> bool;
     }
 }
 
@@ -232,6 +280,9 @@ fn connect_to_server(config: ffi::ConnectionConfig, callbacks: ffi::EventCallbac
         cb.on_object_destroyed = callbacks.on_object_destroyed;
         cb.on_error_occurred = callbacks.on_error_occurred;
         cb.on_object_id_remapped = callbacks.on_object_id_remapped;
+        cb.on_event_received = callbacks.on_event_received;
+        cb.on_component_added = callbacks.on_component_added;
+        cb.on_component_removed = callbacks.on_component_removed;
     }
     
     // Set up connection parameters
@@ -463,6 +514,56 @@ fn register_client_function(function_name: &CxxString, handler_ptr: usize) -> bo
     // Register the handler
     crate::register_client_rpc(&function_name_str, handler);
     true
+}
+
+/// Call a reducer function on the SpacetimeDB server
+fn call_reducer(reducer_name: &CxxString, args_json: &CxxString) -> bool {
+    let reducer_name_str = reducer_name.to_str().unwrap_or("");
+    let args_json_str = args_json.to_str().unwrap_or("{}");
+    
+    // Check if connected
+    if !net::is_connected() {
+        let error_msg = format!("Cannot call reducer '{}' - Not connected to SpacetimeDB", reducer_name_str);
+        let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+        invoke_on_error(error_ptr, &error_msg);
+        return false;
+    }
+    
+    // Validate reducer name
+    if reducer_name_str.is_empty() {
+        let error_msg = "Empty reducer name provided";
+        let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+        invoke_on_error(error_ptr, error_msg);
+        return false;
+    }
+    
+    // Create a JSON request for the reducer call
+    let request = json!({
+        "reducer": reducer_name_str,
+        "args": serde_json::from_str::<serde_json::Value>(args_json_str).unwrap_or(json!({}))
+    });
+    
+    // Serialize the request to JSON
+    match serde_json::to_string(&request) {
+        Ok(request_json) => {
+            // Send the request to the server
+            match net::send_rpc_request(&request_json) {
+                Ok(_) => true,
+                Err(err) => {
+                    let error_msg = format!("Failed to call reducer '{}': {}", reducer_name_str, err);
+                    let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+                    invoke_on_error(error_ptr, &error_msg);
+                    false
+                }
+            }
+        },
+        Err(err) => {
+            let error_msg = format!("Failed to serialize reducer call request: {}", err);
+            let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+            invoke_on_error(error_ptr, &error_msg);
+            false
+        }
+    }
 }
 
 /// Get the client ID
