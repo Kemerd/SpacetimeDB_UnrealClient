@@ -1,0 +1,6 @@
+---
+description: Where to find docs for SpacetimeDBe
+globs: *.rs
+alwaysApply: false
+---
+When doing a task with Rust, always reference the docs under spacetimedb-rust-documentation\latest\spacetimedb they are .html files
