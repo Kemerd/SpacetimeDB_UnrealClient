@@ -3,8 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/Object.h"
 #include "SpacetimeDB_UnrealClient.h"
+#include "UObject/Object.h"
+#include "SpacetimeDB_ErrorHandler.generated.h"
 
 /**
  * Enum defining severity levels for SpacetimeDB errors

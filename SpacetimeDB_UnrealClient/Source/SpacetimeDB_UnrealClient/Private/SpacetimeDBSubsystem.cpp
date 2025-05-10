@@ -335,78 +335,73 @@ void OnPropertyUpdatedCallback(uint64 object_id, cxx::String property_name, cxx:
 
 int64 USpacetimeDBSubsystem::RequestSpawnObject(const FSpacetimeDBSpawnParams& Params)
 {
-    if (!IsConnected())
+    // Create a JSON object for the arguments
+    TSharedPtr<FJsonObject> ArgsObject = MakeShareable(new FJsonObject());
+    ArgsObject->SetStringField(TEXT("class_name"), Params.ClassName);
+    ArgsObject->SetBoolField(TEXT("replicate"), Params.bReplicate);
+    ArgsObject->SetNumberField(TEXT("owner_client_id"), static_cast<double>(Params.OwnerClientId)); // JSON numbers are double
+
+    // Create Location JSON object
+    TSharedPtr<FJsonObject> LocationObject = MakeShareable(new FJsonObject());
+    LocationObject->SetNumberField(TEXT("x"), Params.Location.X);
+    LocationObject->SetNumberField(TEXT("y"), Params.Location.Y);
+    LocationObject->SetNumberField(TEXT("z"), Params.Location.Z);
+    ArgsObject->SetObjectField(TEXT("location"), LocationObject);
+
+    // Create Rotation JSON object
+    TSharedPtr<FJsonObject> RotationObject = MakeShareable(new FJsonObject());
+    RotationObject->SetNumberField(TEXT("pitch"), Params.Rotation.Pitch);
+    RotationObject->SetNumberField(TEXT("yaw"), Params.Rotation.Yaw);
+    RotationObject->SetNumberField(TEXT("roll"), Params.Rotation.Roll);
+    ArgsObject->SetObjectField(TEXT("rotation"), RotationObject);
+
+    // Create InitialProperties JSON object
+    TSharedPtr<FJsonObject> PropertiesObject = MakeShareable(new FJsonObject());
+    if (Params.InitialProperties.Num() > 0)
     {
-        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: RequestSpawnObject called while not connected"));
-        return 0;
+        for (const auto& Pair : Params.InitialProperties)
+        {
+            // Assuming the FString value in InitialProperties is already a valid JSON representation of the property's value
+            // If it's a raw string, number, bool, it might need to be wrapped or parsed into a FJsonValue first.
+            // For simplicity, we'll try to parse it as JSON. If it fails, set as string.
+            TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Pair.Value);
+            TSharedPtr<FJsonValue> JsonPropValue;
+            if (FJsonSerializer::Deserialize(Reader, JsonPropValue) && JsonPropValue.IsValid())
+            {
+                PropertiesObject->SetField(Pair.Key, JsonPropValue);
+            }
+            else
+            {
+                // Fallback to setting as a JSON string if parsing failed
+                PropertiesObject->SetStringField(Pair.Key, Pair.Value);
+                 UE_LOG(LogTemp, Warning, TEXT("RequestSpawnObject: InitialProperty '%s' for class '%s' was not valid JSON. Stored as string: %s"), *Pair.Key, *Params.ClassName, *Pair.Value);
+            }
+        }
+    }
+    ArgsObject->SetObjectField(TEXT("initial_properties"), PropertiesObject);
+
+    // Convert the JSON object to a string
+    FString ArgsJsonString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ArgsJsonString);
+    FJsonSerializer::Serialize(ArgsObject.ToSharedRef(), Writer);
+
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: RequestSpawnObject with ClassName: %s, Location: %s, Rotation: %s, InitialProperties: %s"), 
+        *Params.ClassName, *Params.Location.ToString(), *Params.Rotation.ToString(), *ArgsObject->GetObjectField(TEXT("initial_properties"))->ToString()); // Log the properties object string for clarity
+
+    // Call the generic SpawnObject reducer
+    bool bSuccess = CallReducer(TEXT("SpawnObject"), ArgsJsonString);
+    if (!bSuccess)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to call SpawnObject reducer."));
+        return 0; // Indicate failure
     }
 
-    // Create JSON for initial properties
-    TSharedPtr<FJsonObject> SpawnParamsJson = MakeShared<FJsonObject>();
-    
-    // Add standard properties
-    SpawnParamsJson->SetStringField("class_name", Params.ClassName);
-    SpawnParamsJson->SetBoolField("replicate", Params.bReplicate);
-    
-    // Add transform for actors
-    TSharedPtr<FJsonObject> TransformJson = MakeShared<FJsonObject>();
-    
-    // Location
-    TSharedPtr<FJsonObject> LocationJson = MakeShared<FJsonObject>();
-    LocationJson->SetNumberField("x", Params.Transform.GetLocation().X);
-    LocationJson->SetNumberField("y", Params.Transform.GetLocation().Y);
-    LocationJson->SetNumberField("z", Params.Transform.GetLocation().Z);
-    TransformJson->SetObjectField("location", LocationJson);
-    
-    // Rotation
-    FRotator Rotator = Params.Transform.Rotator();
-    TSharedPtr<FJsonObject> RotationJson = MakeShared<FJsonObject>();
-    RotationJson->SetNumberField("pitch", Rotator.Pitch);
-    RotationJson->SetNumberField("yaw", Rotator.Yaw);
-    RotationJson->SetNumberField("roll", Rotator.Roll);
-    TransformJson->SetObjectField("rotation", RotationJson);
-    
-    // Scale
-    TSharedPtr<FJsonObject> ScaleJson = MakeShared<FJsonObject>();
-    ScaleJson->SetNumberField("x", Params.Transform.GetScale3D().X);
-    ScaleJson->SetNumberField("y", Params.Transform.GetScale3D().Y);
-    ScaleJson->SetNumberField("z", Params.Transform.GetScale3D().Z);
-    TransformJson->SetObjectField("scale", ScaleJson);
-    
-    SpawnParamsJson->SetObjectField("transform", TransformJson);
-    
-    // Add custom properties JSON if provided
-    if (!Params.PropertiesJson.IsEmpty())
-    {
-        // Parse the provided JSON string into an object
-        TSharedPtr<FJsonObject> CustomPropertiesJson;
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Params.PropertiesJson);
-        if (FJsonSerializer::Deserialize(Reader, CustomPropertiesJson))
-        {
-            // Add all fields from the custom properties to the main JSON
-            SpawnParamsJson->SetObjectField("properties", CustomPropertiesJson);
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("SpacetimeDBSubsystem: Failed to parse PropertiesJson: %s"), *Params.PropertiesJson);
-        }
-    }
-    
-    // Serialize to JSON string
-    FString ParamsJsonStr;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ParamsJsonStr);
-    FJsonSerializer::Serialize(SpawnParamsJson.ToSharedRef(), Writer);
-    
-    // Call the reducer
-    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: Requesting spawn of %s with params: %s"), *Params.ClassName, *ParamsJsonStr);
-    if (Client.CallReducer("create_object", ParamsJsonStr))
-    {
-        // This will return a temporary ID that gets updated when the server confirms
-        // For now, return 0 as a placeholder - the object will be created when the server confirms
-        return 0;
-    }
-    
-    return 0;
+    // Generate a temporary ID (actual ID will be remapped by server)
+    // This part needs a robust way to generate temporary unique IDs
+    // For now, using a simple counter or random number (placeholder)
+    int64 TempId = FMath::RandRange(1000000000, 2000000000); 
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: SpawnObject request sent. Temporary ID: %lld"), TempId);
+    return TempId;
 }
 
 bool USpacetimeDBSubsystem::RequestDestroyObject(int64 ObjectId)

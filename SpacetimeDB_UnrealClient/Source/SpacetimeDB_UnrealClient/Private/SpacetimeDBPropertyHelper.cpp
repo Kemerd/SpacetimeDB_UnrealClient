@@ -155,7 +155,7 @@ FString FSpacetimeDBPropertyHelper::SerializePropertyToJson(UObject* Object, con
     // Serialize to string
     FString ResultString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultString);
-    FJsonSerializer::Serialize(JsonValue.ToSharedRef(), Writer);
+    FJsonSerializer::Serialize(JsonValue, TEXT(""), Writer, true);
     return ResultString;
 }
 

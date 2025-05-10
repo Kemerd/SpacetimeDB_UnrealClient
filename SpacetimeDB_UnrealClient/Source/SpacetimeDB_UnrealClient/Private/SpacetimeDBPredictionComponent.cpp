@@ -254,19 +254,45 @@ void USpacetimeDBPredictionComponent::RegisterInputValue(FName InputName, float 
 void USpacetimeDBPredictionComponent::CaptureTrackedProperties(TMap<FName, FSpacetimeDBPropertyValue>& OutProperties)
 {
 	AActor* Owner = GetOwner();
-	if (!Owner || TrackedProperties.Num() == 0)
+	if (!Owner)
 	{
 		return;
 	}
 
-	// Get property values for all tracked properties
-	for (const FName& PropName : TrackedProperties)
+	// Iterate over the member variable TrackedProperties
+	for (const FName& PropName : this->TrackedProperties)
 	{
+		// Use FSpacetimeDBPropertyHelper (F instead of U)
+		FString PropertyValueJson = FSpacetimeDBPropertyHelper::GetPropertyValueByName(Owner, PropName.ToString());
+		
+		// Attempt to deserialize the JSON string into FSpacetimeDBPropertyValue
+		// This is a simplified approach; robust error handling and type checking would be needed here.
 		FSpacetimeDBPropertyValue PropValue;
-		if (USpacetimeDBPropertyHelper::GetPropertyValueByName(Owner, PropName, PropValue))
+		TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(PropertyValueJson);
+		TSharedPtr<FJsonValue> JsonValue;
+
+		// Basic deserialization (assuming simple value types for now)
+		// A more complete solution would involve inspecting FJsonValue::Type and setting accordingly
+		if (FJsonSerializer::Deserialize(Reader, JsonValue) && JsonValue.IsValid())
 		{
-			OutProperties.Add(PropName, PropValue);
+            if (JsonValue->Type == EJson::String)
+            {
+                PropValue.SetString(JsonValue->AsString());
+            }
+            else if (JsonValue->Type == EJson::Number)
+            {
+                // SpacetimeDBPropertyValue might need to differentiate between int/float
+                // For now, assume float if it's a number
+                PropValue.SetFloat(static_cast<float>(JsonValue->AsNumber()));
+            }
+            else if (JsonValue->Type == EJson::Boolean)
+            {
+                PropValue.SetBool(JsonValue->AsBool());
+            }
+            // Add more types as needed (Array, Object, Null)
+            // For complex types, FSpacetimeDBPropertyValue would need dedicated parsing logic
 		}
+		OutProperties.Add(PropName, PropValue);
 	}
 }
 
@@ -292,15 +318,61 @@ void USpacetimeDBPredictionComponent::GetTrackedProperties(TMap<FName, FSpacetim
 void USpacetimeDBPredictionComponent::ApplyTrackedProperties(const TMap<FName, FSpacetimeDBPropertyValue>& Properties)
 {
 	AActor* Owner = GetOwner();
-	if (!Owner || Properties.Num() == 0)
+	if (!Owner)
 	{
 		return;
 	}
 
-	// Apply property values for all tracked properties
-	for (const TPair<FName, FSpacetimeDBPropertyValue>& Pair : Properties)
+	for (const auto& Pair : Properties)
 	{
-		FSpacetimeDBPropertyHelper::SetPropertyValueByName(Owner, Pair.Key.ToString(), Pair.Value.ToString());
+		const FName& PropName = Pair.Key;
+		const FSpacetimeDBPropertyValue& Value = Pair.Value;
+
+		// Convert FSpacetimeDBPropertyValue to a JSON string to use with SetPropertyValueByName
+		// This is a placeholder. A robust solution would serialize FSpacetimeDBPropertyValue correctly.
+		FString ValueJsonString;
+        // TODO: Implement proper serialization of FSpacetimeDBPropertyValue to JSON string
+        // For now, let's try to handle a few common types.
+        // This is a simplified conversion and might not cover all cases or complex types.
+        if (Value.IsString())
+        {
+            // Properly escape the string for JSON
+            TSharedPtr<FJsonValueString> JsonStringValue = MakeShareable(new FJsonValueString(Value.GetString()));
+            FJsonSerializer::Serialize(JsonStringValue.ToSharedRef(), TEXT(""), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&ValueJsonString), false);
+
+        }
+        else if (Value.IsInt())
+        {
+            ValueJsonString = FString::Printf(TEXT("%lld"), Value.GetInt());
+        }
+        else if (Value.IsFloat())
+        {
+            // Ensure proper float to string conversion for JSON
+            ValueJsonString = FString::Printf(TEXT("%f"), Value.GetFloat());
+        }
+        else if (Value.IsBool())
+        {
+            ValueJsonString = Value.GetBool() ? TEXT("true") : TEXT("false");
+        }
+        else if (Value.IsNull())
+        {
+            ValueJsonString = TEXT("null");
+        }
+        else
+        {
+            // For USTRUCTs, UOBJECTs, Arrays, Maps, a more complex serialization is needed.
+            // This might involve recursively calling a serialization function or using Unreal's built-in JSON utilities
+            // if FSpacetimeDBPropertyValue holds complex data.
+            UE_LOG(LogTemp, Warning, TEXT("ApplyTrackedProperties: Property '%s' has a complex or unsupported type for simple JSON conversion. Value not applied."), *PropName.ToString());
+            continue; // Skip this property if we can't easily convert it
+        }
+        
+		// Use FSpacetimeDBPropertyHelper (F instead of U)
+		bool bSuccess = FSpacetimeDBPropertyHelper::SetPropertyValueByName(Owner, PropName.ToString(), ValueJsonString);
+        if (!bSuccess)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("ApplyTrackedProperties: Failed to set property '%s' on actor '%s' with value: %s"), *PropName.ToString(), *Owner->GetName(), *ValueJsonString);
+        }
 	}
 }
 

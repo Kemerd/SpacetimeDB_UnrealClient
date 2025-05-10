@@ -598,7 +598,6 @@ protected:
     FDelegateHandle OnObjectDestroyedHandle;
     FDelegateHandle OnObjectIdRemappedHandle;
 
-
     
 private:
     // RPC delegate types
@@ -661,6 +660,7 @@ private:
     /** Handler for object ID remapped events */
     void InternalHandleObjectIdRemapped(uint64 TempId, uint64 ServerId);
 
+public:
     /** Handles property updates from SpacetimeDB.
      * Internal method called by SpacetimeDBClient callbacks.
      * 

@@ -117,7 +117,7 @@ bool USpacetimeDBNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotif
     // Setup relevancy settings - Note: We cannot directly call SetClientConnectionAlwaysRelevant
     // as that method either doesn't exist or has been renamed in this engine version
     // Instead configure the settings directly
-    bClientHasSpawned = true;
+    // bClientHasSpawned = true; // Commented out due to C2065, may need alternative for relevancy
     
     return true;
 }
@@ -239,12 +239,15 @@ void USpacetimeDBNetDriver::ProcessRemoteFunction(class AActor* Actor, class UFu
     Super::ProcessRemoteFunction(Actor, Function, Parameters, OutParms, Stack, SubObject);
 }
 
-void USpacetimeDBNetDriver::LowLevelSend(FString Address, void* Data, int32 CountBits, FOutPacketTraits& Traits)
+void USpacetimeDBNetDriver::LowLevelSend(TSharedPtr<const FInternetAddr, ESPMode::ThreadSafe> Address, void* Data, int32 CountBits, FOutPacketTraits& Traits)
 {
-    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBNetDriver: LowLevelSend to %s, %d bits"), *Address, CountBits);
+    // Assuming Address is not directly used in this SpacetimeDB implementation for sending,
+    // but logging it might still be useful.
+    FString AddressString = Address.IsValid() ? Address->ToString(true) : TEXT("InvalidAddress");
+    UE_LOG(LogTemp, Verbose, TEXT("SpacetimeDBNetDriver: LowLevelSend to %s, %d bits"), *AddressString, CountBits);
     
-    // Get private implementation data
-    FSpacetimeDBNetDriverPrivate* PrivateData = static_cast<FSpacetimeDBNetDriverPrivate*>(NetDriverPrivate);
+    // Get private implementation data correctly
+    FSpacetimeDBNetDriverPrivate* PrivateData = this->NetDriverPrivate;
     
     // Convert bits to bytes (rounding up)
     int32 NumBytes = (CountBits + 7) >> 3;
