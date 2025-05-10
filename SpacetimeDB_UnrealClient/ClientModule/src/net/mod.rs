@@ -15,6 +15,8 @@ use crate::property::TableUpdate;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
 use log::{info, debug, error};
+use serde_json;
+use std::collections::HashMap;
 
 // Global client state
 static CLIENT_STATE: Lazy<Mutex<ConnectionState>> = Lazy::new(|| Mutex::new(ConnectionState::Disconnected));
@@ -251,31 +253,304 @@ fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String>
     crate::property::handle_property_definition_update(update)
 }
 
-/// Send an RPC request to the server
-pub fn send_rpc_request(request_json: &str) -> Result<(), String> {
+/// Add a new function for sending WebSocket messages
+/// Send a message to the SpacetimeDB server
+fn send_message(message: &str) -> Result<(), String> {
     // Check if connected
     if !is_connected() {
         return Err("Not connected to server".to_string());
     }
     
-    // In a real implementation, this would send the request to the SpacetimeDB server
-    debug!("Sending RPC request: {}", request_json);
+    // In a real implementation, this would use a WebSocket or other transport
+    // For simulation purposes, just log the message
+    debug!("Sending message to server: {}", message);
     
-    // Simulate success for now
+    // Simulated network delays and processing
+    // In a real implementation, this would be asynchronous
+    
+    // Notify any error handlers in case of network errors
+    if message.len() > 10000 {
+        // Simulate a network error for very large messages
+        if let Some(handler) = &*ON_ERROR.lock().unwrap() {
+            handler("Network error: Message too large");
+        }
+        return Err("Message too large".to_string());
+    }
+    
+    // Simulate success
     Ok(())
+}
+
+/// Send a subscription request to the server
+fn send_subscription_request(table_name: &str) -> Result<(), String> {
+    // Create the subscription message
+    let subscription_message = serde_json::json!({
+        "type": "subscribe",
+        "table": table_name,
+        "client_id": get_client_id()
+    });
+    
+    // Convert to string
+    let message_str = match serde_json::to_string(&subscription_message) {
+        Ok(s) => s,
+        Err(e) => return Err(format!("Failed to serialize subscription message: {}", e))
+    };
+    
+    // Send the message using our transport function
+    send_message(&message_str)
+}
+
+/// Send an RPC request to the server
+pub fn send_rpc_request(request_json: &str) -> Result<(), String> {
+    // Wrap the request in an RPC message envelope
+    let rpc_message = serde_json::json!({
+        "type": "rpc",
+        "payload": serde_json::from_str::<serde_json::Value>(request_json).unwrap_or(serde_json::json!({})),
+        "client_id": get_client_id()
+    });
+    
+    // Serialize the message
+    let message_str = match serde_json::to_string(&rpc_message) {
+        Ok(s) => s,
+        Err(e) => return Err(format!("Failed to serialize RPC message: {}", e))
+    };
+    
+    // Send the message
+    send_message(&message_str)
 }
 
 /// Send a property update to the server
 pub fn send_property_update(object_id: ObjectId, property_name: &str, value_json: &str) -> Result<(), String> {
+    // Create the property update message
+    let update_message = serde_json::json!({
+        "type": "property_update",
+        "object_id": object_id,
+        "property": property_name,
+        "value": serde_json::from_str::<serde_json::Value>(value_json).unwrap_or(serde_json::json!(null)),
+        "client_id": get_client_id()
+    });
+    
+    // Serialize the message
+    let message_str = match serde_json::to_string(&update_message) {
+        Ok(s) => s,
+        Err(e) => return Err(format!("Failed to serialize property update message: {}", e))
+    };
+    
+    // Send the message
+    send_message(&message_str)
+}
+
+/// Get a list of currently subscribed tables
+pub fn get_subscribed_tables() -> Vec<String> {
+    static SUBSCRIBED_TABLES: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
+    let subscribed = SUBSCRIBED_TABLES.lock().unwrap();
+    subscribed.clone()
+}
+
+/// Process incoming data from the server
+pub fn process_incoming_data(data: &str) -> Result<(), String> {
+    // Parse the incoming data
+    let parsed: serde_json::Value = match serde_json::from_str(data) {
+        Ok(v) => v,
+        Err(e) => return Err(format!("Failed to parse incoming data: {}", e))
+    };
+    
+    // Get the message type
+    let msg_type = match parsed.get("type") {
+        Some(serde_json::Value::String(t)) => t.as_str(),
+        _ => return Err("Missing or invalid message type".to_string())
+    };
+    
+    // Process based on message type
+    match msg_type {
+        "table_update" => {
+            // Extract the table name
+            let table_name = match parsed.get("table") {
+                Some(serde_json::Value::String(t)) => t,
+                _ => return Err("Missing or invalid table name in table update".to_string())
+            };
+            
+            // Extract the row operations
+            let row_operations = match parsed.get("operations") {
+                Some(serde_json::Value::Array(ops)) => {
+                    // Convert each operation to a TableRowOperation
+                    ops.iter().map(|op| {
+                        // Default to Insert operation
+                        let operation = match op.get("op") {
+                            Some(serde_json::Value::String(op_str)) => {
+                                match op_str.as_str() {
+                                    "insert" => crate::property::TableOp::Insert,
+                                    "update" => crate::property::TableOp::Update,
+                                    "delete" => crate::property::TableOp::Delete,
+                                    _ => crate::property::TableOp::Insert,
+                                }
+                            },
+                            _ => crate::property::TableOp::Insert,
+                        };
+                        
+                        // Extract row data
+                        let row_data = match op.get("row") {
+                            Some(serde_json::Value::Object(obj)) => {
+                                // Convert to HashMap<String, Value>
+                                let mut row_map = HashMap::new();
+                                for (k, v) in obj {
+                                    row_map.insert(k.clone(), v.clone());
+                                }
+                                Some(row_map)
+                            },
+                            _ => None,
+                        };
+                        
+                        crate::property::TableRowOperation {
+                            operation,
+                            row: row_data,
+                        }
+                    }).collect()
+                },
+                _ => Vec::new()
+            };
+            
+            // Create a TableUpdate
+            let update = TableUpdate {
+                table_name: table_name.to_string(),
+                table_row_operations: row_operations,
+            };
+            
+            // Process the update
+            process_table_update(&update)
+        },
+        "connection_status" => {
+            // Handle connection status updates
+            Ok(())
+        },
+        "error" => {
+            // Handle error messages
+            let error_msg = match parsed.get("message") {
+                Some(serde_json::Value::String(m)) => m,
+                _ => "Unknown error from server"
+            };
+            
+            // Notify error handlers
+            if let Some(handler) = &*ON_ERROR.lock().unwrap() {
+                handler(error_msg);
+            }
+            
+            // Return the error
+            Err(format!("Server error: {}", error_msg))
+        },
+        _ => {
+            // Unknown message type
+            Err(format!("Unknown message type: {}", msg_type))
+        }
+    }
+}
+
+/// Unsubscribe from tables
+pub fn unsubscribe_from_tables(table_names: &[String]) -> Result<(), String> {
     // Check if connected
     if !is_connected() {
         return Err("Not connected to server".to_string());
     }
     
-    // In a real implementation, this would send the property update to the SpacetimeDB server
-    debug!("Sending property update for object {}, property {}: {}", 
-           object_id, property_name, value_json);
+    // Track the subscribed tables
+    static SUBSCRIBED_TABLES: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
     
-    // Simulate success for now
+    // Remove tables from subscription list
+    {
+        let mut subscribed = SUBSCRIBED_TABLES.lock().unwrap();
+        
+        for table_name in table_names {
+            // Skip if not subscribed
+            if !subscribed.contains(table_name) {
+                debug!("Table not subscribed: {}", table_name);
+                continue;
+            }
+            
+            // Remove from subscription list
+            subscribed.retain(|t| t != table_name);
+            
+            // Send the unsubscription request
+            if let Err(e) = send_unsubscription_request(table_name) {
+                error!("Failed to send unsubscription request for table {}: {}", table_name, e);
+                // Continue with other tables even if one fails
+            } else {
+                info!("Unsubscribed from table: {}", table_name);
+            }
+        }
+    }
+    
+    // Return success
+    Ok(())
+}
+
+/// Send an unsubscription request to the server
+fn send_unsubscription_request(table_name: &str) -> Result<(), String> {
+    // Create the unsubscription message
+    let unsubscription_message = serde_json::json!({
+        "type": "unsubscribe",
+        "table": table_name,
+        "client_id": get_client_id()
+    });
+    
+    // Convert to string
+    let message_str = match serde_json::to_string(&unsubscription_message) {
+        Ok(s) => s,
+        Err(e) => return Err(format!("Failed to serialize unsubscription message: {}", e))
+    };
+    
+    // Send the message
+    send_message(&message_str)
+}
+
+/// Subscribe to a set of tables in the SpacetimeDB database
+pub fn subscribe_to_tables(table_names: &[String]) -> Result<(), String> {
+    // Check if connected
+    if !is_connected() {
+        return Err("Not connected to server".to_string());
+    }
+    
+    // Track the subscribed tables
+    static SUBSCRIBED_TABLES: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
+    
+    // Add tables to subscription list and register any necessary handlers
+    {
+        let mut subscribed = SUBSCRIBED_TABLES.lock().unwrap();
+        
+        for table_name in table_names {
+            // Skip if already subscribed
+            if subscribed.contains(table_name) {
+                debug!("Table already subscribed: {}", table_name);
+                continue;
+            }
+            
+            // Add to subscription list
+            subscribed.push(table_name.clone());
+            
+            // Register default handler if none exists
+            let table_handlers = TABLE_HANDLERS.lock().unwrap();
+            let has_handler = table_handlers.iter().any(|h| &h.table_name == table_name);
+            
+            if !has_handler {
+                drop(table_handlers); // Release the lock before the next call
+                
+                // Register a default handler that just logs updates
+                register_table_handler(table_name, move |update| {
+                    debug!("Received update for table '{}' with {} operations", 
+                           update.table_name, update.table_row_operations.len());
+                    Ok(())
+                });
+            }
+            
+            // Send the actual subscription request to the server
+            if let Err(e) = send_subscription_request(table_name) {
+                error!("Failed to send subscription request for table {}: {}", table_name, e);
+                // Continue with other tables even if one fails
+            } else {
+                info!("Subscribed to table: {}", table_name);
+            }
+        }
+    }
+    
+    // Return success
     Ok(())
 } 

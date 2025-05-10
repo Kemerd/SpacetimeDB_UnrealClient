@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <type_traits>
+#include <vector>
 #if __cplusplus >= 201703L
 #include <string_view>
 #endif
@@ -241,5 +242,15 @@ bool disconnect_from_server() noexcept;
 bool is_connected() noexcept;
 
 ::rust::String get_client_identity() noexcept;
+
+::std::uint64_t get_client_id() noexcept;
+
+bool call_reducer(::std::string const &reducer_name, ::std::string const &args_json) noexcept;
+
+bool subscribe_to_tables(::std::vector<::std::string> const &table_names) noexcept;
+
+bool unsubscribe_from_tables(::std::vector<::std::string> const &table_names) noexcept;
+
+bool is_client_connected() noexcept;
 } // namespace ffi
 } // namespace stdb

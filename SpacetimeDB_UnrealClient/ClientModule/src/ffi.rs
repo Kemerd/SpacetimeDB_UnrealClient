@@ -19,7 +19,7 @@ use crate::rpc;
 use crate::prediction::{get_prediction_system, PredictedTransformUpdate, SequenceNumber};
 use stdb_shared::types::Transform;
 use log;
-use crate::{class, prediction};
+use crate::class;
 use std::ffi::{c_char, CString};
 use serde_json::json;
 
@@ -260,7 +260,11 @@ mod ffi {
         fn disconnect_from_server() -> bool;
         fn is_connected() -> bool;
         fn get_client_identity() -> String;
+        fn get_client_id() -> u64;
         fn call_reducer(reducer_name: &CxxString, args_json: &CxxString) -> bool;
+        fn subscribe_to_tables(table_names: &CxxVector<CxxString>) -> bool;
+        fn unsubscribe_from_tables(table_names: &CxxVector<CxxString>) -> bool;
+        fn is_client_connected() -> bool;
     }
 }
 
@@ -1006,6 +1010,85 @@ fn get_client_identity() -> String {
         }
     } else {
         String::new()
+    }
+}
+
+/// Check if connected to the server (alias for is_connected for C++ compatibility)
+fn is_client_connected() -> bool {
+    net::is_connected()
+}
+
+/// Subscribe to a set of tables in SpacetimeDB
+fn subscribe_to_tables(table_names: &CxxVector<CxxString>) -> bool {
+    // Check if connected
+    if !net::is_connected() {
+        let error_msg = "Cannot subscribe to tables - Not connected to SpacetimeDB";
+        let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+        invoke_on_error(error_ptr, error_msg);
+        return false;
+    }
+    
+    // Check if we have tables to subscribe to
+    if table_names.len() == 0 {
+        let error_msg = "No tables specified for subscription";
+        let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+        invoke_on_error(error_ptr, error_msg);
+        return false;
+    }
+
+    // Convert from CxxVector to Vec<String>
+    let rust_table_names: Vec<String> = table_names.iter().map(|s| s.to_string()).collect();
+    
+    // Create a debug message with the table names
+    let tables_str = rust_table_names.join(", ");
+    log::info!("Subscribing to tables: [{}]", tables_str);
+    
+    // Call the net module function
+    match net::subscribe_to_tables(&rust_table_names) {
+        Ok(_) => true,
+        Err(err) => {
+            let error_msg = format!("Failed to subscribe to tables: {}. Tables: [{}]", err, tables_str);
+            let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+            invoke_on_error(error_ptr, &error_msg);
+            false
+        }
+    }
+}
+
+/// Unsubscribe from a set of tables in SpacetimeDB
+fn unsubscribe_from_tables(table_names: &CxxVector<CxxString>) -> bool {
+    // Check if connected
+    if !net::is_connected() {
+        let error_msg = "Cannot unsubscribe from tables - Not connected to SpacetimeDB";
+        let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+        invoke_on_error(error_ptr, error_msg);
+        return false;
+    }
+    
+    // Check if we have tables to unsubscribe from
+    if table_names.len() == 0 {
+        let error_msg = "No tables specified for unsubscription";
+        let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+        invoke_on_error(error_ptr, error_msg);
+        return false;
+    }
+
+    // Convert from CxxVector to Vec<String>
+    let rust_table_names: Vec<String> = table_names.iter().map(|s| s.to_string()).collect();
+    
+    // Create a debug message with the table names
+    let tables_str = rust_table_names.join(", ");
+    log::info!("Unsubscribing from tables: [{}]", tables_str);
+    
+    // Call the net module function
+    match net::unsubscribe_from_tables(&rust_table_names) {
+        Ok(_) => true,
+        Err(err) => {
+            let error_msg = format!("Failed to unsubscribe from tables: {}. Tables: [{}]", err, tables_str);
+            let error_ptr = CALLBACKS.lock().unwrap().on_error_occurred;
+            invoke_on_error(error_ptr, &error_msg);
+            false
+        }
     }
 }
 
