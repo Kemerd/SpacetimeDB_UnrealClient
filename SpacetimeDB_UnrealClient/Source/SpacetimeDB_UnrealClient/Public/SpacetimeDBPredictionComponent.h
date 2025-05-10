@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "SpacetimeDB_Types.h"
+#include "SpacetimeDB_PropertyValue.h"
 #include "SpacetimeDBPredictionComponent.generated.h"
 
 /**

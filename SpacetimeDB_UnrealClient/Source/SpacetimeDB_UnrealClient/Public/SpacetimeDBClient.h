@@ -54,11 +54,11 @@ public:
     DECLARE_MULTICAST_DELEGATE_TwoParams(FOnObjectIdRemapped, uint64 /* TempId */, uint64 /* ServerId */);
     
     /** Delegate that is broadcast when a component is added to an actor */
-    DECLARE_MULTICAST_DELEGATE_THREEARGS(FOnComponentAdded, uint64 /* ActorId */, uint64 /* ComponentId */, const FString& /* ComponentClassName */);
+    DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnComponentAdded, uint64 /* ActorId */, uint64 /* ComponentId */, const FString& /* ComponentClassName */);
     FOnComponentAdded OnComponentAdded;
     
     /** Delegate that is broadcast when a component is removed from an actor */
-    DECLARE_MULTICAST_DELEGATE_TWOPARAMS(FOnComponentRemoved, uint64 /* ActorId */, uint64 /* ComponentId */);
+    DECLARE_MULTICAST_DELEGATE_TwoParams(FOnComponentRemoved, uint64 /* ActorId */, uint64 /* ComponentId */);
     FOnComponentRemoved OnComponentRemoved;
     
 public:

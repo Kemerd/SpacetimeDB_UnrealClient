@@ -5,7 +5,7 @@
 #include "Async/Async.h"
 #include "SpacetimeDBSubsystem.h"
 #include "Engine/GameInstance.h"
-#include "rust/stdb.hpp" // Include the generated FFI header file
+#include "ffi.h" // Include the generated FFI header file
 #include "SpacetimeDB_ErrorHandler.h"
 
 // Initialize static singleton instance for callbacks

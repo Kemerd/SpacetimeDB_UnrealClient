@@ -30,7 +30,7 @@ public:
     virtual void TickDispatch(float DeltaTime) override;
     virtual void TickFlush(float DeltaTime) override;
     virtual void ProcessRemoteFunction(class AActor* Actor, class UFunction* Function, void* Parameters, struct FOutParmRec* OutParms, struct FFrame* Stack, class UObject* SubObject = NULL) override;
-    virtual void LowLevelSend(FString Address, void* Data, int32 CountBits, FOutPacketTraits& Traits) override;
+    virtual void LowLevelSend(TSharedPtr<const FInternetAddr, ESPMode::ThreadSafe> Address, void* Data, int32 CountBits, FOutPacketTraits& Traits) override;
     virtual void Shutdown() override;
     virtual bool IsNetResourceValid() override;
     //~ End UNetDriver Interface

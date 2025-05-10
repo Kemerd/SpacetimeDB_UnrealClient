@@ -27,7 +27,7 @@ public:
     virtual void LowLevelSend(void* Data, int32 CountBits, FOutPacketTraits& Traits) override;
     virtual FString LowLevelGetRemoteAddress(bool bAppendPort = false) override;
     virtual FString LowLevelDescribe() override;
-    virtual int32 GetAddrAsInt() override;
+    virtual int32 GetAddrAsInt();
     virtual int32 GetAddrPort() override;
     virtual FString RemoteAddressToString() override;
     //~ End UNetConnection Interface

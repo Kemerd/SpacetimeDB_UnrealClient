@@ -14,6 +14,19 @@ fn main() {
         // .file("cpp/source/example.cpp")
         .compile("stdb_client_bridge");
     
+    // Create target/cxxbridge directory if it doesn't exist
+    let target_dir = std::path::Path::new("target/cxxbridge");
+    if !target_dir.exists() {
+        std::fs::create_dir_all(target_dir).expect("Failed to create target/cxxbridge directory");
+    }
+    
+    // Copy bridge.h from cpp_src to target/cxxbridge
+    let bridge_h_src = std::path::Path::new(cpp_src_dir).join("bridge.h");
+    let bridge_h_dst = target_dir.join("bridge.h");
+    std::fs::copy(&bridge_h_src, &bridge_h_dst).expect("Failed to copy bridge.h");
+    
+    println!("cargo:warning=Copied {} to {}", bridge_h_src.display(), bridge_h_dst.display());
+    
     // Tell cargo to invalidate the built crate when the wrapper changes
     println!("cargo:rerun-if-changed=src/ffi.rs");
     
