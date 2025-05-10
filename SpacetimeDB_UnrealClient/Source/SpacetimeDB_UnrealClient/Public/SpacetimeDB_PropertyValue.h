@@ -200,6 +200,27 @@ struct SPACETIMEDB_UNREALCLIENT_API FSpacetimeDBPropertyValue
         return Value; 
     }
 
+    // Setter methods for basic types
+    void SetBool(bool Value) {
+        Type = ESpacetimeDBPropertyType::Bool;
+        BoolValue = Value;
+    }
+    
+    void SetInt(int32 Value) {
+        Type = ESpacetimeDBPropertyType::Int32;
+        Int32Value = Value;
+    }
+    
+    void SetFloat(float Value) {
+        Type = ESpacetimeDBPropertyType::Float;
+        FloatValue = Value;
+    }
+    
+    void SetString(const FString& Value) {
+        Type = ESpacetimeDBPropertyType::String;
+        StringValue = Value;
+    }
+
     // Conversion methods to get values
     bool AsBool() const { check(Type == ESpacetimeDBPropertyType::Bool); return BoolValue; }
     uint8 AsByte() const { check(Type == ESpacetimeDBPropertyType::Byte); return ByteValue; }

@@ -139,6 +139,22 @@ pub fn get_client_id() -> u64 {
     *CLIENT_ID.lock().unwrap()
 }
 
+/// Get the client identity as a hex string
+pub fn get_client_identity_hex() -> Option<String> {
+    if !is_connected() {
+        return None;
+    }
+    
+    // Get the client ID and format it as a hex string
+    let client_id = get_client_id();
+    if client_id == 0 {
+        return None;
+    }
+    
+    // Convert the client ID to a hex string
+    Some(format!("{:016x}", client_id))
+}
+
 /// Set event handlers
 pub fn set_event_handlers(
     on_connected: impl Fn() + Send + 'static,

@@ -20,17 +20,17 @@ PRAGMA_ENABLE_SHADOW_VARIABLE_WARNINGS
 /**
  * Helper function to convert FString to CxxString for FFI calls
  */
-inline cxx::String ToCxxString(const FString& InString)
+inline rust::String ToCxxString(const FString& InString)
 {
-    return cxx::String(TCHAR_TO_UTF8(*InString));
+    return rust::String(TCHAR_TO_UTF8(*InString));
 }
 
 /**
  * Helper function to convert CxxString to FString for FFI results
  */
-inline FString FromCxxString(const cxx::String& InString)
+inline FString FromCxxString(const rust::String& InString)
 {
-    return FString(UTF8_TO_TCHAR(InString.c_str()));
+    return FString(UTF8_TO_TCHAR(InString.data()));
 }
 
 // Forward declarations for FFI types

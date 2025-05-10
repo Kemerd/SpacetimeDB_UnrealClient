@@ -212,6 +212,7 @@ mod ffi {
         fn connect_to_server(config: ConnectionConfig, callbacks: EventCallbackPointers) -> bool;
         fn disconnect_from_server() -> bool;
         fn is_connected() -> bool;
+        fn get_client_identity() -> String;
     }
 }
 
@@ -891,6 +892,19 @@ fn dispatch_unreliable_rpc(object_id: u64, function_name: &CxxString, params: &C
             log::error!("Failed to parse RPC parameters for {}: {}", function_name_str, err);
             false
         }
+    }
+}
+
+/// Get the client's identity as a string
+fn get_client_identity() -> String {
+    // If we're connected, try to get the client's identity from the net module
+    if net::is_connected() {
+        match net::get_client_identity_hex() {
+            Some(identity) => identity,
+            None => String::new()
+        }
+    } else {
+        String::new()
     }
 }
 

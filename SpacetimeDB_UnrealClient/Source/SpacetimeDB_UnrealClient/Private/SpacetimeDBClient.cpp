@@ -51,7 +51,7 @@ bool FSpacetimeDBClient::Connect(const FString& Host, const FString& DatabaseNam
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
         
@@ -68,7 +68,7 @@ bool FSpacetimeDBClient::Connect(const FString& Host, const FString& DatabaseNam
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
         
@@ -86,7 +86,7 @@ bool FSpacetimeDBClient::Connect(const FString& Host, const FString& DatabaseNam
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
         
@@ -103,7 +103,6 @@ bool FSpacetimeDBClient::Connect(const FString& Host, const FString& DatabaseNam
     stdb::ffi::EventCallbackPointers callbacks;
     callbacks.on_connected = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnConnectedCallback);
     callbacks.on_disconnected = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnDisconnectedCallback);
-    callbacks.on_identity_received = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnIdentityReceivedCallback);
     callbacks.on_event_received = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnEventReceivedCallback);
     callbacks.on_error_occurred = reinterpret_cast<uintptr_t>(&FSpacetimeDBClient::OnErrorOccurredCallback);
     
@@ -132,7 +131,7 @@ bool FSpacetimeDBClient::Connect(const FString& Host, const FString& DatabaseNam
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
     }
@@ -164,7 +163,7 @@ bool FSpacetimeDBClient::Disconnect()
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
     }
@@ -193,7 +192,7 @@ bool FSpacetimeDBClient::CallReducer(const FString& ReducerName, const FString& 
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
         
@@ -211,7 +210,7 @@ bool FSpacetimeDBClient::CallReducer(const FString& ReducerName, const FString& 
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
         
@@ -236,7 +235,7 @@ bool FSpacetimeDBClient::CallReducer(const FString& ReducerName, const FString& 
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
     }
@@ -270,7 +269,7 @@ bool FSpacetimeDBClient::SubscribeToTables(const TArray<FString>& TableNames)
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
         
@@ -288,7 +287,7 @@ bool FSpacetimeDBClient::SubscribeToTables(const TArray<FString>& TableNames)
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
         
@@ -316,7 +315,7 @@ bool FSpacetimeDBClient::SubscribeToTables(const TArray<FString>& TableNames)
         );
         
         // Execute on game thread to ensure thread safety
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             OnErrorOccurred.Broadcast(ErrorInfo);
         });
     }
@@ -348,7 +347,7 @@ void FSpacetimeDBClient::OnConnectedCallback()
     // Execute on game thread
     if (Instance)
     {
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Connected successfully to SpacetimeDB"));
             Instance->OnConnected.Broadcast();
         });
@@ -362,23 +361,9 @@ void FSpacetimeDBClient::OnDisconnectedCallback(const char* Reason)
         FString ReasonStr = UTF8_TO_TCHAR(Reason);
         
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Disconnected from SpacetimeDB - Reason: %s"), *ReasonStr);
             Instance->OnDisconnected.Broadcast(ReasonStr);
-        });
-    }
-}
-
-void FSpacetimeDBClient::OnIdentityReceivedCallback(const char* Identity)
-{
-    if (Instance)
-    {
-        FString IdentityStr = UTF8_TO_TCHAR(Identity);
-        
-        // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
-            UE_LOG(LogSpacetimeDB, Log, TEXT("Identity received: %s"), *IdentityStr);
-            Instance->OnIdentityReceived.Broadcast(IdentityStr);
         });
     }
 }
@@ -391,7 +376,7 @@ void FSpacetimeDBClient::OnEventReceivedCallback(const char* EventData, const ch
         FString TableNameStr = UTF8_TO_TCHAR(TableName);
         
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             UE_LOG(LogSpacetimeDB, Verbose, TEXT("Event received for table '%s'"), *TableNameStr);
             Instance->OnEventReceived.Broadcast(TableNameStr, EventDataStr);
         });
@@ -412,7 +397,7 @@ void FSpacetimeDBClient::OnErrorOccurredCallback(const char* ErrorMessage)
         );
         
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             // Use our dedicated log category instead of LogTemp
             UE_LOG(LogSpacetimeDB, Error, TEXT("Error: %s"), *ErrorInfo.Message);
             
@@ -432,7 +417,7 @@ void FSpacetimeDBClient::OnPropertyUpdatedCallback(uint64 ObjectId, const char* 
         FString ValueJsonStr = UTF8_TO_TCHAR(ValueJson);
         
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             UE_LOG(LogSpacetimeDB, Verbose, TEXT("Property updated - Object %llu, Property '%s'"), ObjectId, *PropertyNameStr);
             Instance->OnPropertyUpdated.Broadcast(ObjectId, PropertyNameStr, ValueJsonStr);
         });
@@ -447,7 +432,7 @@ void FSpacetimeDBClient::OnObjectCreatedCallback(uint64 ObjectId, const char* Cl
         FString DataJsonStr = UTF8_TO_TCHAR(DataJson);
         
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Object created - ID: %llu, Class: '%s'"), ObjectId, *ClassNameStr);
             Instance->OnObjectCreated.Broadcast(ObjectId, ClassNameStr, DataJsonStr);
         });
@@ -459,7 +444,7 @@ void FSpacetimeDBClient::OnObjectDestroyedCallback(uint64 ObjectId)
     if (Instance)
     {
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Object destroyed - ID: %llu"), ObjectId);
             Instance->OnObjectDestroyed.Broadcast(ObjectId);
         });
@@ -471,7 +456,7 @@ void FSpacetimeDBClient::OnObjectIdRemappedCallback(uint64 TempId, uint64 Server
     if (Instance)
     {
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Object ID remapped - Temp ID: %llu -> Server ID: %llu"), TempId, ServerId);
             Instance->OnObjectIdRemapped.Broadcast(TempId, ServerId);
         });
@@ -486,7 +471,7 @@ void FSpacetimeDBClient::OnComponentAddedCallback(uint64 ActorId, uint64 Compone
         FString DataJsonStr = UTF8_TO_TCHAR(DataJson);
         
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Component added - Actor: %llu, Component: %llu, Class: '%s'"), 
                 ActorId, ComponentId, *ComponentClassNameStr);
             Instance->OnComponentAdded.Broadcast(ActorId, ComponentId, ComponentClassNameStr);
@@ -515,7 +500,7 @@ void FSpacetimeDBClient::OnComponentRemovedCallback(uint64 ActorId, uint64 Compo
     if (Instance)
     {
         // Execute on game thread
-        AsyncTask(ENamedThreads::GameThread, [=]() {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
             UE_LOG(LogSpacetimeDB, Log, TEXT("Component removed - Actor: %llu, Component: %llu"), ActorId, ComponentId);
             Instance->OnComponentRemoved.Broadcast(ActorId, ComponentId);
             
