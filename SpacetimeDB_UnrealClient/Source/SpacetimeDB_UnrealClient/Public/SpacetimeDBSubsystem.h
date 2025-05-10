@@ -583,6 +583,9 @@ public:
     /** Handler for property updated events - this is a method that's called for blueprint event broadcast */
     void InternalOnPropertyUpdated(int64 ObjectId, const FString& PropertyName, const FString& ValueJson);
 
+    /** Handler for property updated events from the client - will be called by the FFI layer */
+    void InternalHandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson);
+
 protected:
     /** The SpacetimeDB client instance used for network communication */
     FSpacetimeDBClient Client;

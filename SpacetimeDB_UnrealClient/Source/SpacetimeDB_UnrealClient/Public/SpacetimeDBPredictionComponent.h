@@ -162,12 +162,6 @@ private:
 	/** Apply tracked properties from a snapshot */
 	void ApplyTrackedProperties(const TMap<FName, FSpacetimeDBPropertyValue>& Properties);
 
-	/** Retrieve the current values of all tracked properties */
-	void GetTrackedProperties(TMap<FName, FSpacetimeDBPropertyValue>& OutProperties);
-
-	/** Apply a single property update received from the server */
-	void ApplyServerUpdate(const FString& PropertyName, const FSpacetimeDBPropertyValue& PropValue);
-
 	/** Clean up old history entries */
 	void CleanupHistory();
 

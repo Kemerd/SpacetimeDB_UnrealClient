@@ -97,7 +97,23 @@ bool USpacetimeDBCodeGenerator::GenerateRustClassRegistry(const FString& OutputP
     
     for (const auto& ClassPair : ClassIdMap)
     {
-        UClass* Class = FindObject<UClass>(ANY_PACKAGE, *ClassPair.Key.Replace(TEXT("/Script/"), TEXT(".")));
+        FString ClassName = ClassPair.Key.Replace(TEXT("/Script/"), TEXT("."));
+        UClass* Class = nullptr;
+        
+        // First try to find class in its package
+        FString PackageName, ClassName_NoPackage;
+        if (ClassName.Split(TEXT("."), &PackageName, &ClassName_NoPackage))
+        {
+            FString FullPath = TEXT("/Script/") + PackageName + TEXT(".") + ClassName_NoPackage;
+            Class = FindObject<UClass>(nullptr, *FullPath);
+        }
+        
+        // If not found, try direct lookup
+        if (!Class)
+        {
+            Class = FindObject<UClass>(nullptr, *ClassName);
+        }
+
         if (Class)
         {
             FString Registration = GenerateClassRegistration(Class, ClassPair.Value);
@@ -149,7 +165,23 @@ bool USpacetimeDBCodeGenerator::GenerateRustClassRegistry(const FString& OutputP
     
     for (const auto& ClassPair : ClassIdMap)
     {
-        UClass* Class = FindObject<UClass>(ANY_PACKAGE, *ClassPair.Key.Replace(TEXT("/Script/"), TEXT(".")));
+        FString ClassName = ClassPair.Key.Replace(TEXT("/Script/"), TEXT("."));
+        UClass* Class = nullptr;
+        
+        // First try to find class in its package
+        FString PackageName, ClassName_NoPackage;
+        if (ClassName.Split(TEXT("."), &PackageName, &ClassName_NoPackage))
+        {
+            FString FullPath = TEXT("/Script/") + PackageName + TEXT(".") + ClassName_NoPackage;
+            Class = FindObject<UClass>(nullptr, *FullPath);
+        }
+        
+        // If not found, try direct lookup
+        if (!Class)
+        {
+            Class = FindObject<UClass>(nullptr, *ClassName);
+        }
+
         if (Class)
         {
             FString PropertyRegistrations = GeneratePropertyRegistrations(Class, ClassPair.Value);

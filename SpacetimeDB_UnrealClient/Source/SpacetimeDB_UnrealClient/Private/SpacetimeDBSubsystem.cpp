@@ -233,7 +233,7 @@ void USpacetimeDBSubsystem::InternalHandleErrorOccurred(const FSpacetimeDBErrorI
 void USpacetimeDBSubsystem::HandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson)
 {
     // Delegate to the main property update handler
-    InternalOnPropertyUpdated(static_cast<int64>(ObjectId), PropertyName, ValueJson);
+    InternalHandlePropertyUpdated(ObjectId, PropertyName, ValueJson);
 }
 
 void USpacetimeDBSubsystem::InternalHandlePropertyUpdated(uint64 ObjectId, const FString& PropertyName, const FString& ValueJson)
@@ -322,12 +322,14 @@ void USpacetimeDBSubsystem::InternalOnPropertyUpdated(int64 ObjectId, const FStr
 }
 
 // FFI callback handlers for property updates
-void OnPropertyUpdatedCallback(uint64 object_id, cxx::String property_name, cxx::String value_json)
+void OnPropertyUpdatedCallback(uint64 object_id, const char* property_name_cstr, const char* value_json_cstr)
 {
     USpacetimeDBSubsystem* Subsystem = GEngine->GetEngineSubsystem<USpacetimeDBSubsystem>();
     if (Subsystem)
     {
-        Subsystem->OnPropertyUpdated(object_id, FromCxxString(property_name), FromCxxString(value_json));
+        FString PropertyName = FString(UTF8_TO_TCHAR(property_name_cstr));
+        FString ValueJson = FString(UTF8_TO_TCHAR(value_json_cstr));
+        Subsystem->InternalHandlePropertyUpdated(object_id, PropertyName, ValueJson);
     }
 }
 
@@ -385,8 +387,13 @@ int64 USpacetimeDBSubsystem::RequestSpawnObject(const FSpacetimeDBSpawnParams& P
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ArgsJsonString);
     FJsonSerializer::Serialize(ArgsObject.ToSharedRef(), Writer);
 
+    // Convert properties object to string for logging
+    FString PropertiesJsonString;
+    TSharedRef<TJsonWriter<>> PropertiesWriter = TJsonWriterFactory<>::Create(&PropertiesJsonString);
+    FJsonSerializer::Serialize(ArgsObject->GetObjectField(TEXT("initial_properties")).ToSharedRef(), PropertiesWriter);
+
     UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem: RequestSpawnObject with ClassName: %s, Location: %s, Rotation: %s, InitialProperties: %s"), 
-        *Params.ClassName, *Params.Location.ToString(), *Params.Rotation.ToString(), *ArgsObject->GetObjectField(TEXT("initial_properties"))->ToString()); // Log the properties object string for clarity
+        *Params.ClassName, *Params.Location.ToString(), *Params.Rotation.ToString(), *PropertiesJsonString);
 
     // Call the generic SpawnObject reducer
     bool bSuccess = CallReducer(TEXT("SpawnObject"), ArgsJsonString);
@@ -519,20 +526,25 @@ UObject* USpacetimeDBSubsystem::SpawnObjectFromServer(int64 ObjectId, const FStr
     UObject* SpawnedObject = nullptr;
     
     // Find the class by name
-    UClass* ObjectClass = FindObject<UClass>(ANY_PACKAGE, *ClassName);
+    UClass* ObjectClass = nullptr;
+    
+    // Try to find the class by its path directly
+    ObjectClass = FindObject<UClass>(nullptr, *ClassName);
+    
+    // If not found, try with potential package prefixes
     if (!ObjectClass)
     {
         // Try with a U prefix if not found
         if (!ClassName.StartsWith(TEXT("U")) && !ClassName.StartsWith(TEXT("A")))
         {
             FString PrefixedClassName = FString::Printf(TEXT("U%s"), *ClassName);
-            ObjectClass = FindObject<UClass>(ANY_PACKAGE, *PrefixedClassName);
+            ObjectClass = FindObject<UClass>(nullptr, *PrefixedClassName);
             
             // Also try with A prefix for actors
             if (!ObjectClass)
             {
                 PrefixedClassName = FString::Printf(TEXT("A%s"), *ClassName);
-                ObjectClass = FindObject<UClass>(ANY_PACKAGE, *PrefixedClassName);
+                ObjectClass = FindObject<UClass>(nullptr, *PrefixedClassName);
             }
         }
         

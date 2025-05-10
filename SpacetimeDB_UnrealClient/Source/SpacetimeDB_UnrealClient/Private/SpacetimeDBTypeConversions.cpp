@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "SpacetimeDBTypeConversions.h"
-#include "ClientModule/ffi.h" // Include the FFI header generated from Rust
+#include "ffi.h" // Include the FFI header generated from Rust
 
 // Vector3 conversions
 stdb::shared::Vector3 FSpacetimeDBTypeConversions::ToStdbVector3(const FVector& Vector)
