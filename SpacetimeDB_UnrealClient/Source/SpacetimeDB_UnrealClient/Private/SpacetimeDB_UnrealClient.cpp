@@ -36,30 +36,27 @@ void FSpacetimeDB_UnrealClientModule::StartupModule()
     }
     
     // Register NetDriver with the engine
-    bool bRegisteredNetDriver = GEngine->RegisterNetDriver_Override.IsBound() ?
-        GEngine->RegisterNetDriver_Override.Execute(GetNetDriverName(), TEXT("SpacetimeDBNetDriver")) :
-        GEngine->CreateNamedNetDriver(nullptr, GetNetDriverName(), FName(TEXT("SpacetimeDBNetDriver")));
+    bool bRegisteredNetDriver = false;
+    // In UE 5.5, we need to use a different approach for registering net drivers
+    UWorld* World = nullptr;  // We don't have a world yet
+    bRegisteredNetDriver = GEngine->CreateNamedNetDriver(World, GetNetDriverName(), FName(TEXT("SpacetimeDBNetDriver")));
     
     if (bRegisteredNetDriver)
     {
         UE_LOG(LogTemp, Log, TEXT("SpacetimeDB NetDriver registered with engine successfully"));
     }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Failed to register SpacetimeDB NetDriver with engine"));
-    }
     
-    // Register connection factory
-    GEngine->NetworkDriverDelegates.Add(FName(TEXT("SpacetimeDBNetDriver")), FNetworkDriverFactory::CreateNetworkDriverDelegate::CreateLambda([](const FName& InNetDriverName) {
-        return NewObject<USpacetimeDBNetDriver>();
-    }));
+    // Register connection factory - modified for UE 5.5
+    // NetworkDriverDelegates was removed in UE 5.5, we need to use a different approach
+    FNetDriverDefinition NewDriverDef;
+    NewDriverDef.DefName = GetNetDriverName();
+    NewDriverDef.DriverClassName = TEXT("/Script/SpacetimeDB_UnrealClient.SpacetimeDBNetDriver");
+    NewDriverDef.DriverClassNameFallback = TEXT("");
+    GEngine->NetDriverDefinitions.Add(NewDriverDef);
     
     // Register client-side subsystem
-    if (!IGameInstanceSubsystemRegistrar::Get().UnregisterClass(USpacetimeDBSubsystem::StaticClass()))
-    {
-        IGameInstanceSubsystemRegistrar::Get().RegisterClass(USpacetimeDBSubsystem::StaticClass());
-        UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem registered"));
-    }
+    // IGameInstanceSubsystemRegistrar has been removed in UE 5.5
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem will be registered automatically"));
 }
 
 void FSpacetimeDB_UnrealClientModule::ShutdownModule()
@@ -71,9 +68,11 @@ void FSpacetimeDB_UnrealClientModule::ShutdownModule()
     // Unregister NetDriver
     if (GEngine)
     {
-        GEngine->NetworkDriverDelegates.Remove(FName(TEXT("SpacetimeDBNetDriver")));
-        GEngine->DestroyNamedNetDriver(nullptr, GetNetDriverName());
-        
+        // NetworkDriverDelegates was removed in UE 5.5
+        // We'll just destroy the named net driver
+        UWorld* World = nullptr;  // We don't have a world at this point
+        GEngine->DestroyNamedNetDriver(World, GetNetDriverName());
+
         // Remove from NetDriverDefinitions
         for (int32 i = GEngine->NetDriverDefinitions.Num() - 1; i >= 0; i--)
         {
@@ -87,7 +86,8 @@ void FSpacetimeDB_UnrealClientModule::ShutdownModule()
     }
     
     // Unregister client-side subsystem
-    IGameInstanceSubsystemRegistrar::Get().UnregisterClass(USpacetimeDBSubsystem::StaticClass());
+    // In UE 5.5, subsystems are registered automatically by the engine
+    UE_LOG(LogTemp, Log, TEXT("SpacetimeDBSubsystem will be unregistered automatically"));
 }
 
 FName FSpacetimeDB_UnrealClientModule::GetNetDriverName() const

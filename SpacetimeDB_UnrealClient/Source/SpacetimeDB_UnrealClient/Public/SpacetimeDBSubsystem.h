@@ -696,6 +696,40 @@ private:
     bool HasAuthority(int64 ObjectId) const;
 
     /**
+     * Gets the owner client ID of an object.
+     * 
+     * @param ObjectId The object ID to check
+     * @return The owner client ID, or 0 if not found or not owned
+     */
+    int64 GetOwnerClientId(int64 ObjectId) const;
+
+    /**
+     * Checks if the client has ownership of an object.
+     * 
+     * @param ObjectId The object ID to check
+     * @return True if the client owns the object, false otherwise
+     */
+    bool HasOwnership(int64 ObjectId) const;
+
+    /**
+     * Requests the server to change the owner of an object.
+     * 
+     * @param ObjectId The object ID to change ownership of
+     * @param NewOwnerClientId The new owner client ID
+     * @return True if the request was sent successfully
+     */
+    bool RequestSetOwner(int64 ObjectId, int64 NewOwnerClientId);
+
+    /**
+     * Gets a property value as a JSON string from a UObject.
+     * 
+     * @param Object The UObject to get the property value from
+     * @param PropertyName The name of the property to get
+     * @return The property value as a JSON string, or empty string if not found
+     */
+    FString GetPropertyJsonValue(UObject* Object, const FString& PropertyName) const;
+
+    /**
      * Sends a property update to the server.
      * 
      * @param ObjectId The object ID
@@ -706,19 +740,19 @@ private:
     bool SendPropertyUpdateToServer(int64 ObjectId, const FString& PropertyName, const FString& ValueJson);
 
     /**
+     * Helper method to call a reducer with const-correctness.
+     * 
+     * @param ReducerName The name of the reducer to call
+     * @param ArgsJson The JSON arguments to pass to the reducer
+     * @return True if the call was initiated successfully
+     */
+    bool CallReducerHelper(const FString& ReducerName, const FString& ArgsJson) const;
+
+    /**
      * Event handler for actor destroyed
      * 
      * @param DestroyedActor The destroyed actor
      */
     UFUNCTION()
     void OnActorDestroyed(AActor* DestroyedActor);
-
-    /**
-     * Helper to call a reducer on the client while bypassing const issues.
-     * 
-     * @param ReducerName The name of the reducer to call
-     * @param ArgsJson The JSON arguments to pass to the reducer
-     * @return True if the call was successful
-     */
-    bool CallReducerHelper(const FString& ReducerName, const FString& ArgsJson) const;
 }; 

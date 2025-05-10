@@ -6,6 +6,8 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 #include "UObject/PropertyPortFlags.h"
+#include "UObject/TextProperty.h" // For PropertyPortFlags
+#include "UObject/PropertyAccessUtil.h" // For text import/export utilities
 
 // Serializes a property to JSON string
 FString USpacetimeDBJsonUtils::SerializePropertyToJson(FProperty* Property, const void* ValuePtr)
@@ -45,7 +47,7 @@ FString USpacetimeDBJsonUtils::SerializeStructToJson(UScriptStruct* StructType, 
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer);
+    FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer, false);
     Writer->Close();
     
     return OutputString;
@@ -96,7 +98,7 @@ FString USpacetimeDBJsonUtils::SerializeArrayToJson(FArrayProperty* ArrayPropert
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(JsonArray, Writer);
+    FJsonSerializer::Serialize(JsonArray, Writer, false);
     Writer->Close();
     
     return OutputString;
@@ -146,7 +148,7 @@ FString USpacetimeDBJsonUtils::SerializeMapToJson(FMapProperty* MapProperty, con
             
             // Convert key to string - maps in JSON need string keys
             FString KeyString;
-            KeyProperty->ExportTextItem(KeyString, KeyPtr, nullptr, nullptr, PPF_None);
+            FPropertyAccessUtils::PropertyToString(KeyProperty, KeyPtr, KeyString, nullptr);
             
             TSharedPtr<FJsonValue> ValueJson = SerializePropertyToJsonValue(ValueProperty, ValuePtr);
             if (ValueJson.IsValid())
@@ -158,7 +160,7 @@ FString USpacetimeDBJsonUtils::SerializeMapToJson(FMapProperty* MapProperty, con
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer);
+    FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer, false);
     Writer->Close();
     
     return OutputString;
@@ -185,7 +187,7 @@ bool USpacetimeDBJsonUtils::DeserializeJsonToMap(FMapProperty* MapProperty, void
         void* TempKeyPtr = FMemory::Malloc(KeyProperty->GetSize(), KeyProperty->GetMinAlignment());
         KeyProperty->InitializeValue(TempKeyPtr);
         
-        KeyProperty->ImportText(*Pair.Key, TempKeyPtr, PPF_None, nullptr);
+        FPropertyAccessUtils::StringToProperty(Pair.Key, KeyProperty, TempKeyPtr, nullptr);
         
         int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
         void* KeyPtr = MapHelper.GetKeyPtr(Index);
@@ -224,7 +226,7 @@ FString USpacetimeDBJsonUtils::SerializeSetToJson(FSetProperty* SetProperty, con
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(JsonArray, Writer);
+    FJsonSerializer::Serialize(JsonArray, Writer, false);
     Writer->Close();
     
     return OutputString;
@@ -268,9 +270,9 @@ bool USpacetimeDBJsonUtils::DeserializeJsonToSet(FSetProperty* SetProperty, void
 TSharedPtr<FJsonObject> USpacetimeDBJsonUtils::VectorToJson(const FVector& Vector)
 {
     TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
-    JsonObject->SetNumberField("X", Vector.X);
-    JsonObject->SetNumberField("Y", Vector.Y);
-    JsonObject->SetNumberField("Z", Vector.Z);
+    JsonObject->SetNumberField(TEXT("X"), Vector.X);
+    JsonObject->SetNumberField(TEXT("Y"), Vector.Y);
+    JsonObject->SetNumberField(TEXT("Z"), Vector.Z);
     return JsonObject;
 }
 
@@ -283,9 +285,9 @@ bool USpacetimeDBJsonUtils::JsonToVector(const TSharedPtr<FJsonObject>& JsonObje
     }
     
     double X = 0.0, Y = 0.0, Z = 0.0;
-    if (JsonObject->TryGetNumberField("X", X) && 
-        JsonObject->TryGetNumberField("Y", Y) && 
-        JsonObject->TryGetNumberField("Z", Z))
+    if (JsonObject->TryGetNumberField(TEXT("X"), X) && 
+        JsonObject->TryGetNumberField(TEXT("Y"), Y) && 
+        JsonObject->TryGetNumberField(TEXT("Z"), Z))
     {
         OutVector.X = X;
         OutVector.Y = Y;
@@ -300,9 +302,9 @@ bool USpacetimeDBJsonUtils::JsonToVector(const TSharedPtr<FJsonObject>& JsonObje
 TSharedPtr<FJsonObject> USpacetimeDBJsonUtils::RotatorToJson(const FRotator& Rotator)
 {
     TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
-    JsonObject->SetNumberField("Pitch", Rotator.Pitch);
-    JsonObject->SetNumberField("Yaw", Rotator.Yaw);
-    JsonObject->SetNumberField("Roll", Rotator.Roll);
+    JsonObject->SetNumberField(TEXT("Pitch"), Rotator.Pitch);
+    JsonObject->SetNumberField(TEXT("Yaw"), Rotator.Yaw);
+    JsonObject->SetNumberField(TEXT("Roll"), Rotator.Roll);
     return JsonObject;
 }
 
@@ -315,9 +317,9 @@ bool USpacetimeDBJsonUtils::JsonToRotator(const TSharedPtr<FJsonObject>& JsonObj
     }
     
     double Pitch = 0.0, Yaw = 0.0, Roll = 0.0;
-    if (JsonObject->TryGetNumberField("Pitch", Pitch) && 
-        JsonObject->TryGetNumberField("Yaw", Yaw) && 
-        JsonObject->TryGetNumberField("Roll", Roll))
+    if (JsonObject->TryGetNumberField(TEXT("Pitch"), Pitch) && 
+        JsonObject->TryGetNumberField(TEXT("Yaw"), Yaw) && 
+        JsonObject->TryGetNumberField(TEXT("Roll"), Roll))
     {
         OutRotator.Pitch = Pitch;
         OutRotator.Yaw = Yaw;
@@ -334,13 +336,13 @@ TSharedPtr<FJsonObject> USpacetimeDBJsonUtils::TransformToJson(const FTransform&
     TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
     
     // Location
-    JsonObject->SetObjectField("Location", VectorToJson(Transform.GetLocation()));
+    JsonObject->SetObjectField(TEXT("Location"), VectorToJson(Transform.GetLocation()));
     
     // Rotation (convert to Rotator for easier serialization)
-    JsonObject->SetObjectField("Rotation", RotatorToJson(Transform.Rotator()));
+    JsonObject->SetObjectField(TEXT("Rotation"), RotatorToJson(Transform.Rotator()));
     
     // Scale
-    JsonObject->SetObjectField("Scale", VectorToJson(Transform.GetScale3D()));
+    JsonObject->SetObjectField(TEXT("Scale"), VectorToJson(Transform.GetScale3D()));
     
     return JsonObject;
 }
@@ -353,34 +355,41 @@ bool USpacetimeDBJsonUtils::JsonToTransform(const TSharedPtr<FJsonObject>& JsonO
         return false;
     }
     
-    FVector Location = FVector::ZeroVector;
-    FRotator Rotation = FRotator::ZeroRotator;
-    FVector Scale = FVector(1.0f, 1.0f, 1.0f);
-    
     // Location
-    TSharedPtr<FJsonObject> LocationObj = JsonObject->GetObjectField("Location");
-    if (LocationObj.IsValid())
+    const TSharedPtr<FJsonObject>* LocationObj;
+    FVector Location = FVector::ZeroVector;
+    if (JsonObject->TryGetObjectField(TEXT("Location"), LocationObj) && JsonToVector(*LocationObj, Location))
     {
-        JsonToVector(LocationObj, Location);
+        OutTransform.SetLocation(Location);
+    }
+    else
+    {
+        return false;
     }
     
     // Rotation
-    TSharedPtr<FJsonObject> RotationObj = JsonObject->GetObjectField("Rotation");
-    if (RotationObj.IsValid())
+    const TSharedPtr<FJsonObject>* RotationObj;
+    FRotator Rotation = FRotator::ZeroRotator;
+    if (JsonObject->TryGetObjectField(TEXT("Rotation"), RotationObj) && JsonToRotator(*RotationObj, Rotation))
     {
-        JsonToRotator(RotationObj, Rotation);
+        OutTransform.SetRotation(Rotation.Quaternion());
+    }
+    else
+    {
+        return false;
     }
     
     // Scale
-    TSharedPtr<FJsonObject> ScaleObj = JsonObject->GetObjectField("Scale");
-    if (ScaleObj.IsValid())
+    const TSharedPtr<FJsonObject>* ScaleObj;
+    FVector Scale = FVector::OneVector;
+    if (JsonObject->TryGetObjectField(TEXT("Scale"), ScaleObj) && JsonToVector(*ScaleObj, Scale))
     {
-        JsonToVector(ScaleObj, Scale);
+        OutTransform.SetScale3D(Scale);
     }
-    
-    OutTransform.SetLocation(Location);
-    OutTransform.SetRotation(Rotation.Quaternion());
-    OutTransform.SetScale3D(Scale);
+    else
+    {
+        return false;
+    }
     
     return true;
 }
@@ -390,7 +399,7 @@ FString USpacetimeDBJsonUtils::SerializeRpcArgsToJson(const TArray<TSharedPtr<FJ
 {
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(Args, Writer);
+    FJsonSerializer::Serialize(Args, *Writer, false);
     Writer->Close();
     
     return OutputString;
@@ -442,7 +451,7 @@ FString USpacetimeDBJsonUtils::SerializeSpawnParamsToJson(const FSpacetimeDBSpaw
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer);
+    FJsonSerializer::Serialize(JsonObject.ToSharedRef(), *Writer, false);
     Writer->Close();
     
     return OutputString;
@@ -494,7 +503,7 @@ bool USpacetimeDBJsonUtils::DeserializeJsonToSpawnParams(const FString& JsonStri
     return true;
 }
 
-// Private helper to convert property to JSON value
+// Serializes a property to a JsonValue
 TSharedPtr<FJsonValue> USpacetimeDBJsonUtils::SerializePropertyToJsonValue(FProperty* Property, const void* ValuePtr)
 {
     if (!Property || !ValuePtr)
@@ -502,113 +511,203 @@ TSharedPtr<FJsonValue> USpacetimeDBJsonUtils::SerializePropertyToJsonValue(FProp
         return nullptr;
     }
     
+    // Boolean
     if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
     {
-        bool Value = BoolProperty->GetPropertyValue(ValuePtr);
-        return MakeShareable(new FJsonValueBoolean(Value));
+        return MakeShared<FJsonValueBoolean>(BoolProperty->GetPropertyValue(ValuePtr));
     }
-    else if (FNumericProperty* NumericProperty = CastField<FNumericProperty>(Property))
+    // Byte
+    else if (FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
     {
-        // Handle numeric properties (int, float, etc.)
-        if (NumericProperty->IsFloatingPoint())
+        if (ByteProperty->IsEnum())
         {
-            double Value = NumericProperty->GetFloatingPointPropertyValue(ValuePtr);
-            return MakeShareable(new FJsonValueNumber(Value));
+            UEnum* Enum = ByteProperty->GetEnum();
+            uint8 Value = ByteProperty->GetPropertyValue(ValuePtr);
+            return MakeShared<FJsonValueString>(Enum->GetNameStringByValue(Value));
         }
         else
         {
-            int64 Value = NumericProperty->GetSignedIntPropertyValue(ValuePtr);
-            return MakeShareable(new FJsonValueNumber(Value));
+            return MakeShared<FJsonValueNumber>(ByteProperty->GetPropertyValue(ValuePtr));
         }
     }
+    // Numbers
+    else if (FIntProperty* IntProperty = CastField<FIntProperty>(Property))
+    {
+        return MakeShared<FJsonValueNumber>(IntProperty->GetPropertyValue(ValuePtr));
+    }
+    else if (FInt64Property* Int64Property = CastField<FInt64Property>(Property))
+    {
+        return MakeShared<FJsonValueNumber>((double)Int64Property->GetPropertyValue(ValuePtr));
+    }
+    else if (FUInt32Property* UInt32Property = CastField<FUInt32Property>(Property))
+    {
+        return MakeShared<FJsonValueNumber>((double)UInt32Property->GetPropertyValue(ValuePtr));
+    }
+    else if (FUInt64Property* UInt64Property = CastField<FUInt64Property>(Property))
+    {
+        return MakeShared<FJsonValueNumber>((double)UInt64Property->GetPropertyValue(ValuePtr));
+    }
+    else if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
+    {
+        return MakeShared<FJsonValueNumber>(FloatProperty->GetPropertyValue(ValuePtr));
+    }
+    else if (FDoubleProperty* DoubleProperty = CastField<FDoubleProperty>(Property))
+    {
+        return MakeShared<FJsonValueNumber>(DoubleProperty->GetPropertyValue(ValuePtr));
+    }
+    // String
     else if (FStrProperty* StringProperty = CastField<FStrProperty>(Property))
     {
-        FString Value = StringProperty->GetPropertyValue(ValuePtr);
-        return MakeShareable(new FJsonValueString(Value));
+        return MakeShared<FJsonValueString>(StringProperty->GetPropertyValue(ValuePtr));
     }
+    // Name
     else if (FNameProperty* NameProperty = CastField<FNameProperty>(Property))
     {
-        FName Value = NameProperty->GetPropertyValue(ValuePtr);
-        return MakeShareable(new FJsonValueString(Value.ToString()));
+        return MakeShared<FJsonValueString>(NameProperty->GetPropertyValue(ValuePtr).ToString());
     }
+    // Text
     else if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
     {
-        FText Value = TextProperty->GetPropertyValue(ValuePtr);
-        return MakeShareable(new FJsonValueString(Value.ToString()));
+        return MakeShared<FJsonValueString>(TextProperty->GetPropertyValue(ValuePtr).ToString());
     }
-    else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
-    {
-        FString JsonString = SerializeArrayToJson(ArrayProperty, ValuePtr);
-        TArray<TSharedPtr<FJsonValue>> JsonArray;
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
-        FJsonSerializer::Deserialize(Reader, JsonArray);
-        return MakeShareable(new FJsonValueArray(JsonArray));
-    }
-    else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
-    {
-        FString JsonString = SerializeMapToJson(MapProperty, ValuePtr);
-        TSharedPtr<FJsonObject> JsonObject;
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
-        FJsonSerializer::Deserialize(Reader, JsonObject);
-        return MakeShareable(new FJsonValueObject(JsonObject));
-    }
-    else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
-    {
-        FString JsonString = SerializeSetToJson(SetProperty, ValuePtr);
-        TArray<TSharedPtr<FJsonValue>> JsonArray;
-        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
-        FJsonSerializer::Deserialize(Reader, JsonArray);
-        return MakeShareable(new FJsonValueArray(JsonArray));
-    }
+    // Struct
     else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
     {
-        UScriptStruct* ScriptStruct = StructProperty->Struct;
-        
-        // Special handling for common struct types
-        if (ScriptStruct == TBaseStructure<FVector>::Get())
+        // Handle common UE struct types
+        if (StructProperty->Struct->GetFName() == TEXT("Vector"))
         {
-            const FVector* Vector = reinterpret_cast<const FVector*>(ValuePtr);
-            TSharedPtr<FJsonObject> JsonObject = VectorToJson(*Vector);
-            return MakeShareable(new FJsonValueObject(JsonObject));
+            return MakeShared<FJsonValueObject>(VectorToJson(*static_cast<const FVector*>(ValuePtr)));
         }
-        else if (ScriptStruct == TBaseStructure<FRotator>::Get())
+        else if (StructProperty->Struct->GetFName() == TEXT("Rotator"))
         {
-            const FRotator* Rotator = reinterpret_cast<const FRotator*>(ValuePtr);
-            TSharedPtr<FJsonObject> JsonObject = RotatorToJson(*Rotator);
-            return MakeShareable(new FJsonValueObject(JsonObject));
+            return MakeShared<FJsonValueObject>(RotatorToJson(*static_cast<const FRotator*>(ValuePtr)));
         }
-        else if (ScriptStruct == TBaseStructure<FTransform>::Get())
+        else if (StructProperty->Struct->GetFName() == TEXT("Transform"))
         {
-            const FTransform* Transform = reinterpret_cast<const FTransform*>(ValuePtr);
-            TSharedPtr<FJsonObject> JsonObject = TransformToJson(*Transform);
-            return MakeShareable(new FJsonValueObject(JsonObject));
+            return MakeShared<FJsonValueObject>(TransformToJson(*static_cast<const FTransform*>(ValuePtr)));
         }
+        // Generic struct serialization
         else
         {
-            FString JsonString = SerializeStructToJson(ScriptStruct, ValuePtr);
-            TSharedPtr<FJsonObject> JsonObject;
-            TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
-            FJsonSerializer::Deserialize(Reader, JsonObject);
-            return MakeShareable(new FJsonValueObject(JsonObject));
+            TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
+            for (TFieldIterator<FProperty> It(StructProperty->Struct); It; ++It)
+            {
+                FProperty* SubProperty = *It;
+                const void* SubValuePtr = SubProperty->ContainerPtrToValuePtr<uint8>(ValuePtr);
+                
+                TSharedPtr<FJsonValue> SubJsonValue = SerializePropertyToJsonValue(SubProperty, SubValuePtr);
+                if (SubJsonValue.IsValid())
+                {
+                    JsonObject->SetField(SubProperty->GetName(), SubJsonValue);
+                }
+            }
+            return MakeShared<FJsonValueObject>(JsonObject);
         }
     }
+    // Enum
+    else if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+    {
+        UEnum* Enum = EnumProperty->GetEnum();
+        int64 Value = EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(ValuePtr);
+        return MakeShared<FJsonValueString>(Enum->GetNameStringByValue(Value));
+    }
+    // Object/Class references
     else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
     {
         UObject* Object = ObjectProperty->GetObjectPropertyValue(ValuePtr);
         if (Object)
         {
-            // For UObjects, just store a reference by name
-            return MakeShareable(new FJsonValueString(Object->GetName()));
+            return MakeShared<FJsonValueString>(Object->GetPathName());
         }
+        return MakeShared<FJsonValueNull>();
+    }
+    else if (FClassProperty* ClassProperty = CastField<FClassProperty>(Property))
+    {
+        UClass* Class = Cast<UClass>(ClassProperty->GetObjectPropertyValue(ValuePtr));
+        if (Class)
+        {
+            return MakeShared<FJsonValueString>(Class->GetPathName());
+        }
+        return MakeShared<FJsonValueNull>();
+    }
+    // Array
+    else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+    {
+        FScriptArrayHelper ArrayHelper(ArrayProperty, ValuePtr);
+        FProperty* InnerProperty = ArrayProperty->Inner;
+        
+        TArray<TSharedPtr<FJsonValue>> JsonArray;
+        for (int32 i = 0; i < ArrayHelper.Num(); i++)
+        {
+            void* ElementPtr = ArrayHelper.GetRawPtr(i);
+            TSharedPtr<FJsonValue> ElementValue = SerializePropertyToJsonValue(InnerProperty, ElementPtr);
+            if (ElementValue.IsValid())
+            {
+                JsonArray.Add(ElementValue);
+            }
+        }
+        
+        return MakeShared<FJsonValueArray>(JsonArray);
+    }
+    // Map
+    else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
+    {
+        FScriptMapHelper MapHelper(MapProperty, ValuePtr);
+        FProperty* KeyProperty = MapProperty->KeyProp;
+        FProperty* ValueProperty = MapProperty->ValueProp;
+        
+        TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
+        for (int32 i = 0; i < MapHelper.Num(); i++)
+        {
+            if (MapHelper.IsValidIndex(i))
+            {
+                void* KeyPtr = MapHelper.GetKeyPtr(i);
+                void* ValuePtr = MapHelper.GetValuePtr(i);
+                
+                // Convert key to string
+                FString KeyString;
+                FPropertyAccessUtils::PropertyToString(KeyProperty, KeyPtr, KeyString, nullptr);
+                
+                TSharedPtr<FJsonValue> ValueJson = SerializePropertyToJsonValue(ValueProperty, ValuePtr);
+                if (ValueJson.IsValid())
+                {
+                    JsonObject->SetField(KeyString, ValueJson);
+                }
+            }
+        }
+        
+        return MakeShared<FJsonValueObject>(JsonObject);
+    }
+    // Set
+    else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
+    {
+        FScriptSetHelper SetHelper(SetProperty, ValuePtr);
+        FProperty* ElementProperty = SetProperty->ElementProp;
+        
+        TArray<TSharedPtr<FJsonValue>> JsonArray;
+        for (int32 i = 0; i < SetHelper.Num(); i++)
+        {
+            if (SetHelper.IsValidIndex(i))
+            {
+                void* ElementPtr = SetHelper.GetElementPtr(i);
+                TSharedPtr<FJsonValue> ElementValue = SerializePropertyToJsonValue(ElementProperty, ElementPtr);
+                if (ElementValue.IsValid())
+                {
+                    JsonArray.Add(ElementValue);
+                }
+            }
+        }
+        
+        return MakeShared<FJsonValueArray>(JsonArray);
     }
     
-    // Default case - try to export as text
-    FString ExportedText;
-    Property->ExportTextItem(ExportedText, ValuePtr, nullptr, nullptr, PPF_None);
-    return MakeShareable(new FJsonValueString(ExportedText));
+    // Unsupported property type, convert to string (for debug purposes)
+    FString ValueString;
+    FPropertyAccessUtils::PropertyToString(Property, ValuePtr, ValueString, nullptr);
+    return MakeShared<FJsonValueString>(ValueString);
 }
 
-// Private helper to convert JSON value to property
+// Deserializes a JsonValue to a property
 bool USpacetimeDBJsonUtils::DeserializeJsonValueToProperty(FProperty* Property, void* ValuePtr, const TSharedPtr<FJsonValue>& JsonValue)
 {
     if (!Property || !ValuePtr || !JsonValue.IsValid())
@@ -616,177 +715,335 @@ bool USpacetimeDBJsonUtils::DeserializeJsonValueToProperty(FProperty* Property, 
         return false;
     }
     
+    // Handle null values
+    if (JsonValue->Type == EJson::Null)
+    {
+        Property->ClearValue(ValuePtr);
+        return true;
+    }
+    
+    // Boolean
     if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
     {
-        bool Value = false;
-        if (JsonValue->TryGetBool(Value))
+        if (JsonValue->Type == EJson::Boolean)
         {
-            BoolProperty->SetPropertyValue(ValuePtr, Value);
+            BoolProperty->SetPropertyValue(ValuePtr, JsonValue->AsBool());
             return true;
         }
     }
-    else if (FNumericProperty* NumericProperty = CastField<FNumericProperty>(Property))
+    // Byte
+    else if (FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
     {
-        // Handle numeric properties (int, float, etc.)
-        double DoubleValue;
-        if (JsonValue->TryGetNumber(DoubleValue))
+        if (ByteProperty->IsEnum())
         {
-            if (NumericProperty->IsFloatingPoint())
+            if (JsonValue->Type == EJson::String)
             {
-                NumericProperty->SetFloatingPointPropertyValue(ValuePtr, DoubleValue);
+                UEnum* Enum = ByteProperty->GetEnum();
+                int64 Value = Enum->GetValueByNameString(JsonValue->AsString());
+                if (Value != INDEX_NONE)
+                {
+                    ByteProperty->SetPropertyValue(ValuePtr, static_cast<uint8>(Value));
+                    return true;
+                }
             }
-            else
-            {
-                NumericProperty->SetIntPropertyValue(ValuePtr, static_cast<int64>(DoubleValue));
-            }
+        }
+        else if (JsonValue->Type == EJson::Number)
+        {
+            ByteProperty->SetPropertyValue(ValuePtr, static_cast<uint8>(JsonValue->AsNumber()));
             return true;
         }
     }
+    // Numbers
+    else if (FIntProperty* IntProperty = CastField<FIntProperty>(Property))
+    {
+        if (JsonValue->Type == EJson::Number)
+        {
+            IntProperty->SetPropertyValue(ValuePtr, static_cast<int32>(JsonValue->AsNumber()));
+            return true;
+        }
+    }
+    else if (FInt64Property* Int64Property = CastField<FInt64Property>(Property))
+    {
+        if (JsonValue->Type == EJson::Number)
+        {
+            Int64Property->SetPropertyValue(ValuePtr, static_cast<int64>(JsonValue->AsNumber()));
+            return true;
+        }
+    }
+    else if (FUInt32Property* UInt32Property = CastField<FUInt32Property>(Property))
+    {
+        if (JsonValue->Type == EJson::Number)
+        {
+            UInt32Property->SetPropertyValue(ValuePtr, static_cast<uint32>(JsonValue->AsNumber()));
+            return true;
+        }
+    }
+    else if (FUInt64Property* UInt64Property = CastField<FUInt64Property>(Property))
+    {
+        if (JsonValue->Type == EJson::Number)
+        {
+            UInt64Property->SetPropertyValue(ValuePtr, static_cast<uint64>(JsonValue->AsNumber()));
+            return true;
+        }
+    }
+    else if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
+    {
+        if (JsonValue->Type == EJson::Number)
+        {
+            FloatProperty->SetPropertyValue(ValuePtr, static_cast<float>(JsonValue->AsNumber()));
+            return true;
+        }
+    }
+    else if (FDoubleProperty* DoubleProperty = CastField<FDoubleProperty>(Property))
+    {
+        if (JsonValue->Type == EJson::Number)
+        {
+            DoubleProperty->SetPropertyValue(ValuePtr, JsonValue->AsNumber());
+            return true;
+        }
+    }
+    // String
     else if (FStrProperty* StringProperty = CastField<FStrProperty>(Property))
     {
-        FString Value;
-        if (JsonValue->TryGetString(Value))
+        if (JsonValue->Type == EJson::String)
         {
-            StringProperty->SetPropertyValue(ValuePtr, Value);
+            StringProperty->SetPropertyValue(ValuePtr, JsonValue->AsString());
             return true;
         }
     }
+    // Name
     else if (FNameProperty* NameProperty = CastField<FNameProperty>(Property))
     {
-        FString Value;
-        if (JsonValue->TryGetString(Value))
+        if (JsonValue->Type == EJson::String)
         {
-            NameProperty->SetPropertyValue(ValuePtr, FName(*Value));
+            NameProperty->SetPropertyValue(ValuePtr, FName(*JsonValue->AsString()));
             return true;
         }
     }
+    // Text
     else if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
     {
-        FString Value;
-        if (JsonValue->TryGetString(Value))
+        if (JsonValue->Type == EJson::String)
         {
-            TextProperty->SetPropertyValue(ValuePtr, FText::FromString(Value));
+            TextProperty->SetPropertyValue(ValuePtr, FText::FromString(JsonValue->AsString()));
             return true;
         }
     }
-    else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
-    {
-        const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-        if (JsonValue->TryGetArray(JsonArray))
-        {
-            FString JsonString;
-            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-            FJsonSerializer::Serialize(*JsonArray, Writer);
-            Writer->Close();
-            
-            return DeserializeJsonToArray(ArrayProperty, ValuePtr, JsonString);
-        }
-    }
-    else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
-    {
-        const TSharedPtr<FJsonObject>* JsonObject;
-        if (JsonValue->TryGetObject(JsonObject))
-        {
-            FString JsonString;
-            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-            FJsonSerializer::Serialize(*JsonObject, Writer);
-            Writer->Close();
-            
-            return DeserializeJsonToMap(MapProperty, ValuePtr, JsonString);
-        }
-    }
-    else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
-    {
-        const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-        if (JsonValue->TryGetArray(JsonArray))
-        {
-            FString JsonString;
-            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-            FJsonSerializer::Serialize(*JsonArray, Writer);
-            Writer->Close();
-            
-            return DeserializeJsonToSet(SetProperty, ValuePtr, JsonString);
-        }
-    }
+    // Struct
     else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
     {
-        UScriptStruct* ScriptStruct = StructProperty->Struct;
-        const TSharedPtr<FJsonObject>* JsonObject;
-        
-        // Special handling for common struct types
-        if (JsonValue->TryGetObject(JsonObject))
+        if (JsonValue->Type == EJson::Object)
         {
-            if (ScriptStruct == TBaseStructure<FVector>::Get())
+            // Handle common UE struct types
+            if (StructProperty->Struct->GetFName() == TEXT("Vector"))
             {
-                FVector* Vector = reinterpret_cast<FVector*>(ValuePtr);
-                return JsonToVector(*JsonObject, *Vector);
+                FVector* VectorPtr = static_cast<FVector*>(ValuePtr);
+                return JsonToVector(JsonValue->AsObject(), *VectorPtr);
             }
-            else if (ScriptStruct == TBaseStructure<FRotator>::Get())
+            else if (StructProperty->Struct->GetFName() == TEXT("Rotator"))
             {
-                FRotator* Rotator = reinterpret_cast<FRotator*>(ValuePtr);
-                return JsonToRotator(*JsonObject, *Rotator);
+                FRotator* RotatorPtr = static_cast<FRotator*>(ValuePtr);
+                return JsonToRotator(JsonValue->AsObject(), *RotatorPtr);
             }
-            else if (ScriptStruct == TBaseStructure<FTransform>::Get())
+            else if (StructProperty->Struct->GetFName() == TEXT("Transform"))
             {
-                FTransform* Transform = reinterpret_cast<FTransform*>(ValuePtr);
-                return JsonToTransform(*JsonObject, *Transform);
+                FTransform* TransformPtr = static_cast<FTransform*>(ValuePtr);
+                return JsonToTransform(JsonValue->AsObject(), *TransformPtr);
             }
+            // Generic struct deserialization
             else
             {
-                FString JsonString;
-                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
-                FJsonSerializer::Serialize(*JsonObject, Writer);
-                Writer->Close();
-                
-                return DeserializeJsonToStruct(ScriptStruct, ValuePtr, JsonString);
+                const TSharedPtr<FJsonObject>& JsonObject = JsonValue->AsObject();
+                for (TFieldIterator<FProperty> It(StructProperty->Struct); It; ++It)
+                {
+                    FProperty* SubProperty = *It;
+                    void* SubValuePtr = SubProperty->ContainerPtrToValuePtr<void>(ValuePtr);
+                    
+                    TSharedPtr<FJsonValue> SubJsonValue = JsonObject->TryGetField(SubProperty->GetName());
+                    if (SubJsonValue.IsValid())
+                    {
+                        DeserializeJsonValueToProperty(SubProperty, SubValuePtr, SubJsonValue);
+                    }
+                }
+                return true;
             }
         }
     }
+    // Enum
+    else if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+    {
+        if (JsonValue->Type == EJson::String)
+        {
+            UEnum* Enum = EnumProperty->GetEnum();
+            int64 Value = Enum->GetValueByNameString(JsonValue->AsString());
+            if (Value != INDEX_NONE)
+            {
+                void* UnderlyingValuePtr = EnumProperty->GetUnderlyingProperty()->ContainerPtrToValuePtr<void>(ValuePtr);
+                EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(UnderlyingValuePtr, Value);
+                return true;
+            }
+        }
+    }
+    // Object/Class references
     else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
     {
-        FString ObjectName;
-        if (JsonValue->TryGetString(ObjectName))
+        if (JsonValue->Type == EJson::String)
         {
-            // Find the object by name
-            UObject* TargetObject = nullptr;
-            
-            // First look for the object in the global package
-            TargetObject = FindObject<UObject>(ANY_PACKAGE, *ObjectName);
-            
-            // If not found and the property has a specific UClass, try to find by class
-            if (!TargetObject && ObjectProperty->PropertyClass)
+            // Find the object by path name
+            UObject* Object = FindFirstObject<UObject>(*JsonValue->AsString(), EFindFirstObjectOptions::None);
+            if (Object && Object->IsA(ObjectProperty->PropertyClass))
             {
-                TargetObject = FindObject<UObject>(ANY_PACKAGE, *ObjectName, false);
+                ObjectProperty->SetObjectPropertyValue(ValuePtr, Object);
+                return true;
+            }
+        }
+    }
+    else if (FClassProperty* ClassProperty = CastField<FClassProperty>(Property))
+    {
+        if (JsonValue->Type == EJson::String)
+        {
+            // Find the class by path name
+            UClass* Class = FindFirstObject<UClass>(*JsonValue->AsString(), EFindFirstObjectOptions::None);
+            if (Class && Class->IsChildOf(ClassProperty->MetaClass))
+            {
+                ClassProperty->SetObjectPropertyValue(ValuePtr, Class);
+                return true;
+            }
+        }
+    }
+    // Array
+    else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+    {
+        if (JsonValue->Type == EJson::Array)
+        {
+            FScriptArrayHelper ArrayHelper(ArrayProperty, ValuePtr);
+            ArrayHelper.EmptyValues();
+            
+            FProperty* InnerProperty = ArrayProperty->Inner;
+            const TArray<TSharedPtr<FJsonValue>>& JsonArray = JsonValue->AsArray();
+            
+            for (const TSharedPtr<FJsonValue>& ElementValue : JsonArray)
+            {
+                if (ElementValue.IsValid())
+                {
+                    const int32 NewIndex = ArrayHelper.AddValue();
+                    void* ElementPtr = ArrayHelper.GetRawPtr(NewIndex);
+                    DeserializeJsonValueToProperty(InnerProperty, ElementPtr, ElementValue);
+                }
             }
             
-            ObjectProperty->SetObjectPropertyValue(ValuePtr, TargetObject);
-            return TargetObject != nullptr;
+            return true;
+        }
+    }
+    // Map
+    else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
+    {
+        if (JsonValue->Type == EJson::Object)
+        {
+            FScriptMapHelper MapHelper(MapProperty, ValuePtr);
+            MapHelper.EmptyValues();
+            
+            FProperty* KeyProperty = MapProperty->KeyProp;
+            FProperty* ValueProperty = MapProperty->ValueProp;
+            
+            const TSharedPtr<FJsonObject>& JsonObject = JsonValue->AsObject();
+            for (const auto& Pair : JsonObject->Values)
+            {
+                void* TempKeyPtr = FMemory::Malloc(KeyProperty->GetSize(), KeyProperty->GetMinAlignment());
+                KeyProperty->InitializeValue(TempKeyPtr);
+                
+                FPropertyAccessUtils::StringToProperty(Pair.Key, KeyProperty, TempKeyPtr, nullptr);
+                
+                int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
+                void* KeyPtr = MapHelper.GetKeyPtr(Index);
+                void* ValuePtr = MapHelper.GetValuePtr(Index);
+                
+                KeyProperty->CopyCompleteValue(KeyPtr, TempKeyPtr);
+                DeserializeJsonValueToProperty(ValueProperty, ValuePtr, Pair.Value);
+                
+                KeyProperty->DestroyValue(TempKeyPtr);
+                FMemory::Free(TempKeyPtr);
+            }
+            
+            MapHelper.Rehash();
+            return true;
+        }
+    }
+    // Set
+    else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
+    {
+        if (JsonValue->Type == EJson::Array)
+        {
+            FScriptSetHelper SetHelper(SetProperty, ValuePtr);
+            SetHelper.EmptyElements();
+            
+            FProperty* ElementProperty = SetProperty->ElementProp;
+            const TArray<TSharedPtr<FJsonValue>>& JsonArray = JsonValue->AsArray();
+            
+            for (const TSharedPtr<FJsonValue>& ElementValue : JsonArray)
+            {
+                if (ElementValue.IsValid())
+                {
+                    void* TempElementPtr = FMemory::Malloc(ElementProperty->GetSize(), ElementProperty->GetMinAlignment());
+                    ElementProperty->InitializeValue(TempElementPtr);
+                    
+                    if (DeserializeJsonValueToProperty(ElementProperty, TempElementPtr, ElementValue))
+                    {
+                        SetHelper.AddElement(TempElementPtr);
+                    }
+                    
+                    ElementProperty->DestroyValue(TempElementPtr);
+                    FMemory::Free(TempElementPtr);
+                }
+            }
+            
+            return true;
         }
     }
     
-    // Default case - try to import as text
-    FString StringValue;
-    if (JsonValue->TryGetString(StringValue))
+    // Try generic string conversion for any property type as a fallback
+    if (JsonValue->Type == EJson::String)
     {
-        Property->ImportText(*StringValue, ValuePtr, PPF_None, nullptr);
-        return true;
+        const FString& StringValue = JsonValue->AsString();
+        return FPropertyAccessUtils::StringToProperty(StringValue, Property, ValuePtr, nullptr);
     }
     
     return false;
 }
 
-// Helper to convert JSON value to string
+// Converts a JsonValue to string
 FString USpacetimeDBJsonUtils::JsonValueToString(const TSharedPtr<FJsonValue>& JsonValue)
 {
     if (!JsonValue.IsValid())
     {
-        return TEXT("null");
+        return FString();
     }
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(JsonValue.ToSharedRef(), Writer);
-    Writer->Close();
     
+    if (JsonValue->Type == EJson::Object)
+    {
+        FJsonSerializer::Serialize(JsonValue->AsObject().ToSharedRef(), Writer);
+    }
+    else if (JsonValue->Type == EJson::Array)
+    {
+        FJsonSerializer::Serialize(JsonValue->AsArray(), Writer);
+    }
+    else
+    {
+        // For simple types like string, number, boolean
+        TArray<TSharedPtr<FJsonValue>> SingleValueArray;
+        SingleValueArray.Add(JsonValue);
+        FJsonSerializer::Serialize(SingleValueArray, Writer);
+        
+        // Extract just the single value from the array
+        if (OutputString.StartsWith(TEXT("[")) && OutputString.EndsWith(TEXT("]")))
+        {
+            OutputString = OutputString.Mid(1, OutputString.Len() - 2).TrimStartAndEnd();
+        }
+    }
+    
+    Writer->Close();
     return OutputString;
 }

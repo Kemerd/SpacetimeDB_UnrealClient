@@ -1679,8 +1679,10 @@ bool USpacetimeDBSubsystem::CallReducerHelper(const FString& ReducerName, const 
         return false;
     }
     
-    // Call the reducer function on the client
-    return Client.CallReducer(ReducerName, ArgsJson);
+    // Since CallReducer is not a const method, we need to cast away const-ness
+    // This is safe because CallReducer doesn't actually modify the client's state
+    USpacetimeDBSubsystem* MutableThis = const_cast<USpacetimeDBSubsystem*>(this);
+    return MutableThis->Client.CallReducer(ReducerName, ArgsJson);
 }
 
 bool USpacetimeDBSubsystem::CallServerFunctionOnObject(UObject* TargetObject, const FString& FunctionName, const TArray<FStdbRpcArg>& Args)

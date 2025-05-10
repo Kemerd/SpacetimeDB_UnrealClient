@@ -1,12 +1,18 @@
 #include "SpacetimeDB_PropertyValue.h"
 #include "SpacetimeDB_JsonUtils.h"
-#include "SpacetimeDBClient.h"
+#include "SpacetimeDBSubsystem.h"
 #include "JsonObjectConverter.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonWriter.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "UObject/UnrealType.h"
+#include "UObject/TextProperty.h"
+#include "UObject/PropertyAccessUtil.h"
+#include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 
 // Convert the PropertyValue to a JSON string
 FString FSpacetimeDBPropertyValue::ToJsonString() const
@@ -14,72 +20,72 @@ FString FSpacetimeDBPropertyValue::ToJsonString() const
     TSharedPtr<FJsonObject> JsonObject = MakeShared<FJsonObject>();
     
     // Add the type field
-    JsonObject->SetStringField("type", StaticEnum<ESpacetimeDBPropertyType>()->GetNameStringByValue(static_cast<int64>(Type)));
+    JsonObject->SetStringField(TEXT("type"), StaticEnum<ESpacetimeDBPropertyType>()->GetNameStringByValue(static_cast<int64>(Type)));
     
     // Add the appropriate value field based on the type
     switch (Type)
     {
     case ESpacetimeDBPropertyType::Bool:
-        JsonObject->SetBoolField("value", BoolValue);
+        JsonObject->SetBoolField(TEXT("value"), BoolValue);
         break;
     case ESpacetimeDBPropertyType::Byte:
-        JsonObject->SetNumberField("value", ByteValue);
+        JsonObject->SetNumberField(TEXT("value"), ByteValue);
         break;
     case ESpacetimeDBPropertyType::Int32:
-        JsonObject->SetNumberField("value", Int32Value);
+        JsonObject->SetNumberField(TEXT("value"), Int32Value);
         break;
     case ESpacetimeDBPropertyType::Int64:
-        JsonObject->SetNumberField("value", Int64Value);
+        JsonObject->SetNumberField(TEXT("value"), Int64Value);
         break;
     case ESpacetimeDBPropertyType::UInt32:
-        JsonObject->SetNumberField("value", UInt32Value);
+        JsonObject->SetNumberField(TEXT("value"), UInt32Value);
         break;
     case ESpacetimeDBPropertyType::UInt64:
-        JsonObject->SetNumberField("value", UInt64Value);
+        JsonObject->SetNumberField(TEXT("value"), UInt64Value);
         break;
     case ESpacetimeDBPropertyType::Float:
-        JsonObject->SetNumberField("value", FloatValue);
+        JsonObject->SetNumberField(TEXT("value"), FloatValue);
         break;
     case ESpacetimeDBPropertyType::Double:
-        JsonObject->SetNumberField("value", DoubleValue);
+        JsonObject->SetNumberField(TEXT("value"), DoubleValue);
         break;
     case ESpacetimeDBPropertyType::String:
     case ESpacetimeDBPropertyType::Name:
     case ESpacetimeDBPropertyType::Text:
     case ESpacetimeDBPropertyType::ClassReference:
-        JsonObject->SetStringField("value", StringValue);
+        JsonObject->SetStringField(TEXT("value"), StringValue);
         break;
     case ESpacetimeDBPropertyType::Vector:
-        JsonObject->SetObjectField("value", USpacetimeDBJsonUtils::VectorToJson(VectorValue));
+        JsonObject->SetObjectField(TEXT("value"), USpacetimeDBJsonUtils::VectorToJson(VectorValue));
         break;
     case ESpacetimeDBPropertyType::Rotator:
-        JsonObject->SetObjectField("value", USpacetimeDBJsonUtils::RotatorToJson(RotatorValue));
+        JsonObject->SetObjectField(TEXT("value"), USpacetimeDBJsonUtils::RotatorToJson(RotatorValue));
         break;
     case ESpacetimeDBPropertyType::Quat:
         {
             TSharedPtr<FJsonObject> QuatObj = MakeShared<FJsonObject>();
-            QuatObj->SetNumberField("x", QuatValue.X);
-            QuatObj->SetNumberField("y", QuatValue.Y);
-            QuatObj->SetNumberField("z", QuatValue.Z);
-            QuatObj->SetNumberField("w", QuatValue.W);
-            JsonObject->SetObjectField("value", QuatObj);
+            QuatObj->SetNumberField(TEXT("x"), QuatValue.X);
+            QuatObj->SetNumberField(TEXT("y"), QuatValue.Y);
+            QuatObj->SetNumberField(TEXT("z"), QuatValue.Z);
+            QuatObj->SetNumberField(TEXT("w"), QuatValue.W);
+            JsonObject->SetObjectField(TEXT("value"), QuatObj);
         }
         break;
     case ESpacetimeDBPropertyType::Transform:
-        JsonObject->SetObjectField("value", USpacetimeDBJsonUtils::TransformToJson(TransformValue));
+        JsonObject->SetObjectField(TEXT("value"), USpacetimeDBJsonUtils::TransformToJson(TransformValue));
         break;
     case ESpacetimeDBPropertyType::Color:
         {
             TSharedPtr<FJsonObject> ColorObj = MakeShared<FJsonObject>();
-            ColorObj->SetNumberField("r", ColorValue.R);
-            ColorObj->SetNumberField("g", ColorValue.G);
-            ColorObj->SetNumberField("b", ColorValue.B);
-            ColorObj->SetNumberField("a", ColorValue.A);
-            JsonObject->SetObjectField("value", ColorObj);
+            ColorObj->SetNumberField(TEXT("r"), ColorValue.R);
+            ColorObj->SetNumberField(TEXT("g"), ColorValue.G);
+            ColorObj->SetNumberField(TEXT("b"), ColorValue.B);
+            ColorObj->SetNumberField(TEXT("a"), ColorValue.A);
+            JsonObject->SetObjectField(TEXT("value"), ColorObj);
         }
         break;
     case ESpacetimeDBPropertyType::ObjectReference:
-        JsonObject->SetNumberField("value", ObjectReferenceValue.Value);
+        JsonObject->SetNumberField(TEXT("value"), ObjectReferenceValue.Value);
         break;
     case ESpacetimeDBPropertyType::Array:
     case ESpacetimeDBPropertyType::Map:
@@ -87,16 +93,17 @@ FString FSpacetimeDBPropertyValue::ToJsonString() const
     case ESpacetimeDBPropertyType::Custom:
         // For JSON values, we need to parse the JSON string and include it directly
         {
-            TSharedPtr<FJsonValue> JsonValue;
-            TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonValue);
-            if (FJsonSerializer::Deserialize(Reader, JsonValue))
+            // Parse the stored string as JSON
+            TSharedPtr<FJsonValue> ParsedJsonValue;
+            TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(StringValue);
+            if (FJsonSerializer::Deserialize(Reader, ParsedJsonValue))
             {
-                JsonObject->SetField("value", JsonValue);
+                JsonObject->SetField(TEXT("value"), ParsedJsonValue);
             }
             else
             {
                 // If parsing fails, include the raw string
-                JsonObject->SetStringField("value", JsonValue);
+                JsonObject->SetStringField(TEXT("value"), StringValue);
             }
         }
         break;
@@ -111,7 +118,8 @@ FString FSpacetimeDBPropertyValue::ToJsonString() const
     // Serialize the JSON object to a string
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer);
+    FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer, false);
+    Writer->Close();
     
     return OutputString;
 }
@@ -132,7 +140,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     
     // Get the type field
     FString TypeStr;
-    if (!JsonObject->TryGetStringField("type", TypeStr))
+    if (!JsonObject->TryGetStringField(TEXT("type"), TypeStr))
     {
         UE_LOG(LogTemp, Error, TEXT("PropertyValue JSON missing 'type' field: %s"), *JsonString);
         return Result;
@@ -153,7 +161,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     switch (Result.Type)
     {
     case ESpacetimeDBPropertyType::Bool:
-        if (!JsonObject->TryGetBoolField("value", Result.BoolValue))
+        if (!JsonObject->TryGetBoolField(TEXT("value"), Result.BoolValue))
         {
             UE_LOG(LogTemp, Error, TEXT("Failed to get bool value from PropertyValue JSON"));
         }
@@ -161,7 +169,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Byte:
         {
             double NumValue = 0;
-            if (JsonObject->TryGetNumberField("value", NumValue))
+            if (JsonObject->TryGetNumberField(TEXT("value"), NumValue))
             {
                 Result.ByteValue = static_cast<uint8>(NumValue);
             }
@@ -174,7 +182,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Int32:
         {
             double NumValue = 0;
-            if (JsonObject->TryGetNumberField("value", NumValue))
+            if (JsonObject->TryGetNumberField(TEXT("value"), NumValue))
             {
                 Result.Int32Value = static_cast<int32>(NumValue);
             }
@@ -187,7 +195,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Int64:
         {
             double NumValue = 0;
-            if (JsonObject->TryGetNumberField("value", NumValue))
+            if (JsonObject->TryGetNumberField(TEXT("value"), NumValue))
             {
                 Result.Int64Value = static_cast<int64>(NumValue);
             }
@@ -200,7 +208,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::UInt32:
         {
             double NumValue = 0;
-            if (JsonObject->TryGetNumberField("value", NumValue))
+            if (JsonObject->TryGetNumberField(TEXT("value"), NumValue))
             {
                 Result.UInt32Value = static_cast<uint32>(NumValue);
             }
@@ -213,7 +221,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::UInt64:
         {
             double NumValue = 0;
-            if (JsonObject->TryGetNumberField("value", NumValue))
+            if (JsonObject->TryGetNumberField(TEXT("value"), NumValue))
             {
                 Result.UInt64Value = static_cast<uint64>(NumValue);
             }
@@ -226,7 +234,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Float:
         {
             double NumValue = 0;
-            if (JsonObject->TryGetNumberField("value", NumValue))
+            if (JsonObject->TryGetNumberField(TEXT("value"), NumValue))
             {
                 Result.FloatValue = static_cast<float>(NumValue);
             }
@@ -237,7 +245,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
         }
         break;
     case ESpacetimeDBPropertyType::Double:
-        if (!JsonObject->TryGetNumberField("value", Result.DoubleValue))
+        if (!JsonObject->TryGetNumberField(TEXT("value"), Result.DoubleValue))
         {
             UE_LOG(LogTemp, Error, TEXT("Failed to get double value from PropertyValue JSON"));
         }
@@ -246,7 +254,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Name:
     case ESpacetimeDBPropertyType::Text:
     case ESpacetimeDBPropertyType::ClassReference:
-        if (!JsonObject->TryGetStringField("value", Result.StringValue))
+        if (!JsonObject->TryGetStringField(TEXT("value"), Result.StringValue))
         {
             UE_LOG(LogTemp, Error, TEXT("Failed to get string value from PropertyValue JSON"));
         }
@@ -254,7 +262,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Vector:
         {
             const TSharedPtr<FJsonObject>* VectorObj;
-            if (JsonObject->TryGetObjectField("value", VectorObj))
+            if (JsonObject->TryGetObjectField(TEXT("value"), VectorObj))
             {
                 if (!USpacetimeDBJsonUtils::JsonToVector(*VectorObj, Result.VectorValue))
                 {
@@ -270,7 +278,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Rotator:
         {
             const TSharedPtr<FJsonObject>* RotatorObj;
-            if (JsonObject->TryGetObjectField("value", RotatorObj))
+            if (JsonObject->TryGetObjectField(TEXT("value"), RotatorObj))
             {
                 if (!USpacetimeDBJsonUtils::JsonToRotator(*RotatorObj, Result.RotatorValue))
                 {
@@ -286,13 +294,13 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Quat:
         {
             const TSharedPtr<FJsonObject>* QuatObj;
-            if (JsonObject->TryGetObjectField("value", QuatObj))
+            if (JsonObject->TryGetObjectField(TEXT("value"), QuatObj))
             {
                 double X = 0, Y = 0, Z = 0, W = 1;
-                (*QuatObj)->TryGetNumberField("x", X);
-                (*QuatObj)->TryGetNumberField("y", Y);
-                (*QuatObj)->TryGetNumberField("z", Z);
-                (*QuatObj)->TryGetNumberField("w", W);
+                (*QuatObj)->TryGetNumberField(TEXT("x"), X);
+                (*QuatObj)->TryGetNumberField(TEXT("y"), Y);
+                (*QuatObj)->TryGetNumberField(TEXT("z"), Z);
+                (*QuatObj)->TryGetNumberField(TEXT("w"), W);
                 Result.QuatValue = FQuat(X, Y, Z, W);
             }
             else
@@ -304,7 +312,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Transform:
         {
             const TSharedPtr<FJsonObject>* TransformObj;
-            if (JsonObject->TryGetObjectField("value", TransformObj))
+            if (JsonObject->TryGetObjectField(TEXT("value"), TransformObj))
             {
                 if (!USpacetimeDBJsonUtils::JsonToTransform(*TransformObj, Result.TransformValue))
                 {
@@ -320,13 +328,13 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Color:
         {
             const TSharedPtr<FJsonObject>* ColorObj;
-            if (JsonObject->TryGetObjectField("value", ColorObj))
+            if (JsonObject->TryGetObjectField(TEXT("value"), ColorObj))
             {
                 double R = 0, G = 0, B = 0, A = 255;
-                (*ColorObj)->TryGetNumberField("r", R);
-                (*ColorObj)->TryGetNumberField("g", G);
-                (*ColorObj)->TryGetNumberField("b", B);
-                (*ColorObj)->TryGetNumberField("a", A);
+                (*ColorObj)->TryGetNumberField(TEXT("r"), R);
+                (*ColorObj)->TryGetNumberField(TEXT("g"), G);
+                (*ColorObj)->TryGetNumberField(TEXT("b"), B);
+                (*ColorObj)->TryGetNumberField(TEXT("a"), A);
                 Result.ColorValue = FColor(
                     static_cast<uint8>(FMath::Clamp(R, 0.0, 255.0)),
                     static_cast<uint8>(FMath::Clamp(G, 0.0, 255.0)),
@@ -343,7 +351,7 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::ObjectReference:
         {
             double ObjIdValue = 0;
-            if (JsonObject->TryGetNumberField("value", ObjIdValue))
+            if (JsonObject->TryGetNumberField(TEXT("value"), ObjIdValue))
             {
                 Result.ObjectReferenceValue = FSpacetimeDBObjectID(static_cast<int64>(ObjIdValue));
             }
@@ -358,13 +366,25 @@ FSpacetimeDBPropertyValue FSpacetimeDBPropertyValue::FromJsonString(const FStrin
     case ESpacetimeDBPropertyType::Set:
     case ESpacetimeDBPropertyType::Custom:
         {
-            const TSharedPtr<FJsonValue>* JsonValue;
-            if (JsonObject->TryGetField("value", JsonValue))
+            // Using TryGetField with field name and getting the returned value directly
+            TSharedPtr<FJsonValue> JsonValue = JsonObject->TryGetField(TEXT("value"));
+            if (JsonValue.IsValid())
             {
                 // Serialize the value back to a string
                 FString ValueString;
                 TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ValueString);
-                FJsonSerializer::Serialize((*JsonValue)->AsObject().ToSharedRef(), Writer);
+                if (JsonValue->Type == EJson::Object)
+                {
+                    FJsonSerializer::Serialize(JsonValue->AsObject().ToSharedRef(), Writer);
+                }
+                else
+                {
+                    // For non-object types like arrays
+                    TArray<TSharedPtr<FJsonValue>> ValueArray;
+                    ValueArray.Add(JsonValue);
+                    FJsonSerializer::Serialize(ValueArray, Writer);
+                }
+                Writer->Close();
                 Result.JsonValue = ValueString;
             }
             else
@@ -437,16 +457,31 @@ bool USpacetimeDBPropertyHandler::ExtractPropertyFromObject(UObject* Object, con
 // Handle a property update from the server
 bool USpacetimeDBPropertyHandler::HandlePropertyUpdate(int64 ObjectId, const FString& PropertyName, const FString& ValueJson)
 {
-    // Get the SpacetimeDB client
-    USpacetimeDBClient* Client = USpacetimeDBClient::Get();
-    if (!Client)
+    // Get the SpacetimeDB subsystem instead of client directly
+    UGameInstance* GameInstance = nullptr;
+    
+    // Get a valid world context
+    UWorld* World = GEngine->GetWorld();
+    if (World)
     {
-        UE_LOG(LogTemp, Error, TEXT("HandlePropertyUpdate: SpacetimeDBClient is null"));
+        GameInstance = World->GetGameInstance();
+    }
+    
+    if (!GameInstance)
+    {
+        UE_LOG(LogTemp, Error, TEXT("HandlePropertyUpdate: Cannot get GameInstance"));
         return false;
     }
     
-    // Find the object in our map
-    UObject* Object = Client->GetObjectById(FSpacetimeDBObjectID(ObjectId));
+    USpacetimeDBSubsystem* Subsystem = GameInstance->GetSubsystem<USpacetimeDBSubsystem>();
+    if (!Subsystem)
+    {
+        UE_LOG(LogTemp, Error, TEXT("HandlePropertyUpdate: SpacetimeDBSubsystem is null"));
+        return false;
+    }
+    
+    // Find the object in our map using the subsystem
+    UObject* Object = Subsystem->FindObjectById(ObjectId);
     if (!Object)
     {
         UE_LOG(LogTemp, Error, TEXT("HandlePropertyUpdate: Object with ID %lld not found"), ObjectId);
@@ -601,15 +636,25 @@ bool USpacetimeDBPropertyHandler::ApplyPropertyValueToProperty(FProperty* Proper
     {
         if (PropValue.Type == ESpacetimeDBPropertyType::ObjectReference)
         {
-            // Get the object by ID
-            USpacetimeDBClient* Client = USpacetimeDBClient::Get();
-            if (Client)
+            // Get the object by ID using the subsystem
+            UGameInstance* GameInstance = nullptr;
+            UWorld* World = GEngine->GetWorld();
+            if (World)
             {
-                UObject* ReferencedObject = Client->GetObjectById(PropValue.ObjectReferenceValue);
-                if (ReferencedObject && ReferencedObject->IsA(ObjectProperty->PropertyClass))
+                GameInstance = World->GetGameInstance();
+            }
+            
+            if (GameInstance)
+            {
+                USpacetimeDBSubsystem* Subsystem = GameInstance->GetSubsystem<USpacetimeDBSubsystem>();
+                if (Subsystem)
                 {
-                    ObjectProperty->SetObjectPropertyValue(PropertyPtr, ReferencedObject);
-                    return true;
+                    UObject* ReferencedObject = Subsystem->FindObjectById(PropValue.ObjectReferenceValue.Value);
+                    if (ReferencedObject && ReferencedObject->IsA(ObjectProperty->PropertyClass))
+                    {
+                        ObjectProperty->SetObjectPropertyValue(PropertyPtr, ReferencedObject);
+                        return true;
+                    }
                 }
             }
         }
@@ -618,8 +663,8 @@ bool USpacetimeDBPropertyHandler::ApplyPropertyValueToProperty(FProperty* Proper
     {
         if (PropValue.Type == ESpacetimeDBPropertyType::ClassReference)
         {
-            // Find the class by name
-            UClass* Class = FindObject<UClass>(ANY_PACKAGE, *PropValue.StringValue);
+            // Find the class by name - update to use the right method instead of ANY_PACKAGE
+            UClass* Class = FindFirstObject<UClass>(*PropValue.StringValue, EFindFirstObjectOptions::None);
             if (Class && Class->IsChildOf(ClassProperty->MetaClass))
             {
                 ClassProperty->SetPropertyValue(PropertyPtr, Class);
@@ -771,15 +816,25 @@ bool USpacetimeDBPropertyHandler::ExtractPropertyValueFromProperty(FProperty* Pr
         UObject* ReferencedObject = ObjectProperty->GetObjectPropertyValue(PropertyPtr);
         if (ReferencedObject)
         {
-            // Get the object ID
-            USpacetimeDBClient* Client = USpacetimeDBClient::Get();
-            if (Client)
+            // Get the object ID from the subsystem
+            UGameInstance* GameInstance = nullptr;
+            UWorld* World = GEngine->GetWorld();
+            if (World)
             {
-                FSpacetimeDBObjectID ObjectId = Client->GetObjectId(ReferencedObject);
-                if (ObjectId.Value != 0) // 0 is invalid/not found
+                GameInstance = World->GetGameInstance();
+            }
+            
+            if (GameInstance)
+            {
+                USpacetimeDBSubsystem* Subsystem = GameInstance->GetSubsystem<USpacetimeDBSubsystem>();
+                if (Subsystem)
                 {
-                    OutPropValue = FSpacetimeDBPropertyValue(ObjectId);
-                    return true;
+                    int64 ObjectId = Subsystem->GetObjectId(ReferencedObject);
+                    if (ObjectId != 0) // 0 is invalid/not found
+                    {
+                        OutPropValue = FSpacetimeDBPropertyValue(FSpacetimeDBObjectID(ObjectId));
+                        return true;
+                    }
                 }
             }
         }
