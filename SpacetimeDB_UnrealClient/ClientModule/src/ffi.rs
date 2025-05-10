@@ -127,8 +127,12 @@ fn invoke_on_error(cb_ptr: usize, error_message: &str) {
 #[cxx::bridge]
 mod ffi {
     // External C++ types
-    extern "C++" {
+    unsafe extern "C++" {
         include!("UnrealReplication.h");
+        include!("bridge.h");
+        
+        // Add the make_unique_string function from our bridge.h
+        fn make_unique_string(s: &str) -> UniquePtr<CxxString>;
     }
     
     // Rust types exposed to C++
@@ -893,9 +897,6 @@ fn dispatch_unreliable_rpc(object_id: u64, function_name: &CxxString, params: &C
 // For each UniquePtr::new() call, we need to add a CxxString parameter
 // Here's a helper function to create a new CxxString in a UniquePtr
 fn create_cxx_string(s: &str) -> UniquePtr<CxxString> {
-    // In cxx, we must create the CxxString through FFI from the C++ side
-    // This ensures the memory is properly managed
-    // The constructor below is properly defined in cxx::bridge
-    cxx::let_cxx_string!(result = s);
-    result.into(); // this needs to be changed as it is not a UniquePtr
+    // Use the C++ helper function to properly allocate the string on the C++ heap
+    ffi::make_unique_string(s)
 } 
