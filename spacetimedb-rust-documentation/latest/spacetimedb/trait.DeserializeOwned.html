@@ -1,0 +1,365 @@
+<!DOCTYPE html><html lang="en">
+<!-- Mirrored from docs.rs/spacetimedb/latest/spacetimedb/trait.DeserializeOwned.html by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 10 May 2025 00:22:27 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=utf-8" /><!-- /Added by HTTrack -->
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A data structure that can be deserialized in SATS without borrowing any data from the deserializer."><title>DeserializeOwned in spacetimedb - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="/-/rustdoc.static/${f}">`).join(""))</script><link rel="stylesheet" href="../../../-/rustdoc.static/normalize-9960930a.css"><link rel="stylesheet" href="../../../-/static/vendored80a2.css?0-6-0-f7595057-2025-05-09" media="all" /><link rel="stylesheet" href="../../../-/rustdoc.static/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="/-/rustdoc.static/" data-current-crate="spacetimedb" data-themes="" data-resource-suffix="-20250508-1.88.0-nightly-50aa04180" data-rustdoc-version="1.88.0-nightly (50aa04180 2025-05-08)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../../-/rustdoc.static/storage-4e99c027.js"></script><script defer src="sidebar-items-20250508-1.88.0-nightly-50aa04180.js"></script><script defer src="../../../-/rustdoc.static/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../../-/rustdoc.static/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../-/rustdoc.static/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="https://docs.rs/-/rustdoc.static/favicon-044be391.svg"><link rel="stylesheet" href="../../../-/static/rustdoc-2021-12-0580a2.css?0-6-0-f7595057-2025-05-09" media="all" /><link rel="stylesheet" href="../../../-/static/font-awesome80a2.css?0-6-0-f7595057-2025-05-09" media="all" />
+
+        <link rel="search" href="https://docs.rs/-/static/opensearch.xml" type="application/opensearchdescription+xml" title="Docs.rs" />
+
+        <script type="text/javascript">(function() {
+    function applyTheme(theme) {
+        if (theme) {
+            document.documentElement.dataset.docsRsTheme = theme;
+        }
+    }
+
+    window.addEventListener("storage", ev => {
+        if (ev.key === "rustdoc-theme") {
+            applyTheme(ev.newValue);
+        }
+    });
+
+    // see ./storage-change-detection.html for details
+    window.addEventListener("message", ev => {
+        if (ev.data && ev.data.storage && ev.data.storage.key === "rustdoc-theme") {
+            applyTheme(ev.data.storage.value);
+        }
+    });
+
+    applyTheme(window.localStorage.getItem("rustdoc-theme"));
+})();</script></head><body class="rustdoc-page">
+<div class="nav-container">
+    <div class="container">
+        <div class="pure-menu pure-menu-horizontal" role="navigation" aria-label="Main navigation">
+            <form action="https://docs.rs/releases/search"
+                  method="GET"
+                  id="nav-search-form"
+                  class="landing-search-form-nav  ">
+
+                
+                <a href="https://docs.rs/" class="pure-menu-heading pure-menu-link docsrs-logo" aria-label="Docs.rs">
+                    <span title="Docs.rs"><span class="fa fa-solid fa-cubes " aria-hidden="true"></span></span>
+                    <span class="title">Docs.rs</span>
+                </a><ul class="pure-menu-list">
+    <script id="crate-metadata" type="application/json">
+        
+        {
+            "name": "spacetimedb",
+            "version": "1.1.2"
+        }
+    </script><li class="pure-menu-item pure-menu-has-children">
+            <a href="#" class="pure-menu-link crate-name" title="Easy support for interacting between SpacetimeDB and Rust.">
+                <span class="fa fa-solid fa-cube " aria-hidden="true"></span>
+                <span class="title">spacetimedb-1.1.2</span>
+            </a><div class="pure-menu-children package-details-menu">
+                
+                <ul class="pure-menu-list menu-item-divided">
+                    <li class="pure-menu-heading" id="crate-title">
+                        spacetimedb 1.1.2
+                        <span id="clipboard" class="svg-clipboard" title="Copy crate name and version information"></span>
+                    </li><li class="pure-menu-item">
+                        <a href="../../1.1.2/spacetimedb/trait.DeserializeOwned.html" class="pure-menu-link description" id="permalink" title="Get a link to this specific version">
+                            <span class="fa fa-solid fa-link " aria-hidden="true"></span> Permalink
+                        </a>
+                    </li><li class="pure-menu-item">
+                        <a href="https://docs.rs/crate/spacetimedb/latest" class="pure-menu-link description" title="See spacetimedb in docs.rs">
+                            <span class="fa fa-solid fa-cube " aria-hidden="true"></span> Docs.rs crate page
+                        </a>
+                    </li></ul>
+
+                <div class="pure-g menu-item-divided">
+                    <div class="pure-u-1-2 right-border">
+                        <ul class="pure-menu-list">
+                            <li class="pure-menu-heading">Links</li>
+
+                            <li class="pure-menu-item">
+                                <a href="https://crates.io/crates/spacetimedb" class="pure-menu-link" title="See spacetimedb in crates.io">
+                                    <span class="fa fa-solid fa-cube " aria-hidden="true"></span> crates.io
+                                </a>
+                            </li>
+
+                            
+                            <li class="pure-menu-item">
+                                <a href="https://docs.rs/crate/spacetimedb/latest/source/" title="Browse source of spacetimedb-1.1.2" class="pure-menu-link">
+                                    <span class="fa fa-solid fa-folder-open " aria-hidden="true"></span> Source
+                                </a>
+                            </li>
+                        </ul>
+                    </div><div class="pure-u-1-2">
+                        <ul class="pure-menu-list" id="topbar-owners">
+                            <li class="pure-menu-heading">Owners</li><li class="pure-menu-item">
+                                    <a href="https://crates.io/users/cloutiertyler" class="pure-menu-link">
+                                        <span class="fa fa-solid fa-user " aria-hidden="true"></span> cloutiertyler
+                                    </a>
+                                </li><li class="pure-menu-item">
+                                    <a href="https://crates.io/users/jdetter" class="pure-menu-link">
+                                        <span class="fa fa-solid fa-user " aria-hidden="true"></span> jdetter
+                                    </a>
+                                </li><li class="pure-menu-item">
+                                    <a href="https://crates.io/users/bfops" class="pure-menu-link">
+                                        <span class="fa fa-solid fa-user " aria-hidden="true"></span> bfops
+                                    </a>
+                                </li></ul>
+                    </div>
+                </div>
+
+                <div class="pure-g menu-item-divided">
+                    <div class="pure-u-1-2 right-border">
+                        <ul class="pure-menu-list">
+                            <li class="pure-menu-heading">Dependencies</li>
+
+                            
+                            <li class="pure-menu-item">
+                                <div class="pure-menu pure-menu-scrollable sub-menu" tabindex="-1">
+                                    <ul class="pure-menu-list">
+                                        
+    <li class="pure-menu-item"><a href="https://docs.rs/bytemuck/^1.16.2" class="pure-menu-link">
+                        bytemuck ^1.16.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/derive_more/^0.99" class="pure-menu-link">
+                        derive_more ^0.99
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/getrandom/^0.2" class="pure-menu-link">
+                        getrandom ^0.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                                <i>optional</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/log/^0.4.17" class="pure-menu-link">
+                        log ^0.4.17
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/rand/^0.8" class="pure-menu-link">
+                        rand ^0.8
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                                <i>optional</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/scoped-tls/^1.0.1" class="pure-menu-link">
+                        scoped-tls ^1.0.1
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/spacetimedb-bindings-macro/^1.1.2" class="pure-menu-link">
+                        spacetimedb-bindings-macro ^1.1.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/spacetimedb-bindings-sys/^1.1.2" class="pure-menu-link">
+                        spacetimedb-bindings-sys ^1.1.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/spacetimedb-lib/^1.1.2" class="pure-menu-link">
+                        spacetimedb-lib ^1.1.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/spacetimedb-primitives/^1.1.2" class="pure-menu-link">
+                        spacetimedb-primitives ^1.1.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/insta/^1.21.0" class="pure-menu-link">
+                        insta ^1.21.0
+                        
+                            <i class="dependencies dev">dev</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/trybuild/^1" class="pure-menu-link">
+                        trybuild ^1
+                        
+                            <i class="dependencies dev">dev</i>
+                            
+                        
+                    </a>
+                </li>
+            
+
+                                    </ul>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="pure-u-1-2">
+                        <ul class="pure-menu-list">
+                            <li class="pure-menu-heading">Versions</li>
+
+                            <li class="pure-menu-item">
+                                <div class="pure-menu pure-menu-scrollable sub-menu" id="releases-list" tabindex="-1" data-url="/crate/spacetimedb/latest/menus/releases/x86_64-unknown-linux-gnu/spacetimedb/trait.DeserializeOwned.html">
+                                    <span class="rotate"><span class="fa fa-solid fa-spinner " aria-hidden="true"></span></span>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                    
+                    
+                    <div class="pure-g">
+                        <div class="pure-u-1">
+                            <ul class="pure-menu-list">
+                                <li>
+                                    <a href="https://docs.rs/crate/spacetimedb/latest" class="pure-menu-link">
+                                        <b>87.88%</b>
+                                        of the crate is documented
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div></div>
+        </li><li class="pure-menu-item pure-menu-has-children">
+                <a href="#" class="pure-menu-link" aria-label="Platform">
+                    <span class="fa fa-solid fa-gears " aria-hidden="true"></span>
+                    <span class="title">Platform</span>
+                </a>
+
+                
+                <ul class="pure-menu-children" id="platforms" data-url="/crate/spacetimedb/latest/menus/platforms/x86_64-unknown-linux-gnu/spacetimedb/trait.DeserializeOwned.html"><li class="pure-menu-item">
+            <a href="https://docs.rs/crate/spacetimedb/latest/target-redirect/i686-pc-windows-msvc/spacetimedb/trait.DeserializeOwned.html" class="pure-menu-link" data-fragment="retain" rel="nofollow">i686-pc-windows-msvc</a>
+        </li><li class="pure-menu-item">
+            <a href="https://docs.rs/crate/spacetimedb/latest/target-redirect/i686-unknown-linux-gnu/spacetimedb/trait.DeserializeOwned.html" class="pure-menu-link" data-fragment="retain" rel="nofollow">i686-unknown-linux-gnu</a>
+        </li><li class="pure-menu-item">
+            <a href="https://docs.rs/crate/spacetimedb/latest/target-redirect/x86_64-unknown-linux-gnu/spacetimedb/trait.DeserializeOwned.html" class="pure-menu-link current" data-fragment="retain" rel="nofollow">x86_64-unknown-linux-gnu</a>
+        </li></ul>
+            </li><li class="pure-menu-item">
+                <a href="https://docs.rs/crate/spacetimedb/latest/features" title="Browse available feature flags of spacetimedb-1.1.2" class="pure-menu-link">
+                    <span class="fa fa-solid fa-flag " aria-hidden="true"></span>
+                    <span class="title">Feature flags</span>
+                </a>
+            </li>
+        
+    
+</ul><div class="spacer"></div>
+                
+                
+
+<ul class="pure-menu-list">
+                    <li class="pure-menu-item pure-menu-has-children">
+                        <a href="#" class="pure-menu-link" aria-label="Rust">Rust</a>
+                        <ul class="pure-menu-children">
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://docs.rs/about" >
+            About docs.rs
+        </a>
+    </li>
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://foundation.rust-lang.org/policies/privacy-policy/#docs.rs" target="_blank">
+            Privacy policy
+        </a>
+    </li>
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://www.rust-lang.org/" target="_blank">
+            Rust website
+        </a>
+    </li>
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/book/" target="_blank">
+            The Book
+        </a>
+    </li>
+
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/std/" target="_blank">
+            Standard Library API Reference
+        </a>
+    </li>
+
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/rust-by-example/" target="_blank">
+            Rust by Example
+        </a>
+    </li>
+
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/cargo/guide/" target="_blank">
+            The Cargo Guide
+        </a>
+    </li>
+
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/nightly/clippy" target="_blank">
+            Clippy Documentation
+        </a>
+    </li>
+
+                        </ul>
+                    </li>
+                </ul>
+                
+                <div id="search-input-nav">
+                    <label for="nav-search">
+                        <span class="fa fa-solid fa-magnifying-glass " aria-hidden="true"></span>
+                    </label>
+
+                    
+                    
+                    <input id="nav-search" name="query" type="text" aria-label="Find crate by search query" tabindex="-1"
+                        placeholder="Find crate"
+                        >
+                </div>
+            </form>
+        </div>
+    </div>
+</div><div class="rustdoc trait container-rustdoc" id="rustdoc_body_wrapper" tabindex="-1"><script async src="../../../-/static/menu80a2.js?0-6-0-f7595057-2025-05-09"></script>
+<script async src="../../../-/static/index80a2.js?0-6-0-f7595057-2025-05-09"></script>
+
+<iframe src="https://docs.rs/-/storage-change-detection.html" width="0" height="0" style="display: none"></iframe><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="index-2.html">spacetimedb</a><span class="version">1.1.2</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Deserialize<wbr>Owned</a></h2><h3><a href="#dyn-compatibility">Dyn Compatibility</a></h3><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index-2.html">In crate spacetimedb</a></h2></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index-2.html">spacetimedb</a></div><h1>Trait <span class="trait">DeserializeOwned</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="https://docs.rs/spacetimedb-sats/1.1.2/x86_64-unknown-linux-gnu/src/spacetimedb_sats/de.rs.html#587">Source</a> </span></div><pre class="rust item-decl"><code>pub trait DeserializeOwned: for&lt;'de&gt; <a class="trait" href="trait.Deserialize.html" title="trait spacetimedb::Deserialize">Deserialize</a>&lt;'de&gt; { }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A data structure that can be deserialized in SATS
+without borrowing any data from the deserializer.</p>
+</div></details><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait is <b>not</b> <a href="https://doc.rust-lang.org/nightly/reference/items/traits.html#dyn-compatibility">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety", so this trait is not object safe.</i></p></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-DeserializeOwned-for-T" class="impl"><a class="src rightside" href="https://docs.rs/spacetimedb-sats/1.1.2/x86_64-unknown-linux-gnu/src/spacetimedb_sats/de.rs.html#588">Source</a><a href="#impl-DeserializeOwned-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="trait.DeserializeOwned.html" title="trait spacetimedb::DeserializeOwned">DeserializeOwned</a> for T<div class="where">where
+    T: for&lt;'de&gt; <a class="trait" href="trait.Deserialize.html" title="trait spacetimedb::Deserialize">Deserialize</a>&lt;'de&gt;,</div></h3></section></div><script src="../trait.impl/spacetimedb_sats/de/trait.DeserializeOwned.js" async></script></section></div></main></div></body>
+<!-- Mirrored from docs.rs/spacetimedb/latest/spacetimedb/trait.DeserializeOwned.html by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 10 May 2025 00:22:28 GMT -->
+</html>

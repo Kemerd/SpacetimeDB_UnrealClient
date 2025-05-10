@@ -1,0 +1,781 @@
+<!DOCTYPE html><html lang="en">
+<!-- Mirrored from docs.rs/spacetimedb/latest/spacetimedb/ by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 10 May 2025 00:22:01 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=utf-8" /><!-- /Added by HTTrack -->
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="SpacetimeDB Rust Module Library"><title>spacetimedb - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="/-/rustdoc.static/${f}">`).join(""))</script><link rel="stylesheet" href="../../../-/rustdoc.static/normalize-9960930a.css"><link rel="stylesheet" href="../../../-/static/vendored80a2.css?0-6-0-f7595057-2025-05-09" media="all" /><link rel="stylesheet" href="../../../-/rustdoc.static/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="/-/rustdoc.static/" data-current-crate="spacetimedb" data-themes="" data-resource-suffix="-20250508-1.88.0-nightly-50aa04180" data-rustdoc-version="1.88.0-nightly (50aa04180 2025-05-08)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../../-/rustdoc.static/storage-4e99c027.js"></script><script defer src="../crates-20250508-1.88.0-nightly-50aa04180.js"></script><script defer src="../../../-/rustdoc.static/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../../-/rustdoc.static/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../-/rustdoc.static/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="https://docs.rs/-/rustdoc.static/favicon-044be391.svg"><link rel="stylesheet" href="../../../-/static/rustdoc-2021-12-0580a2.css?0-6-0-f7595057-2025-05-09" media="all" /><link rel="stylesheet" href="../../../-/static/font-awesome80a2.css?0-6-0-f7595057-2025-05-09" media="all" />
+
+        <link rel="search" href="https://docs.rs/-/static/opensearch.xml" type="application/opensearchdescription+xml" title="Docs.rs" />
+
+        <script type="text/javascript">(function() {
+    function applyTheme(theme) {
+        if (theme) {
+            document.documentElement.dataset.docsRsTheme = theme;
+        }
+    }
+
+    window.addEventListener("storage", ev => {
+        if (ev.key === "rustdoc-theme") {
+            applyTheme(ev.newValue);
+        }
+    });
+
+    // see ./storage-change-detection.html for details
+    window.addEventListener("message", ev => {
+        if (ev.data && ev.data.storage && ev.data.storage.key === "rustdoc-theme") {
+            applyTheme(ev.data.storage.value);
+        }
+    });
+
+    applyTheme(window.localStorage.getItem("rustdoc-theme"));
+})();</script></head><body class="rustdoc-page">
+<div class="nav-container">
+    <div class="container">
+        <div class="pure-menu pure-menu-horizontal" role="navigation" aria-label="Main navigation">
+            <form action="https://docs.rs/releases/search"
+                  method="GET"
+                  id="nav-search-form"
+                  class="landing-search-form-nav  ">
+
+                
+                <a href="https://docs.rs/" class="pure-menu-heading pure-menu-link docsrs-logo" aria-label="Docs.rs">
+                    <span title="Docs.rs"><span class="fa fa-solid fa-cubes " aria-hidden="true"></span></span>
+                    <span class="title">Docs.rs</span>
+                </a><ul class="pure-menu-list">
+    <script id="crate-metadata" type="application/json">
+        
+        {
+            "name": "spacetimedb",
+            "version": "1.1.2"
+        }
+    </script><li class="pure-menu-item pure-menu-has-children">
+            <a href="#" class="pure-menu-link crate-name" title="Easy support for interacting between SpacetimeDB and Rust.">
+                <span class="fa fa-solid fa-cube " aria-hidden="true"></span>
+                <span class="title">spacetimedb-1.1.2</span>
+            </a><div class="pure-menu-children package-details-menu">
+                
+                <ul class="pure-menu-list menu-item-divided">
+                    <li class="pure-menu-heading" id="crate-title">
+                        spacetimedb 1.1.2
+                        <span id="clipboard" class="svg-clipboard" title="Copy crate name and version information"></span>
+                    </li><li class="pure-menu-item">
+                        <a href="../../1.1.2/spacetimedb/index.html" class="pure-menu-link description" id="permalink" title="Get a link to this specific version">
+                            <span class="fa fa-solid fa-link " aria-hidden="true"></span> Permalink
+                        </a>
+                    </li><li class="pure-menu-item">
+                        <a href="https://docs.rs/crate/spacetimedb/latest" class="pure-menu-link description" title="See spacetimedb in docs.rs">
+                            <span class="fa fa-solid fa-cube " aria-hidden="true"></span> Docs.rs crate page
+                        </a>
+                    </li></ul>
+
+                <div class="pure-g menu-item-divided">
+                    <div class="pure-u-1-2 right-border">
+                        <ul class="pure-menu-list">
+                            <li class="pure-menu-heading">Links</li>
+
+                            <li class="pure-menu-item">
+                                <a href="https://crates.io/crates/spacetimedb" class="pure-menu-link" title="See spacetimedb in crates.io">
+                                    <span class="fa fa-solid fa-cube " aria-hidden="true"></span> crates.io
+                                </a>
+                            </li>
+
+                            
+                            <li class="pure-menu-item">
+                                <a href="https://docs.rs/crate/spacetimedb/latest/source/" title="Browse source of spacetimedb-1.1.2" class="pure-menu-link">
+                                    <span class="fa fa-solid fa-folder-open " aria-hidden="true"></span> Source
+                                </a>
+                            </li>
+                        </ul>
+                    </div><div class="pure-u-1-2">
+                        <ul class="pure-menu-list" id="topbar-owners">
+                            <li class="pure-menu-heading">Owners</li><li class="pure-menu-item">
+                                    <a href="https://crates.io/users/cloutiertyler" class="pure-menu-link">
+                                        <span class="fa fa-solid fa-user " aria-hidden="true"></span> cloutiertyler
+                                    </a>
+                                </li><li class="pure-menu-item">
+                                    <a href="https://crates.io/users/jdetter" class="pure-menu-link">
+                                        <span class="fa fa-solid fa-user " aria-hidden="true"></span> jdetter
+                                    </a>
+                                </li><li class="pure-menu-item">
+                                    <a href="https://crates.io/users/bfops" class="pure-menu-link">
+                                        <span class="fa fa-solid fa-user " aria-hidden="true"></span> bfops
+                                    </a>
+                                </li></ul>
+                    </div>
+                </div>
+
+                <div class="pure-g menu-item-divided">
+                    <div class="pure-u-1-2 right-border">
+                        <ul class="pure-menu-list">
+                            <li class="pure-menu-heading">Dependencies</li>
+
+                            
+                            <li class="pure-menu-item">
+                                <div class="pure-menu pure-menu-scrollable sub-menu" tabindex="-1">
+                                    <ul class="pure-menu-list">
+                                        
+    <li class="pure-menu-item"><a href="https://docs.rs/bytemuck/^1.16.2" class="pure-menu-link">
+                        bytemuck ^1.16.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/derive_more/^0.99" class="pure-menu-link">
+                        derive_more ^0.99
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/getrandom/^0.2" class="pure-menu-link">
+                        getrandom ^0.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                                <i>optional</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/log/^0.4.17" class="pure-menu-link">
+                        log ^0.4.17
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/rand/^0.8" class="pure-menu-link">
+                        rand ^0.8
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                                <i>optional</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/scoped-tls/^1.0.1" class="pure-menu-link">
+                        scoped-tls ^1.0.1
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/spacetimedb-bindings-macro/^1.1.2" class="pure-menu-link">
+                        spacetimedb-bindings-macro ^1.1.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/spacetimedb-bindings-sys/^1.1.2" class="pure-menu-link">
+                        spacetimedb-bindings-sys ^1.1.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/spacetimedb-lib/^1.1.2" class="pure-menu-link">
+                        spacetimedb-lib ^1.1.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/spacetimedb-primitives/^1.1.2" class="pure-menu-link">
+                        spacetimedb-primitives ^1.1.2
+                        
+                            <i class="dependencies normal">normal</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/insta/^1.21.0" class="pure-menu-link">
+                        insta ^1.21.0
+                        
+                            <i class="dependencies dev">dev</i>
+                            
+                        
+                    </a>
+                </li>
+            <li class="pure-menu-item"><a href="https://docs.rs/trybuild/^1" class="pure-menu-link">
+                        trybuild ^1
+                        
+                            <i class="dependencies dev">dev</i>
+                            
+                        
+                    </a>
+                </li>
+            
+
+                                    </ul>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="pure-u-1-2">
+                        <ul class="pure-menu-list">
+                            <li class="pure-menu-heading">Versions</li>
+
+                            <li class="pure-menu-item">
+                                <div class="pure-menu pure-menu-scrollable sub-menu" id="releases-list" tabindex="-1" data-url="/crate/spacetimedb/latest/menus/releases/x86_64-unknown-linux-gnu/spacetimedb/index.html">
+                                    <span class="rotate"><span class="fa fa-solid fa-spinner " aria-hidden="true"></span></span>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                    
+                    
+                    <div class="pure-g">
+                        <div class="pure-u-1">
+                            <ul class="pure-menu-list">
+                                <li>
+                                    <a href="https://docs.rs/crate/spacetimedb/latest" class="pure-menu-link">
+                                        <b>87.88%</b>
+                                        of the crate is documented
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div></div>
+        </li><li class="pure-menu-item pure-menu-has-children">
+                <a href="#" class="pure-menu-link" aria-label="Platform">
+                    <span class="fa fa-solid fa-gears " aria-hidden="true"></span>
+                    <span class="title">Platform</span>
+                </a>
+
+                
+                <ul class="pure-menu-children" id="platforms" data-url="/crate/spacetimedb/latest/menus/platforms/x86_64-unknown-linux-gnu/spacetimedb/index.html"><li class="pure-menu-item">
+            <a href="https://docs.rs/crate/spacetimedb/latest/target-redirect/i686-pc-windows-msvc/spacetimedb/index.html" class="pure-menu-link" data-fragment="retain" rel="nofollow">i686-pc-windows-msvc</a>
+        </li><li class="pure-menu-item">
+            <a href="https://docs.rs/crate/spacetimedb/latest/target-redirect/i686-unknown-linux-gnu/spacetimedb/index.html" class="pure-menu-link" data-fragment="retain" rel="nofollow">i686-unknown-linux-gnu</a>
+        </li><li class="pure-menu-item">
+            <a href="https://docs.rs/crate/spacetimedb/latest/target-redirect/x86_64-unknown-linux-gnu/spacetimedb/index.html" class="pure-menu-link current" data-fragment="retain" rel="nofollow">x86_64-unknown-linux-gnu</a>
+        </li></ul>
+            </li><li class="pure-menu-item">
+                <a href="https://docs.rs/crate/spacetimedb/latest/features" title="Browse available feature flags of spacetimedb-1.1.2" class="pure-menu-link">
+                    <span class="fa fa-solid fa-flag " aria-hidden="true"></span>
+                    <span class="title">Feature flags</span>
+                </a>
+            </li>
+        
+    
+</ul><div class="spacer"></div>
+                
+                
+
+<ul class="pure-menu-list">
+                    <li class="pure-menu-item pure-menu-has-children">
+                        <a href="#" class="pure-menu-link" aria-label="Rust">Rust</a>
+                        <ul class="pure-menu-children">
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://docs.rs/about" >
+            About docs.rs
+        </a>
+    </li>
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://foundation.rust-lang.org/policies/privacy-policy/#docs.rs" target="_blank">
+            Privacy policy
+        </a>
+    </li>
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://www.rust-lang.org/" target="_blank">
+            Rust website
+        </a>
+    </li>
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/book/" target="_blank">
+            The Book
+        </a>
+    </li>
+
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/std/" target="_blank">
+            Standard Library API Reference
+        </a>
+    </li>
+
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/rust-by-example/" target="_blank">
+            Rust by Example
+        </a>
+    </li>
+
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/cargo/guide/" target="_blank">
+            The Cargo Guide
+        </a>
+    </li>
+
+
+                            
+    <li class="pure-menu-item">
+        <a class="pure-menu-link" href="https://doc.rust-lang.org/nightly/clippy" target="_blank">
+            Clippy Documentation
+        </a>
+    </li>
+
+                        </ul>
+                    </li>
+                </ul>
+                
+                <div id="search-input-nav">
+                    <label for="nav-search">
+                        <span class="fa fa-solid fa-magnifying-glass " aria-hidden="true"></span>
+                    </label>
+
+                    
+                    
+                    <input id="nav-search" name="query" type="text" aria-label="Find crate by search query" tabindex="-1"
+                        placeholder="Find crate"
+                        >
+                </div>
+            </form>
+        </div>
+    </div>
+</div><div class="rustdoc mod crate container-rustdoc" id="rustdoc_body_wrapper" tabindex="-1"><script async src="../../../-/static/menu80a2.js?0-6-0-f7595057-2025-05-09"></script>
+<script async src="../../../-/static/index80a2.js?0-6-0-f7595057-2025-05-09"></script>
+
+<iframe src="https://docs.rs/-/storage-change-detection.html" width="0" height="0" style="display: none"></iframe><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="index-2.html">spacetimedb</a><span class="version">1.1.2</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#spacetimedb-rust-module-library" title="SpacetimeDB Rust Module Library">SpacetimeDB Rust Module Library</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#setup" title="Setup">Setup</a></li><li><a href="#how-it-works" title="How it works">How it works</a></li><li><a href="#tables" title="Tables">Tables</a></li><li><a href="#reducers" title="Reducers">Reducers</a></li><li><a href="#automatic-migrations" title="Automatic migrations">Automatic migrations</a></li></ul></li></ul><h3><a href="#reexports">Crate Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#types" title="Type Aliases">Type Aliases</a></li><li><a href="#attributes" title="Attribute Macros">Attribute Macros</a></li><li><a href="#derives" title="Derive Macros">Derive Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>spacetimedb</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/spacetimedb/lib.rs.html#1-902">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="spacetimedb-rust-module-library"><a class="doc-anchor" href="#spacetimedb-rust-module-library">§</a>SpacetimeDB Rust Module Library</h2><!-- n.b. This file is used as the top-level library documentation in `src/lib.rs`.
+          Some of the links in this file are not resolved when previewing on GitHub,
+          but *are* resolved when compiled by Rustdoc.
+
+          To run the doctests, run the `./bindings-doctests.sh` script.
+          This works around some issues related to doctests and wasm, but it requires nightly,
+          so it isn't currently run on CI.
+
+          When you add a doc-tested code sample, make sure to copy the boilerplate around
+          some other code sample, the:
+          ```no_run
+          # #[cfg(target_arch = "wasm32")] mod demo {
+          // code
+          # }
+          ```
+          This makes sure your samples don't break when tested on non-wasm;
+          but you need to use `./bindings-doctests.sh` to actually test them.
+-->
+<p><a href="https://spacetimedb.com/">SpacetimeDB</a> allows using the Rust language to write server-side applications called <strong>modules</strong>. Modules, which run inside a relational database, have direct access to database tables, and expose public functions called <strong>reducers</strong> that can be invoked over the network. Clients connect directly to the database to read data.</p>
+<div class="example-wrap"><pre class="language-text"><code>    Client Application                          SpacetimeDB
+┌───────────────────────┐                ┌───────────────────────┐
+│                       │                │                       │
+│  ┌─────────────────┐  │    SQL Query   │  ┌─────────────────┐  │
+│  │ Subscribed Data │&lt;─────────────────────│    Database     │  │
+│  └─────────────────┘  │                │  └─────────────────┘  │
+│           │           │                │           ^           │
+│           │           │                │           │           │
+│           v           │                │           v           │
+│  +─────────────────┐  │ call_reducer() │  ┌─────────────────┐  │
+│  │   Client Code   │─────────────────────&gt;│   Module Code   │  │
+│  └─────────────────┘  │                │  └─────────────────┘  │
+│                       │                │                       │
+└───────────────────────┘                └───────────────────────┘</code></pre></div>
+<p>Rust modules are written with the the Rust Module Library (this crate). They are built using <a href="https://doc.rust-lang.org/cargo/">cargo</a> and deployed using the <a href="https://spacetimedb.com/install"><code>spacetime</code> CLI tool</a>. Rust modules can import any Rust <a href="https://crates.io/">crate</a> that supports being compiled to WebAssembly.</p>
+<p>(Note: Rust can also be used to write <strong>clients</strong> of SpacetimeDB databases, but this requires using a different library, the SpacetimeDB Rust Client SDK. See the documentation on <a href="https://spacetimedb.com/docs/#client">clients</a> for more information.)</p>
+<p>This reference assumes you are familiar with the basics of Rust. If you aren’t, check out Rust’s <a href="https://www.rust-lang.org/learn">excellent documentation</a>. For a guided introduction to Rust Modules, see the <a href="https://spacetimedb.com/docs/modules/rust/quickstart">Rust Module Quickstart</a>.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>SpacetimeDB modules have two ways to interact with the outside world: tables and reducers.</p>
+<ul>
+<li>
+<p><a href="#tables">Tables</a> store data and optionally make it readable by <a href="https://spacetimedb.com/docs/#client">clients</a>.</p>
+</li>
+<li>
+<p><a href="#reducers">Reducers</a> are functions that modify data and can be invoked by <a href="https://spacetimedb.com/docs/#client">clients</a> over the network. They can read and write data in tables, and write to a private debug log.</p>
+</li>
+</ul>
+<p>These are the only ways for a SpacetimeDB module to interact with the outside world. Calling functions from <code>std::net</code> or <code>std::fs</code> inside a reducer will result in runtime errors.</p>
+<p>Declaring tables and reducers is straightforward:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>spacetimedb::{table, reducer, ReducerContext, Table};
+
+<span class="attr">#[table(name = player)]
+</span><span class="kw">pub struct </span>Player {
+    id: u32,
+    name: String
+}
+
+<span class="attr">#[reducer]
+</span><span class="kw">fn </span>add_person(ctx: <span class="kw-2">&amp;</span>ReducerContext, id: u32, name: String) {
+    <span class="macro">log::debug!</span>(<span class="string">"Inserting {name} with id {id}"</span>);
+    ctx.db.player().insert(Player { id, name });
+}</code></pre></div>
+<p>Note that reducers don’t return data directly; they can only modify the database. Clients connect directly to the database and use SQL to query <a href="#public-and-private-tables">public</a> tables. Clients can also subscribe to a set of rows using SQL queries and receive streaming updates whenever any of those rows change.</p>
+<p>Tables and reducers in Rust modules can use any type that implements the <a href="trait.SpacetimeType.html" title="trait spacetimedb::SpacetimeType"><code>SpacetimeType</code></a> trait.</p>
+<!-- TODO: link to client subscriptions / client one-off queries respectively. -->
+<h3 id="setup"><a class="doc-anchor" href="#setup">§</a>Setup</h3>
+<p>To create a Rust module, install the <a href="https://spacetimedb.com/install"><code>spacetime</code> CLI tool</a> in your preferred shell. Navigate to your work directory and run the following command:</p>
+<div class="example-wrap"><pre class="language-text"><code>spacetime init --lang rust my-project-directory</code></pre></div>
+<p>This creates a Cargo project in <code>my-project-directory</code> with the following <code>Cargo.toml</code>:</p>
+<div class="example-wrap"><pre class="language-text"><code>[package]
+name = &quot;spacetime-module&quot;
+version = &quot;0.1.0&quot;
+edition = &quot;2021&quot;
+
+[lib]
+crate-type = [&quot;cdylib&quot;]
+
+[dependencies]
+spacetimedb = &quot;1.0.0&quot;
+log = &quot;0.4&quot;</code></pre></div><!-- TODO: update `spacetimedb` version there. -->
+<p>This is a standard <code>Cargo.toml</code>, with the exception of the line <code>crate-type = ["cdylib"]</code>.
+This line is important: it allows the project to be compiled to a WebAssembly module.</p>
+<p>The project’s <code>lib.rs</code> will contain the following skeleton:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>spacetimedb::{ReducerContext, Table};
+
+<span class="attr">#[spacetimedb::table(name = person)]
+</span><span class="kw">pub struct </span>Person {
+    name: String
+}
+
+<span class="attr">#[spacetimedb::reducer(init)]
+</span><span class="kw">pub fn </span>init(_ctx: <span class="kw-2">&amp;</span>ReducerContext) {
+    <span class="comment">// Called when the module is initially published
+</span>}
+
+<span class="attr">#[spacetimedb::reducer(client_connected)]
+</span><span class="kw">pub fn </span>identity_connected(_ctx: <span class="kw-2">&amp;</span>ReducerContext) {
+    <span class="comment">// Called everytime a new client connects
+</span>}
+
+<span class="attr">#[spacetimedb::reducer(client_disconnected)]
+</span><span class="kw">pub fn </span>identity_disconnected(_ctx: <span class="kw-2">&amp;</span>ReducerContext) {
+    <span class="comment">// Called everytime a client disconnects
+</span>}
+
+<span class="attr">#[spacetimedb::reducer]
+</span><span class="kw">pub fn </span>add(ctx: <span class="kw-2">&amp;</span>ReducerContext, name: String) {
+    ctx.db.person().insert(Person { name });
+}
+
+<span class="attr">#[spacetimedb::reducer]
+</span><span class="kw">pub fn </span>say_hello(ctx: <span class="kw-2">&amp;</span>ReducerContext) {
+    <span class="kw">for </span>person <span class="kw">in </span>ctx.db.person().iter() {
+        <span class="macro">log::info!</span>(<span class="string">"Hello, {}!"</span>, person.name);
+    }
+    <span class="macro">log::info!</span>(<span class="string">"Hello, World!"</span>);
+}</code></pre></div>
+<p>This skeleton declares a <a href="#tables">table</a>, some <a href="#reducers">reducers</a>, and some <a href="#lifecycle-reducers">lifecycle reducers</a>.</p>
+<p>To compile the project, run the following command:</p>
+<div class="example-wrap"><pre class="language-text"><code>spacetime build</code></pre></div>
+<p>SpacetimeDB requires a WebAssembly-compatible Rust toolchain. If the <code>spacetime</code> cli finds a compatible version of <a href="https://rustup.rs/"><code>rustup</code></a> that it can run, it will automatically install the <code>wasm32-unknown-unknown</code> target and use it to build your application. This can also be done manually using the command:</p>
+<div class="example-wrap"><pre class="language-text"><code>rustup target add wasm32-unknown-unknown</code></pre></div>
+<p>If you are managing your Rust installation in some other way, you will need to install the <code>wasm32-unknown-unknown</code> target yourself.</p>
+<p>To build your application and upload it to the public SpacetimeDB network, run:</p>
+<div class="example-wrap"><pre class="language-text"><code>spacetime login</code></pre></div>
+<p>And then:</p>
+<div class="example-wrap"><pre class="language-text"><code>spacetime publish [MY_DATABASE_NAME]</code></pre></div>
+<p>For example:</p>
+<div class="example-wrap"><pre class="language-text"><code>spacetime publish silly_demo_app</code></pre></div>
+<p>When you publish your module, a database named <code>silly_demo_app</code> will be created with the requested tables, and the module will be installed inside it.</p>
+<p>The output of <code>spacetime publish</code> will end with a line:</p>
+<div class="example-wrap"><pre class="language-text"><code>Created new database with name: &lt;name&gt;, identity: &lt;hex string&gt;</code></pre></div>
+<p>This name is the human-readable name of the created database, and the hex string is its <a href="struct.Identity.html" title="struct spacetimedb::Identity"><code>Identity</code></a>. These distinguish the created database from the other databases running on the SpacetimeDB network.  They are used when administering the application, for example using the <a href="#the-log-crate"><code>spacetime logs &lt;DATABASE_NAME&gt;</code></a> command. You should probably write the database name down in a text file so that you can remember it.</p>
+<p>After modifying your project, you can run:</p>
+<p><code>spacetime publish &lt;DATABASE_NAME&gt;</code></p>
+<p>to update the module attached to your database. Note that SpacetimeDB tries to <a href="#automatic-migrations">automatically migrate</a> your database schema whenever you run <code>spacetime publish</code>.</p>
+<p>You can also generate code for clients of your module using the <code>spacetime generate</code> command. See the <a href="https://spacetimedb.com/docs/#client">client SDK documentation</a> for more information.</p>
+<h3 id="how-it-works"><a class="doc-anchor" href="#how-it-works">§</a>How it works</h3>
+<p>Under the hood, SpacetimeDB modules are WebAssembly modules that import a <a href="https://spacetimedb.com/docs/webassembly-abi">specific WebAssembly ABI</a> and export a small number of special functions. This is automatically configured when you add the <code>spacetime</code> crate as a dependency of your application.</p>
+<p>The SpacetimeDB host is an application that hosts SpacetimeDB databases. <a href="https://github.com/clockworklabs/SpacetimeDB">Its source code is available</a> under <a href="https://github.com/clockworklabs/SpacetimeDB/blob/master/LICENSE.txt">the Business Source License with an Additional Use Grant</a>. You can run your own host, or you can upload your module to the public SpacetimeDB network. <!-- TODO: want a link to some dashboard for the public network. --> The network will create a database for you and install your module in it to serve client requests.</p>
+<h5 id="in-more-detail-publishing-a-module"><a class="doc-anchor" href="#in-more-detail-publishing-a-module">§</a>In More Detail: Publishing a Module</h5>
+<p>The <code>spacetime publish [DATABASE_IDENTITY]</code> command compiles a module and uploads it to a SpacetimeDB host. After this:</p>
+<ul>
+<li>The host finds the database with the requested <code>DATABASE_IDENTITY</code>.
+<ul>
+<li>(Or creates a fresh database and identity, if no identity was provided).</li>
+</ul>
+</li>
+<li>The host loads the new module and inspects its requested database schema. If there are changes to the schema, the host tries perform an <a href="#automatic-migrations">automatic migration</a>. If the migration fails, publishing fails.</li>
+<li>The host terminates the old module attached to the database.</li>
+<li>The host installs the new module into the database. It begins running the module’s <a href="#lifecycle-reducers">lifecycle reducers</a> and <a href="#scheduled-reducers">scheduled reducers</a>, starting with the <a href="attr.reducer.html#scheduled-reducers" title="attr spacetimedb::reducer"><code>#[init]</code> reducer</a>.</li>
+<li>The host begins allowing clients to call the module’s reducers.</li>
+</ul>
+<p>From the perspective of clients, this process is seamless. Open connections are maintained and subscriptions continue functioning. <a href="#automatic-migrations">Automatic migrations</a> forbid most table changes except for adding new tables, so client code does not need to be recompiled.
+However:</p>
+<ul>
+<li>Clients may witness a brief interruption in the execution of scheduled reducers (for example, game loops.)</li>
+<li>New versions of a module may remove or change reducers that were previously present. Client code calling those reducers will receive runtime errors.</li>
+</ul>
+<h3 id="tables"><a class="doc-anchor" href="#tables">§</a>Tables</h3>
+<p>Tables are declared using the <a href="attr.table.html" title="attr spacetimedb::table"><code>#[table(name = table_name)]</code> macro</a>.</p>
+<p>This macro is applied to a Rust struct with named fields. All of the fields of the table must implement <a href="trait.SpacetimeType.html" title="trait spacetimedb::SpacetimeType"><code>SpacetimeType</code></a>.</p>
+<p>The resulting type is used to store rows of the table. It is normal struct type. Row values are not special – operations on row types do not, by themselves, modify the table. Instead, a <a href="#reducercontext"><code>ReducerContext</code></a> is needed to get a handle to the table.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>spacetimedb::{table, reducer, ReducerContext, Table, UniqueColumn};
+
+<span class="doccomment">/// A `Person` is a row of the table `person`.
+</span><span class="attr">#[table(name = person, public)]
+</span><span class="kw">pub struct </span>Person {
+    <span class="attr">#[primary_key]
+    #[auto_inc]
+    </span>id: u64,
+    <span class="attr">#[index(btree)]
+    </span>name: String,
+}
+
+<span class="comment">// `Person` is a normal Rust struct type.
+// Operations on a `Person` do not, by themselves, do anything.
+// The following function does not interact with the database at all.
+</span><span class="kw">fn </span>do_nothing() {
+    <span class="comment">// Creating a `Person` DOES NOT modify the database.
+    </span><span class="kw">let </span><span class="kw-2">mut </span>person = Person { id: <span class="number">0</span>, name: <span class="string">"Joe Average"</span>.to_string() };
+    <span class="comment">// Updating a `Person` DOES NOT modify the database.
+    </span>person.name = <span class="string">"Joanna Average"</span>.to_string();
+    <span class="comment">// Dropping a `Person` DOES NOT modify the database.
+    </span>drop(person);
+}
+
+<span class="comment">// To interact with the database, you need a `ReducerContext`,
+// which is provided as the first parameter of any reducer.
+</span><span class="attr">#[reducer]
+</span><span class="kw">fn </span>do_something(ctx: <span class="kw-2">&amp;</span>ReducerContext) {
+    <span class="comment">// `ctx.db.{table_name}()` gets a handle to a database table.
+    </span><span class="kw">let </span>person: <span class="kw-2">&amp;</span>person__TableHandle = ctx.db.person();
+
+    <span class="comment">// The following inserts a row into the table:
+    </span><span class="kw">let </span><span class="kw-2">mut </span>example_person = person.insert(Person { id: <span class="number">0</span>, name: <span class="string">"Joe Average"</span>.to_string() });
+
+    <span class="comment">// `person` is a COPY of the row stored in the database.
+    // If we update it:
+    </span>example_person.name = <span class="string">"Joanna Average"</span>.to_string();
+    <span class="comment">// Our copy is now updated, but the database's copy is UNCHANGED.
+    // To push our change through, we can call `UniqueColumn::update()`:
+    </span>example_person = person.id().update(example_person);
+    <span class="comment">// Now the database and our copy are in sync again.
+    
+    // We can also delete the row in the database using `UniqueColumn::delete()`.
+    </span>person.id().delete(<span class="kw-2">&amp;</span>example_person.id);
+}</code></pre></div>
+<p>(See <a href="#reducers">reducers</a> for more information on declaring reducers.)</p>
+<p>This library generates a custom API for each table, depending on the table’s name and structure.</p>
+<p>All tables support getting a handle implementing the <a href="trait.Table.html" title="trait spacetimedb::Table"><code>Table</code></a> trait from a <a href="struct.ReducerContext.html" title="struct spacetimedb::ReducerContext"><code>ReducerContext</code></a>, using:</p>
+<div class="example-wrap"><pre class="language-text"><code>ctx.db.{table_name}()</code></pre></div>
+<p>For example,</p>
+<div class="example-wrap"><pre class="language-no_build"><code>ctx.db.person()</code></pre></div>
+<p>The <a href="trait.Table.html" title="trait spacetimedb::Table"><code>Table</code></a> trait provides:</p>
+<ul>
+<li><a href="trait.Table.html#method.insert" title="method spacetimedb::Table::insert"><code>Table::insert</code></a></li>
+<li><a href="trait.Table.html#method.try_insert" title="method spacetimedb::Table::try_insert"><code>Table::try_insert</code></a></li>
+<li><a href="trait.Table.html#method.delete" title="method spacetimedb::Table::delete"><code>Table::delete</code></a></li>
+<li><a href="trait.Table.html#method.iter" title="method spacetimedb::Table::iter"><code>Table::iter</code></a></li>
+<li><a href="trait.Table.html#method.count" title="method spacetimedb::Table::count"><code>Table::count</code></a></li>
+</ul>
+<p>Tables’ <a href="#unique-and-primary-key-columns">constraints</a> and <a href="#indexes">indexes</a> generate additional accessors.</p>
+<!-- TODO: outline generated methods here, split up by annotations required. -->
+<h5 id="public-and-private-tables"><a class="doc-anchor" href="#public-and-private-tables">§</a>Public and Private Tables</h5>
+<p>By default, tables are considered <strong>private</strong>. This means that they are only readable by the database owner and by reducers. Reducers run inside the database, so clients cannot see private tables at all.</p>
+<p>Using the <a href="attr.table.html" title="attr spacetimedb::table"><code>#[table(name = table_name, public)]</code></a> flag makes a table public. <strong>Public</strong> tables are readable by all clients. They can still only be modified by reducers.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>spacetimedb::table;
+
+<span class="comment">// The `enemies` table can be read by all connected clients.
+</span><span class="attr">#[table(name = enemy, public)]
+</span><span class="kw">pub struct </span>Enemy {
+    <span class="comment">/* ... */
+</span>}
+
+<span class="comment">// The `loot_items` table is invisible to clients, but not to reducers.
+</span><span class="attr">#[table(name = loot_item)]
+</span><span class="kw">pub struct </span>LootItem {
+    <span class="comment">/* ... */
+</span>}</code></pre></div>
+<p>(Note that, when run by the module owner, the <code>spacetime sql &lt;SQL_QUERY&gt;</code> command can also read private tables. This is for debugging convenience. Only the module owner can see these tables. This is determined by the <code>Identity</code> stored by the <code>spacetime login</code> command. Run <code>spacetime login show</code> to print your current logged-in <code>Identity</code>.)</p>
+<p>To learn how to subscribe to a public table, see the <a href="https://spacetimedb.com/docs/sdks">client SDK documentation</a>. <!-- TODO: more specific link. --></p>
+<h5 id="unique-and-primary-key-columns"><a class="doc-anchor" href="#unique-and-primary-key-columns">§</a>Unique and Primary Key Columns</h5>
+<p>Columns of a table (that is, fields of a <a href="attr.table.html" title="attr spacetimedb::table"><code>#[table]</code></a> struct) can be annotated with <a href="attr.table.html#unique" title="attr spacetimedb::table"><code>#[unique]</code></a> or <a href="attr.table.html#primary_key" title="attr spacetimedb::table"><code>#[primary_key]</code></a>. Multiple columns can be <code>#[unique]</code>, but only one can be <code>#[primary_key]</code>. For example:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>spacetimedb::table;
+
+<span class="kw">type </span>SSN = String;
+<span class="kw">type </span>Email = String;
+
+<span class="attr">#[table(name = citizen)]
+</span><span class="kw">pub struct </span>Citizen {
+    <span class="attr">#[primary_key]
+    </span>id: u64,
+    <span class="attr">#[unique]
+    </span>ssn: SSN,
+    <span class="attr">#[unique]
+    </span>email: Email,
+    name: String,
+}</code></pre></div>
+<p>Every row in the table <code>Person</code> must have unique entries in the <code>id</code>, <code>ssn</code>, and <code>email</code> columns. Attempting to insert multiple <code>Person</code>s with the same <code>id</code>, <code>ssn</code>, or <code>email</code> will fail. (Either via panic, with <a href="trait.Table.html#method.insert" title="method spacetimedb::Table::insert"><code>Table::insert</code></a>, or via a <code>Result::Err</code>, with <a href="trait.Table.html#method.try_insert" title="method spacetimedb::Table::try_insert"><code>Table::try_insert</code></a>.)</p>
+<p>Any <code>#[unique]</code> or <code>#[primary_key]</code> column supports getting a <a href="struct.UniqueColumn.html" title="struct spacetimedb::UniqueColumn"><code>UniqueColumn</code></a> from a <a href="struct.ReducerContext.html" title="struct spacetimedb::ReducerContext"><code>ReducerContext</code></a> using:</p>
+<div class="example-wrap"><pre class="language-text"><code>ctx.db.{table}().{unique_column}()</code></pre></div>
+<p>For example,</p>
+<div class="example-wrap"><pre class="language-no_build"><code>ctx.db.person().ssn()</code></pre></div>
+<p><a href="struct.UniqueColumn.html" title="struct spacetimedb::UniqueColumn"><code>UniqueColumn</code></a> provides:</p>
+<ul>
+<li><a href="struct.UniqueColumn.html#method.find" title="method spacetimedb::UniqueColumn::find"><code>UniqueColumn::find</code></a></li>
+<li><a href="struct.UniqueColumn.html#method.delete" title="method spacetimedb::UniqueColumn::delete"><code>UniqueColumn::delete</code></a></li>
+<li><a href="struct.UniqueColumn.html#method.update" title="method spacetimedb::UniqueColumn::update"><code>UniqueColumn::update</code></a></li>
+</ul>
+<!-- TODO: "current limitations" try_update -->
+<p>Notice that updating a row is only possible if a row has a unique column – there is no <code>update</code> method in the base <a href="trait.Table.html" title="trait spacetimedb::Table"><code>Table</code></a> trait. SpacetimeDB has no notion of rows having an “identity” aside from their unique / primary keys.</p>
+<p>The <code>#[primary_key]</code> annotation implies <code>#[unique]</code> annotation, but avails additional methods in the <a href="https://spacetimedb.com/docs/#client">client</a>-side SDKs.</p>
+<p>It is not currently possible to mark a group of fields as collectively unique.</p>
+<p>Filtering on unique columns is only supported for a limited number of types.</p>
+<h5 id="auto-inc-columns"><a class="doc-anchor" href="#auto-inc-columns">§</a>Auto-inc columns</h5>
+<p>Columns can be marked <a href="attr.table.html#auto_inc" title="attr spacetimedb::table"><code>#[auto_inc]</code></a>. This can only be used on integer types (<code>i32</code>, <code>u8</code>, etc.)</p>
+<p>When inserting into a table with an <code>#[auto_inc]</code> column, if the annotated column is set to zero (<code>0</code>), the database will automatically overwrite that zero with an atomically increasing value.</p>
+<p><a href="trait.Table.html#method.insert" title="method spacetimedb::Table::insert"><code>Table::insert</code></a> and <a href="trait.Table.html#method.try_insert" title="method spacetimedb::Table::try_insert"><code>Table::try_insert</code></a> return rows with <code>#[auto_inc]</code> columns set to the values that were actually written into the database.</p>
+<p><strong>Note</strong>: The <code>auto_inc</code> number generator is not transactional. See the <a href="https://spacetimedb.com/docs/appendix#sequence">SEQUENCE</a> section for more details.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>spacetimedb::{table, reducer, ReducerContext, Table};
+
+<span class="attr">#[table(name = example)]
+</span><span class="kw">struct </span>Example {
+    <span class="attr">#[auto_inc]
+    </span>field: u32
+}
+
+<span class="attr">#[reducer]
+</span><span class="kw">fn </span>insert_auto_inc_example(ctx: <span class="kw-2">&amp;</span>ReducerContext) {
+    <span class="kw">for </span>i <span class="kw">in </span><span class="number">1</span>..=<span class="number">10 </span>{
+        <span class="comment">// These will have distinct, unique values
+        // at rest in the database, since they
+        // are inserted with the sentinel value 0.
+        </span><span class="kw">let </span>actual = ctx.db.example().insert(Example { field: <span class="number">0 </span>});
+        <span class="macro">assert!</span>(actual.field != <span class="number">0</span>);
+    }
+}</code></pre></div>
+<p><code>auto_inc</code> is often combined with <code>unique</code> or <code>primary_key</code> to automatically assign unique integer identifiers to rows.</p>
+<h5 id="indexes"><a class="doc-anchor" href="#indexes">§</a>Indexes</h5>
+<p>SpacetimeDB supports both single- and multi-column <a href="https://en.wikipedia.org/wiki/B-tree">B-Tree</a> indexes.</p>
+<p>Indexes are declared using the syntax:</p>
+<p><a href="attr.table.html#index" title="attr spacetimedb::table"><code>#[table(..., index(name = my_index, btree(columns = [a, b, c]))]</code></a>.</p>
+<p>For example:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>spacetimedb::table;
+
+<span class="attr">#[table(name = paper, index(name = url_and_country, btree(columns = [url, country]</span>)))]
+<span class="kw">struct </span>Paper {
+    url: String,
+    country: String,
+    venue: String
+} 
+</code></pre></div>
+<p>Multiple indexes can be declared, separated by commas.</p>
+<p>Single-column indexes can also be declared using the</p>
+<p><a href="attr.table.html#indexbtree" title="attr spacetimedb::table"><code>#[index(btree)]</code></a></p>
+<p>column attribute.</p>
+<p>For example:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>spacetimedb::table;
+
+<span class="attr">#[table(name = paper)]
+</span><span class="kw">struct </span>Paper {
+    url: String,
+    country: String,
+    <span class="attr">#[index(btree)]
+    </span>venue: String
+} </code></pre></div>
+<p>Any index supports getting a <a href="struct.RangedIndex.html" title="struct spacetimedb::RangedIndex"><code>RangedIndex</code></a> using <a href="struct.ReducerContext.html" title="struct spacetimedb::ReducerContext"><code>ctx</code></a><code>.db.{table}().{index}()</code>. For example, <code>ctx.db.person().name()</code>.</p>
+<p><a href="struct.RangedIndex.html" title="struct spacetimedb::RangedIndex"><code>RangedIndex</code></a> provides:</p>
+<ul>
+<li><a href="struct.RangedIndex.html#method.filter" title="method spacetimedb::RangedIndex::filter"><code>RangedIndex::filter</code></a></li>
+<li><a href="struct.RangedIndex.html#method.delete" title="method spacetimedb::RangedIndex::delete"><code>RangedIndex::delete</code></a></li>
+</ul>
+<p>Only types which implement <a href="trait.FilterableValue.html" title="trait spacetimedb::FilterableValue"><code>FilterableValue</code></a> may be used as index keys.</p>
+<h3 id="reducers"><a class="doc-anchor" href="#reducers">§</a>Reducers</h3>
+<p>Reducers are declared using the <a href="attr.reducer.html" title="attr spacetimedb::reducer"><code>#[reducer]</code> macro</a>.</p>
+<p><code>#[reducer]</code> is always applied to top level Rust functions. Arguments of reducers must implement <a href="trait.SpacetimeType.html" title="trait spacetimedb::SpacetimeType"><code>SpacetimeType</code></a>. Reducers can either return nothing, or return a <code>Result&lt;(), E&gt;</code>, where <code>E</code> implements <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display"><code>std::fmt::Display</code></a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>spacetimedb::{reducer, ReducerContext};
+<span class="kw">use </span>std::fmt;
+
+<span class="attr">#[reducer]
+</span><span class="kw">fn </span>give_player_item(
+    ctx: <span class="kw-2">&amp;</span>ReducerContext,
+    player_id: u64,
+    item_id: u64
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), String&gt; {
+    <span class="comment">/* ... */
+</span>}</code></pre></div>
+<p>Every reducer runs inside a <a href="https://en.wikipedia.org/wiki/Database_transaction">database transaction</a>. <!-- TODO: specific transaction level guarantees. --> This means that reducers will not observe the effects of other reducers modifying the database while they run. If a reducer fails, all of its changes to the database will automatically be rolled back. Reducers can fail by <a href="https://doc.rust-lang.org/nightly/std/macro.panic.html" title="macro std::panic">panicking</a> or by returning an <code>Err</code>.</p>
+<h5 id="the-reducercontext-type"><a class="doc-anchor" href="#the-reducercontext-type">§</a>The <code>ReducerContext</code> Type</h5>
+<p>Reducers have access to a special <a href="struct.ReducerContext.html" title="struct spacetimedb::ReducerContext"><code>ReducerContext</code></a> parameter. This parameter allows reading and writing the database attached to a module. It also provides some additional functionality, like generating random numbers and scheduling future operations.</p>
+<p><a href="struct.ReducerContext.html" title="struct spacetimedb::ReducerContext"><code>ReducerContext</code></a> provides access to the database tables via <a href="struct.ReducerContext.html#structfield.db" title="struct spacetimedb::ReducerContext">the <code>.db</code> field</a>. The <a href="attr.table.html" title="attr spacetimedb::table"><code>#[table]</code></a> macro generates traits that add accessor methods to this field.</p>
+<!-- TODO: this seems to work sometimes, but not always... Sometimes the links to downstream trait implementations aren't generated for some reason. Maybe it only works in the same cargo workspace?
+
+Yes, that's the case. Dammit. TODO: check if this changes someday.
+
+To see all of the available methods on `ctx.db`, run `cargo doc` in your module's directory, and navigate to the `spacetimedb::Local` struct in the generated documentation. This will be at the path:
+- `[your_project_directory]/target/doc/spacetimedb/struct.Local.html`
+-->
+<h5 id="the-log-crate"><a class="doc-anchor" href="#the-log-crate">§</a>The <code>log</code> crate</h5>
+<p>SpacetimeDB Rust modules have built-in support for the <a href="https://docs.rs/log/0.4.27/x86_64-unknown-linux-gnu/log/index.html" title="mod log">log crate</a>. All modules automatically install a suitable logger when they are first loaded by SpacetimeDB. (At time of writing, this happens <a href="https://github.com/clockworklabs/SpacetimeDB/blob/e9e287b8aab638ba6e8bf9c5d41d632db041029c/crates/bindings/src/logger.rs">here</a>). Log macros can be used anywhere in module code, and log outputs of a running module can be inspected using the <code>spacetime logs</code> command:</p>
+<div class="example-wrap"><pre class="language-text"><code>spacetime logs &lt;DATABASE_IDENTITY&gt;</code></pre></div><!-- TODO: we seem to have removed `println`, is that still hidden somewhere? -->
+<h5 id="lifecycle-reducers"><a class="doc-anchor" href="#lifecycle-reducers">§</a>Lifecycle Reducers</h5>
+<p>A small group of reducers are called at set points in the module lifecycle. These are used to initialize
+the database and respond to client connections. See <a href="attr.reducer.html#lifecycle-reducers" title="attr spacetimedb::reducer">Lifecycle Reducers</a>.</p>
+<h5 id="scheduled-reducers"><a class="doc-anchor" href="#scheduled-reducers">§</a>Scheduled Reducers</h5>
+<p>Reducers can schedule other reducers to run asynchronously. This allows calling the reducers at a particular time, or at repeating intervals. This can be used to implement timers, game loops, and maintenance tasks. See <a href="attr.reducer.html#scheduled-reducers" title="attr spacetimedb::reducer">Scheduled Reducers</a>.</p>
+<h3 id="automatic-migrations"><a class="doc-anchor" href="#automatic-migrations">§</a>Automatic migrations</h3>
+<p>When you <code>spacetime publish</code> a module that has already been published using <code>spacetime publish &lt;DATABASE_NAME_OR_IDENTITY&gt;</code>,
+SpacetimeDB attempts to automatically migrate your existing database to the new schema. (The “schema” is just the collection
+of tables and reducers you’ve declared in your code, together with the types they depend on.) This form of migration is limited and only supports a few kinds of changes.
+On the plus side, automatic migrations usually don’t break clients. The situations that may break clients are documented below.</p>
+<p>The following changes are always allowed and never breaking:</p>
+<!-- TODO: everything here should be smoke-tested. -->
+<ul>
+<li>✅ <strong>Adding tables</strong>. Non-updated clients will not be able to see the new tables.</li>
+<li>✅ <strong>Adding indexes</strong>.</li>
+<li>✅ <strong>Adding or removing <code>#[auto_inc]</code> annotations.</strong></li>
+<li>✅ <strong>Changing tables from private to public</strong>.</li>
+<li>✅ <strong>Adding reducers</strong>.</li>
+<li>✅ <strong>Removing <code>#[unique]</code>  annotations.</strong></li>
+</ul>
+<p>The following changes are allowed, but may break clients:</p>
+<ul>
+<li>⚠️ <strong>Changing or removing reducers</strong>. Clients that attempt to call the old version of a changed reducer will receive runtime errors.</li>
+<li>⚠️ <strong>Changing tables from public to private</strong>. Clients that are subscribed to a newly-private table will receive runtime errors.</li>
+<li>⚠️ <strong>Removing <code>#[primary_key]</code> annotations</strong>. Non-updated clients will still use the old <code>#[primary_key]</code> as a unique key in their local cache, which can result in non-deterministic behavior when updates are received.</li>
+<li>⚠️ <strong>Removing indexes</strong>. This is only breaking in some situtations.
+The specific problem is subscription queries <!-- TODO: clientside link --> involving semijoins, such as:<div class="example-wrap"><pre class="language-sql"><code>SELECT Employee.*
+FROM Employee JOIN Dept
+ON Employee.DeptName = Dept.DeptName
+)</code></pre></div>For performance reasons, SpacetimeDB will only allow this kind of subscription query if there are indexes on <code>Employee.DeptName</code> and <code>Dept.DeptName</code>. Removing either of these indexes will invalidate this subscription query, resulting in client-side runtime errors.</li>
+</ul>
+<p>The following changes are forbidden without a manual migration:</p>
+<ul>
+<li>❌ <strong>Removing tables</strong>.</li>
+<li>❌ <strong>Changing the columns of a table</strong>. This includes changing the order of columns of a table.</li>
+<li>❌ <strong>Changing whether a table is used for <a href="#scheduled-reducers">scheduling</a>.</strong> <!-- TODO: update this if we ever actually implement it... --></li>
+<li>❌ <strong>Adding <code>#[unique]</code> or <code>#[primary_key]</code> constraints.</strong> This could result in existing tables being in an invalid state.</li>
+</ul>
+<p>Currently, manual migration support is limited. The <code>spacetime publish --clear-database &lt;DATABASE_IDENTITY&gt;</code> command can be used to <strong>COMPLETELY DELETE</strong> and reinitialize your database, but naturally it should be used with EXTREME CAUTION.</p>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.log"><code>pub use <a class="mod" href="https://docs.rs/log/0.4.27/x86_64-unknown-linux-gnu/log/index.html" title="mod log">log</a>;</code></dt><dt id="reexport.rand"><code>pub use <a class="mod" href="https://docs.rs/rand/0.8.5/x86_64-unknown-linux-gnu/rand/index.html" title="mod rand">rand08</a> as rand;</code></dt><dt id="reexport.sys"><code>pub use <a class="mod" href="https://docs.rs/spacetimedb-bindings-sys/1.1.2/x86_64-unknown-linux-gnu/spacetimedb_bindings_sys/index.html" title="mod spacetimedb_bindings_sys">spacetimedb_bindings_sys</a> as sys;</code></dt><dt id="reexport.spacetimedb_lib"><code>pub use <a class="mod" href="https://docs.rs/spacetimedb-lib/1.1.2/x86_64-unknown-linux-gnu/spacetimedb_lib/index.html" title="mod spacetimedb_lib">spacetimedb_lib</a>;</code></dt><dt id="reexport.sats"><code>pub use spacetimedb_lib::<a class="mod" href="https://docs.rs/spacetimedb-sats/1.1.2/x86_64-unknown-linux-gnu/spacetimedb_sats/index.html" title="mod spacetimedb_sats">sats</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="log_stopwatch/index.html" title="mod spacetimedb::log_stopwatch">log_<wbr>stopwatch</a></dt></dl><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.duration.html" title="macro spacetimedb::duration">duration</a></dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.AutoIncOverflow.html" title="struct spacetimedb::AutoIncOverflow">Auto<wbr>IncOverflow</a></dt><dd>An auto-inc column overflowed its data type.</dd><dt><a class="struct" href="struct.ConnectionId.html" title="struct spacetimedb::ConnectionId">Connection<wbr>Id</a></dt><dd>A unique identifier for a client connection to a SpacetimeDB database.</dd><dt><a class="struct" href="struct.Errno.html" title="struct spacetimedb::Errno">Errno</a></dt><dd>Error values used in the safe bindings API.</dd><dt><a class="struct" href="struct.Identity.html" title="struct spacetimedb::Identity">Identity</a></dt><dd>An <code>Identity</code> for something interacting with the database.</dd><dt><a class="struct" href="struct.Local.html" title="struct spacetimedb::Local">Local</a></dt><dd>Allows accessing the local database attached to the module.</dd><dt><a class="struct" href="struct.RangedIndex.html" title="struct spacetimedb::RangedIndex">Ranged<wbr>Index</a></dt><dd>A handle to a B-Tree index on a table.</dd><dt><a class="struct" href="struct.ReducerContext.html" title="struct spacetimedb::ReducerContext">Reducer<wbr>Context</a></dt><dd>The context that any reducer is provided with.</dd><dt><a class="struct" href="struct.StdbRng.html" title="struct spacetimedb::StdbRng">StdbRng</a></dt><dd>A reference to the random number generator for this reducer call.</dd><dt><a class="struct" href="struct.TableId.html" title="struct spacetimedb::TableId">TableId</a></dt><dd>An identifier for a table, unique within a database.</dd><dt><a class="struct" href="struct.TimeDuration.html" title="struct spacetimedb::TimeDuration">Time<wbr>Duration</a></dt><dd>A span or delta in time, measured in microseconds.</dd><dt><a class="struct" href="struct.Timestamp.html" title="struct spacetimedb::Timestamp">Timestamp</a></dt><dd>A point in time, measured in microseconds since the Unix epoch.</dd><dt><a class="struct" href="struct.UniqueColumn.html" title="struct spacetimedb::UniqueColumn">Unique<wbr>Column</a></dt><dd>A handle to a unique index on a column.
+Available for <code>#[unique]</code> and <code>#[primary_key]</code> columns.</dd><dt><a class="struct" href="struct.UniqueConstraintViolation.html" title="struct spacetimedb::UniqueConstraintViolation">Unique<wbr>Constraint<wbr>Violation</a></dt><dd>A row operation was attempted that would violate a unique constraint.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.AlgebraicValue.html" title="enum spacetimedb::AlgebraicValue">Algebraic<wbr>Value</a></dt><dd>A value in SATS typed at some <a href="https://docs.rs/spacetimedb-sats/1.1.2/x86_64-unknown-linux-gnu/spacetimedb_sats/algebraic_type/enum.AlgebraicType.html" title="enum spacetimedb_sats::algebraic_type::AlgebraicType"><code>AlgebraicType</code></a>.</dd><dt><a class="enum" href="enum.ScheduleAt.html" title="enum spacetimedb::ScheduleAt">Schedule<wbr>At</a></dt><dd>When a scheduled reducer should execute,
+either at a specific point in time,
+or at regular intervals for repeating schedules.</dd><dt><a class="enum" href="enum.TryInsertError.html" title="enum spacetimedb::TryInsertError">TryInsert<wbr>Error</a></dt><dd>The error type returned from <a href="trait.Table.html#method.try_insert" title="method spacetimedb::Table::try_insert"><code>Table::try_insert()</code></a>, signalling a constraint violation.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.DbContext.html" title="trait spacetimedb::DbContext">DbContext</a></dt><dd>A handle on a database with a particular table schema.</dd><dt><a class="trait" href="trait.Deserialize.html" title="trait spacetimedb::Deserialize">Deserialize</a></dt><dd>A data structure that can be deserialized from any data format supported by the SpacetimeDB Algebraic Type System.</dd><dt><a class="trait" href="trait.DeserializeOwned.html" title="trait spacetimedb::DeserializeOwned">Deserialize<wbr>Owned</a></dt><dd>A data structure that can be deserialized in SATS
+without borrowing any data from the deserializer.</dd><dt><a class="trait" href="trait.FilterableValue.html" title="trait spacetimedb::FilterableValue">Filterable<wbr>Value</a></dt><dd>Types which can appear as an argument to an index filtering operation
+for a column of type <code>Column</code>.</dd><dt><a class="trait" href="trait.Serialize.html" title="trait spacetimedb::Serialize">Serialize</a></dt><dd>A <strong>data structure</strong> that can be serialized into any data format supported by
+the SpacetimeDB Algebraic Type System.</dd><dt><a class="trait" href="trait.SpacetimeType.html" title="trait spacetimedb::SpacetimeType">Spacetime<wbr>Type</a></dt><dd>This trait makes types self-describing, allowing them to automatically register their structure
+with SpacetimeDB. This is used to tell SpacetimeDB about the structure of a module’s tables and
+reducers.</dd><dt><a class="trait" href="trait.Table.html" title="trait spacetimedb::Table">Table</a></dt><dd>Implemented for every <code>TableHandle</code> struct generated by the <a href="attr.table.html" title="attr spacetimedb::table"><code>table</code></a> macro.
+Contains methods that are present for every table, regardless of what unique constraints
+and indexes are present.</dd></dl><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><dl class="item-table"><dt><a class="type" href="type.ReducerResult.html" title="type spacetimedb::ReducerResult">Reducer<wbr>Result</a></dt></dl><h2 id="attributes" class="section-header">Attribute Macros<a href="#attributes" class="anchor">§</a></h2><dl class="item-table"><dt><a class="attr" href="attr.reducer.html" title="attr spacetimedb::reducer">reducer</a></dt><dd>Marks a function as a spacetimedb reducer.</dd><dt><a class="attr" href="attr.table.html" title="attr spacetimedb::table">table</a></dt><dd>Declares a table with a particular row type.</dd></dl><h2 id="derives" class="section-header">Derive Macros<a href="#derives" class="anchor">§</a></h2><dl class="item-table"><dt><a class="derive" href="derive.Deserialize.html" title="derive spacetimedb::Deserialize">Deserialize</a></dt><dt><a class="derive" href="derive.Serialize.html" title="derive spacetimedb::Serialize">Serialize</a></dt><dt><a class="derive" href="derive.SpacetimeType.html" title="derive spacetimedb::SpacetimeType">Spacetime<wbr>Type</a></dt></dl></section></div></main></div></body>
+<!-- Mirrored from docs.rs/spacetimedb/latest/spacetimedb/ by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 10 May 2025 00:22:11 GMT -->
+</html>

@@ -11,7 +11,7 @@
 //! - Conversion utilities for different data formats
 
 use spacetimedb_sdk::reducer::StageReducer;
-use spacetimedb_sdk::table::TableType;
+use spacetimedb_sdk::messages::TableType;
 use spacetimedb_sdk::{identity, Address, Identity, Timestamp};
 use std::collections::HashMap;
 use std::sync::RwLock;

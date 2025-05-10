@@ -341,24 +341,38 @@ fn set_property(object_id: u64, property_name: &CxxString, value_json: &CxxStrin
 
 /// Get a property from an object
 fn get_property(object_id: u64, property_name: &CxxString) -> UniquePtr<CxxString> {
-    let property_name_str = property_name.to_str().unwrap_or("");
+    let property_name_str = property_name.to_string();
     
-    match object::get_property(object_id, property_name_str) {
+    // Try to get the property
+    match object::get_property(object_id, &property_name_str) {
         Ok(Some(value)) => {
             match property::serialize_property_value(&value) {
                 Ok(json) => {
-                    let mut result = cxx::let_cxx_string!(result = json);
-                    UniquePtr::new(result).unwrap()
+                    // Create a new CxxString with the JSON value
+                    let mut result = cxx::UniquePtr::new().unwrap();
+                    let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+                    pinned.push_str(&json);
+                    result
                 },
-                Err(_) => {
-                    let mut result = cxx::let_cxx_string!(result = "null");
-                    UniquePtr::new(result).unwrap()
+                Err(e) => {
+                    // Create a new CxxString with the error message
+                    let mut result = cxx::UniquePtr::new().unwrap();
+                    let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+                    pinned.push_str(&format!("Error serializing property: {}", e));
+                    result
                 }
             }
         },
-        _ => {
-            let mut result = cxx::let_cxx_string!(result = "null");
-            UniquePtr::new(result).unwrap()
+        Ok(None) => {
+            // Return an empty string for properties that don't exist
+            cxx::UniquePtr::new().unwrap()
+        },
+        Err(e) => {
+            // Create a new CxxString with the error message
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str(&format!("Error getting property: {}", e));
+            result
         }
     }
 }
@@ -462,14 +476,21 @@ fn get_client_id() -> u64 {
 
 /// Get an object's class name
 fn get_object_class(object_id: u64) -> UniquePtr<CxxString> {
-    match object::get_class_for_object(object_id) {
+    // Try to get the object's class
+    match object::get_object_class(object_id) {
         Some(class_name) => {
-            let mut result = cxx::let_cxx_string!(result = class_name);
-            UniquePtr::new(result).unwrap()
+            // Create a new CxxString with the class name
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str(&class_name);
+            result
         },
         None => {
-            let mut result = cxx::let_cxx_string!(result = "");
-            UniquePtr::new(result).unwrap()
+            // Return an empty string if the object doesn't exist
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str("");
+            result
         }
     }
 }
@@ -487,32 +508,51 @@ fn has_property_definitions_for_class(class_name: &CxxString) -> bool {
 
 /// Get all property names for a class as a JSON array
 fn get_property_names_for_class(class_name: &CxxString) -> UniquePtr<CxxString> {
-    let class_name_str = class_name.to_str().unwrap_or("");
+    let class_name_str = class_name.to_string();
     
-    match property::get_property_names_for_class(class_name_str) {
-        names => {
-            if let Ok(json) = serde_json::to_string(&names) {
-                let mut result = cxx::let_cxx_string!(result = json);
-                UniquePtr::new(result).unwrap()
-            } else {
-                let mut result = cxx::let_cxx_string!(result = "[]");
-                UniquePtr::new(result).unwrap()
-            }
+    // Check if property definitions exist for this class
+    if !property::has_property_definitions_for_class(&class_name_str) {
+        // Return empty array if no property definitions exist
+        let mut result = cxx::UniquePtr::new().unwrap();
+        let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+        pinned.push_str("[]");
+        return result;
+    }
+    
+    // Get the property names as JSON
+    match property::get_property_names_for_class_as_json(&class_name_str) {
+        Ok(json) => {
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str(&json);
+            result
+        },
+        Err(_) => {
+            // Return empty array on error
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str("[]");
+            result
         }
     }
 }
 
 /// Get all registered class names as a JSON array
 fn get_registered_class_names() -> UniquePtr<CxxString> {
-    match property::get_registered_class_names() {
-        names => {
-            if let Ok(json) = serde_json::to_string(&names) {
-                let mut result = cxx::let_cxx_string!(result = json);
-                UniquePtr::new(result).unwrap()
-            } else {
-                let mut result = cxx::let_cxx_string!(result = "[]");
-                UniquePtr::new(result).unwrap()
-            }
+    // Get the registered class names as JSON
+    match property::get_registered_class_names_as_json() {
+        Ok(json) => {
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str(&json);
+            result
+        },
+        Err(_) => {
+            // Return empty array on error
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str("[]");
+            result
         }
     }
 }
@@ -536,36 +576,43 @@ fn import_property_definitions_from_json(json: &CxxString) -> bool {
 
 /// Export all property definitions as a JSON string
 fn export_property_definitions_as_json() -> UniquePtr<CxxString> {
+    // Get the property definitions as JSON
     match property::export_property_definitions_as_json() {
         Ok(json) => {
-            let mut result = cxx::let_cxx_string!(result = json);
-            UniquePtr::new(result).unwrap()
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str(&json);
+            result
         },
         Err(_) => {
-            let mut result = cxx::let_cxx_string!(result = "{}");
-            UniquePtr::new(result).unwrap()
+            // Return empty object on error
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str("{}");
+            result
         }
     }
 }
 
 /// Get a property definition as a JSON string
 fn get_property_definition(class_name: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString> {
-    let class_name_str = class_name.to_str().unwrap_or("");
-    let property_name_str = property_name.to_str().unwrap_or("");
+    let class_name_str = class_name.to_string();
+    let property_name_str = property_name.to_string();
     
-    match property::get_property_definition(class_name_str, property_name_str) {
-        Some(def) => {
-            if let Ok(json) = serde_json::to_string(&def) {
-                let mut result = cxx::let_cxx_string!(result = json);
-                UniquePtr::new(result).unwrap()
-            } else {
-                let mut result = cxx::let_cxx_string!(result = "{}");
-                UniquePtr::new(result).unwrap()
-            }
+    // Get the property definition as JSON
+    match property::get_property_definition_as_json(&class_name_str, &property_name_str) {
+        Ok(json) => {
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str(&json);
+            result
         },
-        None => {
-            let mut result = cxx::let_cxx_string!(result = "{}");
-            UniquePtr::new(result).unwrap()
+        Err(_) => {
+            // Return empty object if property doesn't exist
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str("{}");
+            result
         }
     }
 }
@@ -594,22 +641,29 @@ fn remove_component(actor_id: u64, component_id: u64) -> bool {
 
 /// Get all components attached to an actor as a JSON array of object IDs
 fn get_components(actor_id: u64) -> UniquePtr<CxxString> {
+    // Try to get the components
     match object::get_components(actor_id) {
         Ok(components) => {
-            match serde_json::to_string(&components) {
-                Ok(json) => {
-                    let mut result = cxx::let_cxx_string!(result = json);
-                    UniquePtr::new(result).unwrap()
-                },
-                Err(_) => {
-                    let mut result = cxx::let_cxx_string!(result = "[]");
-                    UniquePtr::new(result).unwrap()
-                }
+            if let Ok(json) = serde_json::to_string(&components) {
+                // Create a new CxxString with the JSON components list
+                let mut result = cxx::UniquePtr::new().unwrap();
+                let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+                pinned.push_str(&json);
+                result
+            } else {
+                // Return empty array on error
+                let mut result = cxx::UniquePtr::new().unwrap();
+                let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+                pinned.push_str("[]");
+                result
             }
         },
         Err(_) => {
-            let mut result = cxx::let_cxx_string!(result = "[]");
-            UniquePtr::new(result).unwrap()
+            // Return empty array if no components found
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str("[]");
+            result
         }
     }
 }
@@ -652,25 +706,39 @@ fn create_and_attach_component(actor_id: u64, component_class: &CxxString) -> u6
 
 /// Get a property from a component
 fn get_component_property(actor_id: u64, component_class: &CxxString, property_name: &CxxString) -> UniquePtr<CxxString> {
-    let component_class_str = component_class.to_str().unwrap_or("");
-    let property_name_str = property_name.to_str().unwrap_or("");
+    let component_class_str = component_class.to_string();
+    let property_name_str = property_name.to_string();
     
-    match object::get_component_property(actor_id, component_class_str, property_name_str) {
+    // Try to get the property from the component
+    match object::get_component_property(actor_id, &component_class_str, &property_name_str) {
         Ok(Some(value)) => {
             match property::serialize_property_value(&value) {
                 Ok(json) => {
-                    let mut result = cxx::let_cxx_string!(result = json);
-                    UniquePtr::new(result).unwrap()
+                    // Create a new CxxString with the JSON value
+                    let mut result = cxx::UniquePtr::new().unwrap();
+                    let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+                    pinned.push_str(&json);
+                    result
                 },
-                Err(_) => {
-                    let mut result = cxx::let_cxx_string!(result = "null");
-                    UniquePtr::new(result).unwrap()
+                Err(e) => {
+                    // Create a new CxxString with the error message
+                    let mut result = cxx::UniquePtr::new().unwrap();
+                    let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+                    pinned.push_str(&format!("Error serializing component property: {}", e));
+                    result
                 }
             }
         },
-        _ => {
-            let mut result = cxx::let_cxx_string!(result = "null");
-            UniquePtr::new(result).unwrap()
+        Ok(None) => {
+            // Return an empty string for properties that don't exist
+            cxx::UniquePtr::new().unwrap()
+        },
+        Err(e) => {
+            // Create a new CxxString with the error message
+            let mut result = cxx::UniquePtr::new().unwrap();
+            let mut pinned = std::pin::Pin::new(result.get_mut().unwrap());
+            pinned.push_str(&format!("Error getting component property: {}", e));
+            result
         }
     }
 }

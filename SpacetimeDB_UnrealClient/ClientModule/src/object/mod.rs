@@ -11,7 +11,7 @@ use stdb_shared::types::*;
 use stdb_shared::lifecycle::ObjectLifecycleState;
 use crate::property;
 use crate::net;
-use crate::class::{get_class, has_class, get_parent_class};
+use crate::class;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
@@ -271,8 +271,8 @@ pub fn create_object(class_name: &str, params: SpawnParams) -> Result<ObjectId, 
     let temp_object_id = generate_temp_object_id();
     
     // Check if this class is an actor class
-    let is_actor = crate::class::is_actor_class(
-        crate::class::get_class_id_by_name(class_name).unwrap_or(0)
+    let is_actor = class::is_actor_class(
+        class::get_class_id_by_name(class_name).unwrap_or(0)
     );
     
     // Pre-cache any initial properties in the staging cache
@@ -338,7 +338,7 @@ fn request_server_create_object(temp_id: ObjectId, class_name: &str, params: &Sp
         .map_err(|e| format!("Failed to serialize properties: {}", e))?;
     
     // Get class ID from name
-    let class_id = crate::class::get_class_id_by_name(class_name)
+    let class_id = class::get_class_id_by_name(class_name)
         .ok_or_else(|| format!("Unknown class: {}", class_name))?;
     
     // Call the appropriate server function to spawn the actor/object
@@ -359,7 +359,7 @@ fn request_server_create_object(temp_id: ObjectId, class_name: &str, params: &Sp
     });
     
     // Call the server spawn function (actor or regular object based on class)
-    if crate::class::is_actor_class(class_id) {
+    if class::is_actor_class(class_id) {
         crate::rpc::call_server_function(0, "spawn_actor", &args_json)?;
     } else {
         // For non-actor objects, use a different server function if available
@@ -475,11 +475,11 @@ fn request_server_destroy_object(object_id: ObjectId, class_name: &str) -> Resul
     }
     
     // Get class ID from name
-    let class_id = crate::class::get_class_id_by_name(class_name)
+    let class_id = class::get_class_id_by_name(class_name)
         .ok_or_else(|| format!("Unknown class: {}", class_name))?;
     
     // Choose the appropriate server function based on object type
-    let function_name = if crate::class::is_actor_class(class_id) {
+    let function_name = if class::is_actor_class(class_id) {
         "destroy_actor"
     } else {
         "destroy_object"
@@ -1005,8 +1005,8 @@ pub fn register_object(class_name: &str, params: &serde_json::Value) -> Result<O
     let object_id = generate_temp_object_id();
     
     // Check if this class is an actor class
-    let is_actor = crate::class::is_actor_class(
-        crate::class::get_class_id_by_name(class_name).unwrap_or(0)
+    let is_actor = class::is_actor_class(
+        class::get_class_id_by_name(class_name).unwrap_or(0)
     );
     
     // Extract initial properties from the params

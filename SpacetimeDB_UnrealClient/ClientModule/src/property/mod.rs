@@ -12,8 +12,8 @@ use stdb_shared::object::ObjectId;
 use stdb_shared::property::{PropertyType, PropertyValue, PropertyDefinition};
 use log::{debug, trace, warn};
 use serde_json::{Value, json};
-use spacetimedb_sdk::client_api_messages::TableUpdate;
-use spacetimedb_sdk::table::TableOp;
+use spacetimedb_sdk::messages::TableUpdate;
+use spacetimedb_sdk::messages::TableOp;
 
 // Import submodules
 pub mod serialization;

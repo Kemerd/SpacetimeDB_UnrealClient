@@ -10,17 +10,17 @@ use spacetimedb_sdk::{
     reducer::Status as ReducerStatus,
 };
 use spacetimedb_sdk::client as sdk_client;
-use spacetimedb_sdk::client_api_messages::TableUpdate;
-use spacetimedb_sdk::table::{TableOp, TableType};
-use spacetimedb_sdk::value::Value as StdbValue;
-use spacetimedb_sdk::disconnect::DisconnectReason;
+use spacetimedb_sdk::messages::TableUpdate;
+use spacetimedb_sdk::messages::TableOp;
+use spacetimedb_sdk::client::DisconnectReason;
+use spacetimedb_sdk::value::Value;
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::future::Future;
 use once_cell::sync::Lazy;
 use log::{info, debug, error, warn, trace};
-use serde_json::Value;
+use serde_json;
 
 // Global client state
 static CLIENT: Lazy<Mutex<Option<sdk_client::Client>>> = Lazy::new(|| Mutex::new(None));
@@ -109,14 +109,8 @@ pub fn connect(params: ConnectionParams) -> Result<(), String> {
     // Initialize default table handlers
     init_default_table_handlers();
     
-    // Build connection URL
-    let address_str = format!("{}/{}", params.host, params.database_name);
-    let address = match Address::from_hex(&address_str) {
-        Ok(addr) => addr,
-        Err(e) => {
-            return Err(format!("Invalid address: {}", e));
-        }
-    };
+    // Build connection URL and database address
+    let address = format!("{}/{}", params.host, params.database_name);
     
     // Build auth token if provided
     let identity = match &params.auth_token {
@@ -233,6 +227,11 @@ pub fn disconnect_from_server() -> bool {
     }
     
     true
+}
+
+/// Disconnect from the SpacetimeDB server (alias for disconnect_from_server)
+pub fn disconnect() -> bool {
+    disconnect_from_server()
 }
 
 /// Check if connected to the server
@@ -678,19 +677,19 @@ fn handle_object_instance_update(update: &TableUpdate) -> Result<(), String> {
                 if let Some(row_data) = &row.row {
                     // Extract object ID
                     let object_id = match row_data.get("id") {
-                        Some(StdbValue::U64(id)) => *id,
+                        Some(Value::U64(id)) => *id,
                         _ => return Err("Missing or invalid object ID".to_string()),
                     };
                     
                     // Extract class name
                     let class_name = match row_data.get("class_name") {
-                        Some(StdbValue::String(name)) => name.clone(),
+                        Some(Value::String(name)) => name.clone(),
                         _ => return Err("Missing or invalid class name".to_string()),
                     };
                     
                     // Extract lifecycle state
                     let state = match row_data.get("state") {
-                        Some(StdbValue::U8(state)) => *state,
+                        Some(Value::U8(state)) => *state,
                         _ => 0, // Default to 0 (Initializing) if not found
                     };
                     
@@ -712,7 +711,7 @@ fn handle_object_instance_update(update: &TableUpdate) -> Result<(), String> {
             TableOp::Delete => {
                 // Find the object ID and trigger destruction
                 if let Some(row_data) = &row.row {
-                    if let Some(StdbValue::U64(object_id)) = row_data.get("id") {
+                    if let Some(Value::U64(object_id)) = row_data.get("id") {
                         if let Some(handler) = &*ON_OBJECT_DESTROYED.lock().unwrap() {
                             handler(*object_id);
                         }
@@ -732,13 +731,13 @@ fn handle_object_property_update(update: &TableUpdate) -> Result<(), String> {
             if let Some(row_data) = &row.row {
                 // Extract object ID
                 let object_id = match row_data.get("object_id") {
-                    Some(StdbValue::U64(id)) => *id,
+                    Some(Value::U64(id)) => *id,
                     _ => return Err("Missing or invalid object ID".to_string()),
                 };
                 
                 // Extract property name
                 let property_name = match row_data.get("name") {
-                    Some(StdbValue::String(name)) => name.clone(),
+                    Some(Value::String(name)) => name.clone(),
                     _ => return Err("Missing or invalid property name".to_string()),
                 };
                 
@@ -766,7 +765,7 @@ fn handle_object_transform_update(update: &TableUpdate) -> Result<(), String> {
         if let Some(row_data) = &row.row {
             // Extract object ID
             let object_id = match row_data.get("object_id") {
-                Some(StdbValue::U64(id)) => *id,
+                Some(Value::U64(id)) => *id,
                 _ => continue,
             };
             
@@ -828,27 +827,27 @@ fn handle_property_definition_update(update: &TableUpdate) -> Result<(), String>
                 TableOp::Insert | TableOp::Update => {
                     // Extract fields from the row
                     let class_name = match row_data.get("class_name") {
-                        Some(StdbValue::String(s)) => s,
+                        Some(Value::String(s)) => s,
                         _ => continue,
                     };
                     
                     let prop_name = match row_data.get("property_name") {
-                        Some(StdbValue::String(s)) => s,
+                        Some(Value::String(s)) => s,
                         _ => continue,
                     };
                     
                     let prop_type_str = match row_data.get("property_type") {
-                        Some(StdbValue::String(s)) => s,
+                        Some(Value::String(s)) => s,
                         _ => continue,
                     };
                     
                     let replicated = match row_data.get("replicated") {
-                        Some(StdbValue::Bool(b)) => *b,
+                        Some(Value::Bool(b)) => *b,
                         _ => false,
                     };
                     
                     let readonly = match row_data.get("readonly") {
-                        Some(StdbValue::Bool(b)) => *b,
+                        Some(Value::Bool(b)) => *b,
                         _ => false,
                     };
                     
