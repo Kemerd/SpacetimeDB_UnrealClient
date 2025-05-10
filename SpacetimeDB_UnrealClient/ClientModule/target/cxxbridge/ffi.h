@@ -235,6 +235,10 @@ bool set_property(::std::uint64_t object_id, ::std::string const &property_name,
 
 bool dispatch_unreliable_rpc(::std::uint64_t object_id, ::std::string const &function_name, ::std::string const &params) noexcept;
 
+bool call_server_function(::std::uint64_t object_id, ::std::string const &function_name, ::std::string const &args_json) noexcept;
+
+bool register_client_function(::std::string const &function_name, ::std::size_t handler_ptr) noexcept;
+
 bool connect_to_server(::stdb::ffi::ConnectionConfig config, ::stdb::ffi::EventCallbackPointers callbacks) noexcept;
 
 bool disconnect_from_server() noexcept;
