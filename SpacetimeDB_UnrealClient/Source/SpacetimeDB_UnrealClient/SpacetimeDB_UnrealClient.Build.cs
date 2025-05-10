@@ -55,7 +55,7 @@ public class SpacetimeDB_UnrealClient : ModuleRules
                     "ntdll.lib",
                     "userenv.lib",
                     "bcrypt.lib",
-                    "msvcrt.lib"  // Add MSVC runtime library explicitly
+                    // "msvcrt.lib"  // Add MSVC runtime library explicitly, unnecessary for now
                 }
             );
 
@@ -66,7 +66,7 @@ public class SpacetimeDB_UnrealClient : ModuleRules
             CppStandard = CppStandardVersion.Cpp20;
             
             // For better compatibility with different C++ STL implementations
-            bUseRTTI = true;
+            // bUseRTTI = true;
             bEnableExceptions = true;
         }
         
