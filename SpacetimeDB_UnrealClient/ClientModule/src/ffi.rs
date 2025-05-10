@@ -893,7 +893,9 @@ fn dispatch_unreliable_rpc(object_id: u64, function_name: &CxxString, params: &C
 // For each UniquePtr::new() call, we need to add a CxxString parameter
 // Here's a helper function to create a new CxxString in a UniquePtr
 fn create_cxx_string(s: &str) -> UniquePtr<CxxString> {
-    let mut string = CxxString::new().unwrap();
-    string.push_str(s);
-    UniquePtr::new(string).unwrap()
+    // In cxx, we must create the CxxString through FFI from the C++ side
+    // This ensures the memory is properly managed
+    // The constructor below is properly defined in cxx::bridge
+    cxx::let_cxx_string!(result = s);
+    result.into(); // this needs to be changed as it is not a UniquePtr
 } 

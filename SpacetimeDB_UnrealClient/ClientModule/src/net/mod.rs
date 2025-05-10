@@ -4,24 +4,17 @@
 //! and message passing.
 
 use stdb_shared::object::ObjectId;
-use stdb_shared::connection::{ConnectionState, ConnectionParams, ClientConnection, DisconnectReason as SharedDisconnectReason};
+use stdb_shared::connection::{ConnectionState, ConnectionParams, DisconnectReason as SharedDisconnectReason};
 
 // Update to match current SDK structure
-use spacetimedb::{
-    Identity, ConnectionId,
-    ReducerContext, DbContext,
-};
-// Replace the invalid Error import with std::error::Error
-use std::error::Error as StdError;
+use spacetimedb;
 
 // Use our custom TableUpdate from the property module
-use crate::property::{TableUpdate, TableOp};
+use crate::property::TableUpdate;
 
 use std::sync::Mutex;
-use std::collections::HashMap;
 use once_cell::sync::Lazy;
-use log::{info, debug, error, warn, trace};
-use serde_json;
+use log::{info, debug, error};
 
 // Global client state
 static CLIENT_STATE: Lazy<Mutex<ConnectionState>> = Lazy::new(|| Mutex::new(ConnectionState::Disconnected));
@@ -67,7 +60,7 @@ pub fn register_table_handler(
 }
 
 /// Connect to the SpacetimeDB server
-pub fn connect(params: ConnectionParams) -> Result<(), String> {
+pub fn connect(_params: ConnectionParams) -> Result<(), String> {
     // Already connected or connecting
     {
         let state = *CLIENT_STATE.lock().unwrap();
@@ -189,9 +182,9 @@ pub fn set_event_handlers(
 /// Convert from SDK DisconnectReason to our shared DisconnectReason
 fn convert_disconnect_reason(reason: String) -> SharedDisconnectReason {
     match reason.as_str() {
-        "ClosedByClient" => SharedDisconnectReason::ClosedByClient,
-        "ClosedByServer" => SharedDisconnectReason::ClosedByServer,
-        "ConnectionError" => SharedDisconnectReason::ConnectionError,
+        "ClosedByClient" => SharedDisconnectReason::ClientRequest,
+        "ClosedByServer" => SharedDisconnectReason::ServerShutdown,
+        "ConnectionError" => SharedDisconnectReason::NetworkError(reason),
         "Timeout" => SharedDisconnectReason::Timeout,
         _ => SharedDisconnectReason::Unknown,
     }
@@ -218,19 +211,19 @@ pub fn process_table_update(update: &TableUpdate) -> Result<(), String> {
 }
 
 /// Handle an object instance update
-fn handle_object_instance_update(update: &TableUpdate) -> Result<(), String> {
+fn handle_object_instance_update(_update: &TableUpdate) -> Result<(), String> {
     // Implementation stub - would process object instance updates
     Ok(())
 }
 
 /// Handle an object property update
-fn handle_object_property_update(update: &TableUpdate) -> Result<(), String> {
+fn handle_object_property_update(_update: &TableUpdate) -> Result<(), String> {
     // Implementation stub - would process property updates
     Ok(())
 }
 
 /// Handle an object transform update
-fn handle_object_transform_update(update: &TableUpdate) -> Result<(), String> {
+fn handle_object_transform_update(_update: &TableUpdate) -> Result<(), String> {
     // Implementation stub - would process transform updates
     Ok(())
 }

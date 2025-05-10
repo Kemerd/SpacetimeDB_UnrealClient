@@ -246,7 +246,7 @@ pub fn handle_property_definition_update(update: &TableUpdate) -> Result<(), Str
                     let property_type = parse_property_type(&property_type_str)?;
                     
                     let replicated = match row_data.get("replicated") {
-                        Some(Value::Bool(b)) => b,
+                        Some(Value::Bool(b)) => *b,
                         _ => false,
                     };
                     
@@ -258,7 +258,7 @@ pub fn handle_property_definition_update(update: &TableUpdate) -> Result<(), Str
                     let replication_condition = parse_replication_condition(&replication_condition_str)?;
                     
                     let readonly = match row_data.get("readonly") {
-                        Some(Value::Bool(b)) => b,
+                        Some(Value::Bool(b)) => *b,
                         _ => false,
                     };
                     
@@ -271,9 +271,9 @@ pub fn handle_property_definition_update(update: &TableUpdate) -> Result<(), Str
                     let definition = PropertyDefinition {
                         name: property_name.to_string(),
                         property_type,
-                        replicated: *replicated,
+                        replicated,
                         replication_condition,
-                        readonly: *readonly,
+                        readonly,
                         flags,
                     };
                     
@@ -320,27 +320,27 @@ pub fn handle_property_definition_update(update: &TableUpdate) -> Result<(), Str
 /// Parse property type from string
 fn parse_property_type(type_str: &str) -> Result<PropertyType, String> {
     match type_str {
-        "Boolean" => Ok(PropertyType::Boolean),
-        "Integer" => Ok(PropertyType::Integer),
+        "Boolean" | "Bool" => Ok(PropertyType::Bool),
+        "Integer" | "Int32" => Ok(PropertyType::Int32),
         "Float" => Ok(PropertyType::Float),
         "String" => Ok(PropertyType::String),
         "Vector" => Ok(PropertyType::Vector),
         "Rotator" => Ok(PropertyType::Rotator),
         "Transform" => Ok(PropertyType::Transform),
         "Color" => Ok(PropertyType::Color),
-        "DateTime" => Ok(PropertyType::DateTime),
-        "Object" => Ok(PropertyType::Object),
+        "DateTime" | "Date" => Ok(PropertyType::Name), // Map to Name as a fallback
+        "Object" | "ObjectReference" => Ok(PropertyType::ObjectReference),
         "Array" => Ok(PropertyType::Array),
         "Map" => Ok(PropertyType::Map),
         "Set" => Ok(PropertyType::Set),
-        "Binary" => Ok(PropertyType::Binary),
+        "Binary" => Ok(PropertyType::Custom), // Map to Custom as a fallback
         _ => Err(format!("Unknown property type: {}", type_str)),
     }
 }
 
 /// Parse replication condition from string
 fn parse_replication_condition(condition_str: &str) -> Result<stdb_shared::property::ReplicationCondition, String> {
-    match condition_str.as_str() {
+    match condition_str {
         "Initial" => Ok(stdb_shared::property::ReplicationCondition::Initial),
         "OnChange" => Ok(stdb_shared::property::ReplicationCondition::OnChange),
         "Always" => Ok(stdb_shared::property::ReplicationCondition::Always),
