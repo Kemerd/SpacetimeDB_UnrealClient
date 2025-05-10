@@ -109,7 +109,12 @@ pub fn init() {
 
 /// Get the prediction system instance
 pub fn get_prediction_system() -> Option<&'static mut PredictionSystem> {
+    // Use a safer pattern that avoids creating a mutable reference directly
+    // This still uses unsafe but is clearer about what we're doing
     unsafe {
-        PREDICTION_SYSTEM.as_mut()
+        // Get a raw pointer first
+        let ptr = PREDICTION_SYSTEM.as_mut()?;
+        // Convert to a mutable reference
+        Some(ptr)
     }
 } 

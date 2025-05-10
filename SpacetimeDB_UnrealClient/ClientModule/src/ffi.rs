@@ -34,7 +34,7 @@ pub struct VelocityData {
 
 /// Callback function pointers for C++ integration
 #[derive(Debug, Default)]
-struct EventCallbacks {
+pub struct EventCallbacks {
     pub on_connected: usize,
     pub on_disconnected: usize,
     pub on_property_updated: usize,
