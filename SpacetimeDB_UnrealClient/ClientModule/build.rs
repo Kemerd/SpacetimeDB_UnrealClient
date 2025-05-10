@@ -3,11 +3,19 @@ fn main() {
     let cpp_src_dir = "cpp_src";
     
     // Build the C++ bridge code
-    cxx_build::bridge("src/ffi.rs")
-        // Add C++ standard
-        .flag_if_supported("-std=c++17")
-        // Add our own include directory with simplified headers
-        .include(cpp_src_dir)
+    let mut build = cxx_build::bridge("src/ffi.rs");
+    
+    // Add C++ standard based on platform
+    if cfg!(target_os = "windows") {
+        // For MSVC compiler on Windows
+        build.flag("/std:c++17");
+    } else {
+        // For other platforms
+        build.flag_if_supported("-std=c++17");
+    }
+    
+    // Add our own include directory with simplified headers
+    build.include(cpp_src_dir)
         // Add include directories if needed
         // .include("cpp/include")
         // Compile C++ files if any

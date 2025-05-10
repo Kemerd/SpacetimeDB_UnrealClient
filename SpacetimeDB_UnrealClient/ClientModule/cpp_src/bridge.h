@@ -6,6 +6,8 @@
 #include <string>
 #include <memory>
 
+namespace stdb::ffi {
+
 /**
  * @file bridge.h
  * @brief Helper functions for the cxx FFI bridge between Rust and C++.
@@ -20,3 +22,4 @@ inline std::unique_ptr<std::string> make_unique_string(rust::Str s) {
     return std::make_unique<std::string>(s.data(), s.size());
 }
 
+} // namespace stdb::ffi

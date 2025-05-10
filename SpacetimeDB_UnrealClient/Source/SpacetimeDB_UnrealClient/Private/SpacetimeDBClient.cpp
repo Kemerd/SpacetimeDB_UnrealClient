@@ -152,7 +152,7 @@ bool FSpacetimeDBClient::Disconnect()
     }
     
     // Call the FFI function and capture the result
-    bool bResult = stdb::ffi::disconnect_from_server();
+    bool bResult = stdb::ffi::disconnet_from_server();
     
     if (!bResult)
     {

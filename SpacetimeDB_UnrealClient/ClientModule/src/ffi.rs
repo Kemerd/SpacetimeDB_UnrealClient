@@ -124,7 +124,7 @@ fn invoke_on_error(cb_ptr: usize, error_message: &str) {
 
 // --- FFI Bridge Definition ---
 // This section uses `cxx::bridge` to define the interface between Rust and C++.
-#[cxx::bridge]
+#[cxx::bridge(namespace = "stdb::ffi")]
 mod ffi {
     // External C++ types
     unsafe extern "C++" {

@@ -151,32 +151,38 @@ private:
 #define CXX_DEFAULT_VALUE(value)
 #endif
 
-enum class ConnectionState : ::std::uint8_t;
-enum class ReplicationCondition : ::std::uint8_t;
-struct ConnectionConfig;
-struct EventCallbackPointers;
+namespace stdb {
+  namespace ffi {
+    enum class ConnectionState : ::std::uint8_t;
+    enum class ReplicationCondition : ::std::uint8_t;
+    struct ConnectionConfig;
+    struct EventCallbackPointers;
+  }
+}
 
-#ifndef CXXBRIDGE1_ENUM_ConnectionState
-#define CXXBRIDGE1_ENUM_ConnectionState
+namespace stdb {
+namespace ffi {
+#ifndef CXXBRIDGE1_ENUM_stdb$ffi$ConnectionState
+#define CXXBRIDGE1_ENUM_stdb$ffi$ConnectionState
 enum class ConnectionState : ::std::uint8_t {
   Disconnected = 0,
   Connecting = 1,
   Connected = 2,
 };
-#endif // CXXBRIDGE1_ENUM_ConnectionState
+#endif // CXXBRIDGE1_ENUM_stdb$ffi$ConnectionState
 
-#ifndef CXXBRIDGE1_ENUM_ReplicationCondition
-#define CXXBRIDGE1_ENUM_ReplicationCondition
+#ifndef CXXBRIDGE1_ENUM_stdb$ffi$ReplicationCondition
+#define CXXBRIDGE1_ENUM_stdb$ffi$ReplicationCondition
 enum class ReplicationCondition : ::std::uint8_t {
   Never = 0,
   OnChange = 1,
   Initial = 2,
   Always = 3,
 };
-#endif // CXXBRIDGE1_ENUM_ReplicationCondition
+#endif // CXXBRIDGE1_ENUM_stdb$ffi$ReplicationCondition
 
-#ifndef CXXBRIDGE1_STRUCT_ConnectionConfig
-#define CXXBRIDGE1_STRUCT_ConnectionConfig
+#ifndef CXXBRIDGE1_STRUCT_stdb$ffi$ConnectionConfig
+#define CXXBRIDGE1_STRUCT_stdb$ffi$ConnectionConfig
 struct ConnectionConfig final {
   ::rust::String host;
   ::rust::String db_name;
@@ -184,10 +190,10 @@ struct ConnectionConfig final {
 
   using IsRelocatable = ::std::true_type;
 };
-#endif // CXXBRIDGE1_STRUCT_ConnectionConfig
+#endif // CXXBRIDGE1_STRUCT_stdb$ffi$ConnectionConfig
 
-#ifndef CXXBRIDGE1_STRUCT_EventCallbackPointers
-#define CXXBRIDGE1_STRUCT_EventCallbackPointers
+#ifndef CXXBRIDGE1_STRUCT_stdb$ffi$EventCallbackPointers
+#define CXXBRIDGE1_STRUCT_stdb$ffi$EventCallbackPointers
 struct EventCallbackPointers final {
   ::std::size_t on_connected CXX_DEFAULT_VALUE(0);
   ::std::size_t on_disconnected CXX_DEFAULT_VALUE(0);
@@ -199,11 +205,11 @@ struct EventCallbackPointers final {
 
   using IsRelocatable = ::std::true_type;
 };
-#endif // CXXBRIDGE1_STRUCT_EventCallbackPointers
+#endif // CXXBRIDGE1_STRUCT_stdb$ffi$EventCallbackPointers
 
 bool create_class(::std::string const &class_name, ::std::string const &parent_class_name) noexcept;
 
-bool add_property(::std::string const &class_name, ::std::string const &property_name, ::std::string const &type_name, bool replicated, ::ReplicationCondition replication_condition, bool readonly, ::std::uint32_t flags) noexcept;
+bool add_property(::std::string const &class_name, ::std::string const &property_name, ::std::string const &type_name, bool replicated, ::stdb::ffi::ReplicationCondition replication_condition, bool readonly, ::std::uint32_t flags) noexcept;
 
 ::std::unique_ptr<::std::string> get_property_definition(::std::string const &class_name, ::std::string const &property_name) noexcept;
 
@@ -225,8 +231,10 @@ bool set_property(::std::uint64_t object_id, ::std::string const &property_name,
 
 bool dispatch_unreliable_rpc(::std::uint64_t object_id, ::std::string const &function_name, ::std::string const &params) noexcept;
 
-bool connect_to_server(::ConnectionConfig config, ::EventCallbackPointers callbacks) noexcept;
+bool connect_to_server(::stdb::ffi::ConnectionConfig config, ::stdb::ffi::EventCallbackPointers callbacks) noexcept;
 
 bool disconnect_from_server() noexcept;
 
 bool is_connected() noexcept;
+} // namespace ffi
+} // namespace stdb
